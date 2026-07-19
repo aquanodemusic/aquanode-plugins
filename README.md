@@ -12,6 +12,8 @@ Thanks to the following blogs and youtubers who have featured the plugins (and t
 
 [Amner Hunter](https://www.youtube.com/watch?v=Q7LC3gFO1po) - [AnDerington](https://www.youtube.com/watch?v=0AudEeWqcZc) - [Elektronick Musick](https://www.youtube.com/watch?v=ikbNZDqRFJI) - [FreeVSTPlugins](https://www.youtube.com/watch?v=MgVobyCye6U) - [satyatunes](https://youtu.be/oBMQZzlP8Zo?si=tsx4nwl7jkHXJz2E&t=921) - [LightningPigTV](https://youtu.be/1R3FzizMVis)
 
+If you want to support me, which I'd highly appreciate but you don't have to, then feel free to leave me a tip for my music on aquanode.bandcamp.com (my songs are all free too :)!
+
 # Downloads:
 All builds (standalone .exe and .vst3) are on the [Releases](../../releases) page. 
 For the source code and manuals: https://github.com/aquanodemusic/aquanode-plugins/archive/refs/heads/main.zip
