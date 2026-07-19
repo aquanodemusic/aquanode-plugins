@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Sanfte Wellen</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* zarter diagonaler Verlauf */
+    background: linear-gradient(
+      225deg,
+      #ffffff 0%,
+      #ffffff 40%,
+      #f3f6f4 100%
+    );
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ---- Waves ----
+const waves = [];
+for (let i = 0; i < 6; i++) {
+  waves.push({
+    amp: 18 + i * 10,
+    length: 180 + i * 120,
+    speed: 0.0008 + i * 0.0003,
+    offset: Math.random() * 1000,
+    y: canvas.height * 0.4 + i * 35,
+    color: `rgba(60, 130, 255, ${0.18 + i * 0.08})`
+  });
+}
+
+// ---- Foam ----
+const foam = [];
+for (let i = 0; i < 140; i++) {
+  foam.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 2 + 0.5,
+    vx: Math.random() * 0.6 + 0.2,
+    vy: Math.random() * 0.3 - 0.15,
+    life: Math.random() * 180 + 80
+  });
+}
+
+let time = 0;
+
+function drawWaves() {
+  waves.forEach(w => {
+    ctx.beginPath();
+    for (let x = 0; x <= canvas.width; x += 8) {
+      const y =
+        w.y +
+        Math.sin(x / w.length + time * w.speed + w.offset) * w.amp;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = w.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+}
+
+function drawFoam() {
+  foam.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(200, 220, 255, 0.8)";
+    ctx.fill();
+
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+
+    if (p.x > canvas.width) p.x = -10;
+    if (p.y < 0) p.y = canvas.height;
+    if (p.y > canvas.height) p.y = 0;
+
+    if (p.life <= 0) {
+      p.x = Math.random() * canvas.width;
+      p.y = canvas.height * 0.35 + Math.random() * canvas.height * 0.3;
+      p.life = Math.random() * 180 + 80;
+    }
+  });
+}
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawWaves();
+  drawFoam();
+  time += 1.6;
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>

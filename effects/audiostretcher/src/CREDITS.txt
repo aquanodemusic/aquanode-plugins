@@ -1,0 +1,9 @@
+AudioStretcher VST Plugin
+   
+   This software uses RubberBand Audio Time Stretcher
+   Copyright (C) Breakfast Quay Ltd
+   https://breakfastquay.com/rubberband/
+   Licensed under GPL v2
+   
+   Plugin code by Aquanode written with the help of Claude Sonnet 4.5 AI
+   Licensed under GPL v2

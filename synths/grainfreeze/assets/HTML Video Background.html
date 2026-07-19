@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Frutiger Aero Sinus Background</title>
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+
+    /* zentraler cyan-weißer Verlauf */
+    background: radial-gradient(
+        ellipse at center,
+        #ffffff 0%,
+        #eaffff 18%,
+        #bff6ff 35%,
+        #7fdcff 55%,
+        #4bb8ff 75%,
+        #2a8cff 100%
+    );
+}
+
+canvas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+
+    /* Aero-Glow */
+    filter:
+        drop-shadow(0 0 20px rgba(150,255,255,0.7))
+        drop-shadow(0 0 50px rgba(120,200,255,0.6))
+        blur(0.4px);
+}
+
+/* extra Glow / Bloom Layer */
+.glow {
+    position: absolute;
+    inset: -30%;
+    background:
+        radial-gradient(circle at 50% 35%, rgba(255,255,255,0.65), transparent 55%),
+        radial-gradient(circle at 25% 60%, rgba(0,255,255,0.35), transparent 55%),
+        radial-gradient(circle at 75% 65%, rgba(120,180,255,0.35), transparent 55%);
+    filter: blur(70px);
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+<canvas id="waves"></canvas>
+<div class="glow"></div>
+
+<script>
+const canvas = document.getElementById("waves");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+let t = 0;
+
+/* einzelne Sinuswelle */
+function drawWave(xBase, dir, phase, speed, amp, hue, alpha) {
+    ctx.beginPath();
+    ctx.moveTo(xBase, 0);
+
+    for (let y = 0; y <= canvas.height; y += 3) {
+        const wave =
+            Math.sin(y * 0.014 + t * speed + phase) * amp +
+            Math.sin(y * 0.045 + t * speed * 0.7) * (amp * 0.35);
+
+        ctx.lineTo(xBase + wave * dir, y);
+    }
+
+    const grad = ctx.createLinearGradient(
+        xBase, 0,
+        xBase + dir * 180, 0
+    );
+    grad.addColorStop(0, `hsla(${hue}, 95%, 78%, ${alpha})`);
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.3;
+    ctx.shadowBlur = 28;
+    ctx.shadowColor = `hsla(${hue}, 100%, 82%, 0.9)`;
+    ctx.stroke();
+}
+
+/* viele Wellen pro Seite */
+function drawSide(x, dir, baseHue) {
+    const layers = 12; // VIELE WELLEN
+    for (let i = 0; i < layers; i++) {
+        drawWave(
+            x + i * 14 * dir,
+            dir,
+            i * 0.6,
+            0.25 + i * 0.07,
+            16 + i * 3,
+            baseHue + i * 7,
+            0.85 - i * 0.045
+        );
+    }
+}
+
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // links & rechts
+    drawSide(40, 1, 185);
+    drawSide(canvas.width - 40, -1, 205);
+
+    t += 0.008; // smooth & ruhig
+    requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+
+</body>
+</html>

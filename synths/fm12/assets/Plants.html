@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Brown Forest with Drifting Spores</title>
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #3a2618;
+}
+
+/* ================= SCENE ================= */
+.scene {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background:
+        radial-gradient(circle at 50% 90%, #6d4c41 0%, transparent 55%),
+        radial-gradient(circle at 20% 30%, #5d4037 0%, transparent 45%),
+        radial-gradient(circle at 80% 40%, #4e342e 0%, transparent 50%),
+        linear-gradient(
+            180deg,
+            #7a5230 0%,
+            #5d4037 40%,
+            #4e342e 70%,
+            #3a2618 100%
+        );
+    overflow: hidden;
+}
+
+/* ================= SPORES ================= */
+.spores {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.spore {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: radial-gradient(circle, #e6ff9a 0%, #9ccc65 40%, transparent 70%);
+    border-radius: 50%;
+    opacity: 0.6;
+    filter: blur(1px);
+    animation: drift linear infinite;
+}
+
+/* random-ish variations */
+.spore:nth-child(odd) { width: 4px; height: 4px; opacity: 0.45; }
+.spore:nth-child(3n) { width: 8px; height: 8px; opacity: 0.7; }
+
+@keyframes drift {
+    from {
+        transform: translateY(0) translateX(0);
+        opacity: 0;
+    }
+    10% { opacity: 0.6; }
+    to {
+        transform: translateY(-120vh) translateX(60px);
+        opacity: 0;
+    }
+}
+
+/* ================= VINES ================= */
+.spirals-container {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+/* ================= LEAVES ================= */
+.leaf {
+    position: absolute;
+    border-radius: 0 100% 0 100%;
+    background: linear-gradient(
+        135deg,
+        #f1f8e9 0%,
+        #81c784 30%,
+        #388e3c 65%,
+        #1b5e20 100%
+    );
+    box-shadow:
+        inset 4px 4px 14px rgba(255,255,255,0.6),
+        10px 10px 28px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.35);
+    backdrop-filter: blur(4px);
+    transform-origin: center;
+    animation: leafFloat 6s ease-in-out infinite;
+    z-index: 10;
+}
+
+.leaf-1 {
+    width: 600px;
+    height: 600px;
+    bottom: -120px;
+    left: -180px;
+    transform: rotate(-45deg);
+}
+
+.leaf-2 {
+    width: 500px;
+    height: 500px;
+    bottom: 120px;
+    left: -120px;
+    opacity: 0.85;
+    animation-duration: 8s;
+}
+
+.leaf-3 {
+    width: 220px;
+    height: 220px;
+    bottom: -60px;
+    left: 320px;
+    opacity: 0.9;
+    animation-duration: 5s;
+}
+
+/* ================= MOTION LIGHT ================= */
+.motion-blur {
+    position: absolute;
+    right: -60px;
+    top: 45%;
+    width: 420px;
+    height: 300px;
+    transform: skewX(-20deg) rotate(-10deg);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    z-index: 5;
+}
+
+.blur-line {
+    height: 22px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(200,255,200,0.65),
+        transparent
+    );
+    filter: blur(10px);
+    border-radius: 20px;
+}
+
+/* ================= RIPPLES ================= */
+.ripple {
+    position: absolute;
+    bottom: -12%;
+    left: 50%;
+    transform: translateX(-50%) scaleY(0.35);
+    width: 100%;
+    height: 420px;
+    border-radius: 50%;
+    border: 2px solid rgba(180,255,180,0.15);
+    box-shadow: 0 0 30px rgba(120,255,120,0.15);
+    z-index: 3;
+}
+
+.ripple:nth-child(2) {
+    width: 130%;
+    height: 520px;
+    bottom: -18%;
+    opacity: 0.5;
+}
+
+/* ================= ANIMATIONS ================= */
+@keyframes leafFloat {
+    0%, 100% { transform: translateY(0) rotate(-45deg); }
+    50% { transform: translateY(-22px) rotate(-43deg); }
+}
+</style>
+</head>
+
+<body>
+
+<div class="scene">
+
+<!-- ===== SPORES ===== -->
+<div class="spores">
+    <!-- You can duplicate these for more density -->
+    <div class="spore" style="left:10%; animation-duration: 18s;"></div>
+    <div class="spore" style="left:20%; animation-duration: 22s;"></div>
+    <div class="spore" style="left:35%; animation-duration: 20s;"></div>
+    <div class="spore" style="left:50%; animation-duration: 24s;"></div>
+    <div class="spore" style="left:65%; animation-duration: 19s;"></div>
+    <div class="spore" style="left:75%; animation-duration: 26s;"></div>
+    <div class="spore" style="left:85%; animation-duration: 21s;"></div>
+</div>
+
+<!-- ===== VINES ===== -->
+<svg class="spirals-container" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
+<defs>
+    <linearGradient id="vineGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+        <stop offset="0%" stop-color="#4e342e"/>
+        <stop offset="60%" stop-color="#689f38"/>
+        <stop offset="100%" stop-color="#dcedc8"/>
+    </linearGradient>
+
+    <filter id="softGlow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+    </filter>
+</defs>
+
+<g transform="translate(140,950)">
+    <path d="M0,0 C -40,-180 50,-340 -20,-520 C -70,-720 30,-850 0,-980"
+          fill="none"
+          stroke="url(#vineGrad)"
+          stroke-width="12"
+          stroke-linecap="round"
+          filter="url(#softGlow)">
+        <animateTransform attributeName="transform" type="rotate"
+            from="-1 0 0" to="1 0 0" dur="6s" repeatCount="indefinite"/>
+    </path>
+</g>
+
+<g transform="translate(860,950)">
+    <path d="M0,0 C 50,-220 -40,-380 20,-580 C 80,-760 -30,-880 0,-1000"
+          fill="none"
+          stroke="url(#vineGrad)"
+          stroke-width="9"
+          stroke-linecap="round"
+          opacity="0.85">
+        <animateTransform attributeName="transform" type="rotate"
+            from="1 0 0" to="-1 0 0" dur="7s" repeatCount="indefinite"/>
+    </path>
+</g>
+</svg>
+
+<div class="ripple"></div>
+<div class="ripple"></div>
+
+<div class="motion-blur">
+    <div class="blur-line"></div>
+    <div class="blur-line"></div>
+    <div class="blur-line"></div>
+</div>
+
+<div class="leaf leaf-2"></div>
+<div class="leaf leaf-1"></div>
+<div class="leaf leaf-3"></div>
+
+</div>
+
+</body>
+</html>

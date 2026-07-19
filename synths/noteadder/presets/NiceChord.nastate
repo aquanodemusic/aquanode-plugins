@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<NoteAdderPreset>
+  <Manual>
+    <Row enabled="1" semi="-1" oct="0"/>
+    <Row enabled="1" semi="4" oct="0"/>
+    <Row enabled="1" semi="-5" oct="0"/>
+    <Row enabled="1" semi="-3" oct="-1"/>
+    <Row enabled="1" semi="-3" oct="-2"/>
+    <Row enabled="0" semi="0" oct="0"/>
+    <Row enabled="0" semi="0" oct="0"/>
+  </Manual>
+  <Scale root="0" scale="3" count="3" harmonicMode="1" discard="0" discardInput="0"
+         randomSkip="0" lockBass="0" invMode="1" invPicker="1"/>
+  <AnimationScale mode="0" syncBPM="1" rate="3" rateFree="200.0" wanderProb="4"
+                  wanderMax="2" cloudDensity="1" cloudSpread="3" cloudVelMin="1"
+                  cloudVelMax="4" cloudDecay="200.0"/>
+  <AnimationManual mode="0" syncBPM="1" rate="3" rateFree="200.0" cloudDensity="1"
+                   cloudOctave="1" cloudVelMin="1" cloudVelMax="4" cloudDecay="200.0"/>
+  <NoteColors pc0="16725815" pc1="16746255" pc2="15127040" pc3="7921940" pc4="2019920"
+              pc5="51375" pc6="42495" pc7="1660415" pc8="6890495" pc9="11796735"
+              pc10="15073435" pc11="16711755"/>
+</NoteAdderPreset>

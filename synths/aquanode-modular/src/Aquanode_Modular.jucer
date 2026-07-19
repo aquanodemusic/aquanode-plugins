@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="GZWYPf" name="Aquanode Modular" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="2.3"
+              companyName="aquanodemusic" companyCopyright="none" companyEmail="node.aqua@gmail.com"
+              pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn">
+  <MAINGROUP id="m2RO6u" name="Aquanode Modular">
+    <GROUP id="{1BA03396-3FC6-F2B0-5D38-8BF1327C7E18}" name="Source">
+      <FILE id="D4BlY0" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="TmqINC" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
+      <FILE id="Uy66Bg" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="pg6vbu" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+    </GROUP>
+    <GROUP id="{8997C715-FA54-DCDC-1266-75DFE96E139A}" name="Modules">
+      <FILE id="cp98ne" name="ADSRModule.cpp" compile="1" resource="0" file="Source/Modules/ADSRModule.cpp"/>
+      <FILE id="paZ7mt" name="ADSRModule.h" compile="0" resource="0" file="Source/Modules/ADSRModule.h"/>
+      <FILE id="wK0nbJ" name="AudioInModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AudioInModule.cpp"/>
+      <FILE id="da2J4u" name="AudioInModule.h" compile="0" resource="0" file="Source/Modules/AudioInModule.h"/>
+      <FILE id="Zo8JQA" name="AudioOutModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AudioOutModule.cpp"/>
+      <FILE id="eZXdd3" name="AudioOutModule.h" compile="0" resource="0"
+            file="Source/Modules/AudioOutModule.h"/>
+      <FILE id="E1kXJO" name="ChorusModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ChorusModule.cpp"/>
+      <FILE id="eVN40O" name="ChorusModule.h" compile="0" resource="0" file="Source/Modules/ChorusModule.h"/>
+      <FILE id="FIgH2V" name="DelayModule.cpp" compile="1" resource="0" file="Source/Modules/DelayModule.cpp"/>
+      <FILE id="UaTqLz" name="DelayModule.h" compile="0" resource="0" file="Source/Modules/DelayModule.h"/>
+      <FILE id="pjJ7JU" name="FlangerModule.cpp" compile="1" resource="0"
+            file="Source/Modules/FlangerModule.cpp"/>
+      <FILE id="DEmX9t" name="FlangerModule.h" compile="0" resource="0" file="Source/Modules/FlangerModule.h"/>
+      <FILE id="RwaQbI" name="LadderFilterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/LadderFilterModule.cpp"/>
+      <FILE id="vvFEGQ" name="LadderFilterModule.h" compile="0" resource="0"
+            file="Source/Modules/LadderFilterModule.h"/>
+      <FILE id="ObBQro" name="LFOModule.cpp" compile="1" resource="0" file="Source/Modules/LFOModule.cpp"/>
+      <FILE id="Atv1dA" name="LFOModule.h" compile="0" resource="0" file="Source/Modules/LFOModule.h"/>
+      <FILE id="AzkRDX" name="ModuleCore.cpp" compile="1" resource="0" file="Source/Modules/ModuleCore.cpp"/>
+      <FILE id="aqreg1cpp" name="ModuleRegistry.cpp" compile="1" resource="0"
+            file="Source/Modules/ModuleRegistry.cpp"/>
+      <FILE id="aqn0c" name="GranulateModule.cpp" compile="1" resource="0"
+            file="Source/Modules/GranulateModule.cpp"/>
+      <FILE id="aqn0h" name="GranulateModule.h" compile="0" resource="0"
+            file="Source/Modules/GranulateModule.h"/>
+      <FILE id="aqn1c" name="ADelaySRModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ADelaySRModule.cpp"/>
+      <FILE id="aqn1h" name="ADelaySRModule.h" compile="0" resource="0" file="Source/Modules/ADelaySRModule.h"/>
+      <FILE id="aqn2c" name="AquatonReverbModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AquatonReverbModule.cpp"/>
+      <FILE id="aqn2h" name="AquatonReverbModule.h" compile="0" resource="0"
+            file="Source/Modules/AquatonReverbModule.h"/>
+      <FILE id="aqn3c" name="SpringerModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpringerModule.cpp"/>
+      <FILE id="aqn3h" name="SpringerModule.h" compile="0" resource="0" file="Source/Modules/SpringerModule.h"/>
+      <FILE id="aqn4c" name="LiquidChorModule.cpp" compile="1" resource="0"
+            file="Source/Modules/LiquidChorModule.cpp"/>
+      <FILE id="aqn4h" name="LiquidChorModule.h" compile="0" resource="0"
+            file="Source/Modules/LiquidChorModule.h"/>
+      <FILE id="aqn5c" name="ResonateModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ResonateModule.cpp"/>
+      <FILE id="aqn5h" name="ResonateModule.h" compile="0" resource="0" file="Source/Modules/ResonateModule.h"/>
+      <FILE id="aqn6c" name="CenterCombModule.cpp" compile="1" resource="0"
+            file="Source/Modules/CenterCombModule.cpp"/>
+      <FILE id="aqn6h" name="CenterCombModule.h" compile="0" resource="0"
+            file="Source/Modules/CenterCombModule.h"/>
+      <FILE id="aqn7c" name="PrecisionUtilityModule.cpp" compile="1" resource="0"
+            file="Source/Modules/PrecisionUtilityModule.cpp"/>
+      <FILE id="aqn7h" name="PrecisionUtilityModule.h" compile="0" resource="0"
+            file="Source/Modules/PrecisionUtilityModule.h"/>
+      <FILE id="aqg0c" name="KeyTrackModule.cpp" compile="1" resource="0"
+            file="Source/Modules/KeyTrackModule.cpp"/>
+      <FILE id="aqg0h" name="KeyTrackModule.h" compile="0" resource="0" file="Source/Modules/KeyTrackModule.h"/>
+      <FILE id="aqg1c" name="VelocityModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VelocityModule.cpp"/>
+      <FILE id="aqg1h" name="VelocityModule.h" compile="0" resource="0" file="Source/Modules/VelocityModule.h"/>
+      <FILE id="aqg2c" name="GateModule.cpp" compile="1" resource="0" file="Source/Modules/GateModule.cpp"/>
+      <FILE id="aqg2h" name="GateModule.h" compile="0" resource="0" file="Source/Modules/GateModule.h"/>
+      <FILE id="aqg3c" name="NoiseModule.cpp" compile="1" resource="0" file="Source/Modules/NoiseModule.cpp"/>
+      <FILE id="aqg3h" name="NoiseModule.h" compile="0" resource="0" file="Source/Modules/NoiseModule.h"/>
+      <FILE id="aqg4c" name="SlewModule.cpp" compile="1" resource="0" file="Source/Modules/SlewModule.cpp"/>
+      <FILE id="aqg4h" name="SlewModule.h" compile="0" resource="0" file="Source/Modules/SlewModule.h"/>
+      <FILE id="aqg5c" name="RingModModule.cpp" compile="1" resource="0"
+            file="Source/Modules/RingModModule.cpp"/>
+      <FILE id="aqg5h" name="RingModModule.h" compile="0" resource="0" file="Source/Modules/RingModModule.h"/>
+      <FILE id="aqg6c" name="WaveshaperModule.cpp" compile="1" resource="0"
+            file="Source/Modules/WaveshaperModule.cpp"/>
+      <FILE id="aqg6h" name="WaveshaperModule.h" compile="0" resource="0"
+            file="Source/Modules/WaveshaperModule.h"/>
+      <FILE id="aqg7c" name="MixerModule.cpp" compile="1" resource="0" file="Source/Modules/MixerModule.cpp"/>
+      <FILE id="aqg7h" name="MixerModule.h" compile="0" resource="0" file="Source/Modules/MixerModule.h"/>
+      <FILE id="aqreg2hdr" name="ModuleRegistry.h" compile="0" resource="0"
+            file="Source/Modules/ModuleRegistry.h"/>
+      <FILE id="vG4bkp" name="ModuleCore.h" compile="0" resource="0" file="Source/Modules/ModuleCore.h"/>
+      <FILE id="l3swYo" name="OscillatorModule.cpp" compile="1" resource="0"
+            file="Source/Modules/OscillatorModule.cpp"/>
+      <FILE id="L0bbdu" name="OscillatorModule.h" compile="0" resource="0"
+            file="Source/Modules/OscillatorModule.h"/>
+      <FILE id="jxr8et" name="PanningModule.cpp" compile="1" resource="0"
+            file="Source/Modules/PanningModule.cpp"/>
+      <FILE id="vg86LY" name="PanningModule.h" compile="0" resource="0" file="Source/Modules/PanningModule.h"/>
+      <FILE id="r13KLR" name="PhaserModule.cpp" compile="1" resource="0"
+            file="Source/Modules/PhaserModule.cpp"/>
+      <FILE id="upfuaa" name="PhaserModule.h" compile="0" resource="0" file="Source/Modules/PhaserModule.h"/>
+      <FILE id="tu736V" name="ReverbModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ReverbModule.cpp"/>
+      <FILE id="ngQkv1" name="ReverbModule.h" compile="0" resource="0" file="Source/Modules/ReverbModule.h"/>
+      <FILE id="j2ZtXh" name="SamplerModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SamplerModule.cpp"/>
+      <FILE id="LH4FRy" name="SamplerModule.h" compile="0" resource="0" file="Source/Modules/SamplerModule.h"/>
+      <FILE id="p7lPnn" name="SplitterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SplitterModule.cpp"/>
+      <FILE id="G2mUJ0" name="SplitterModule.h" compile="0" resource="0"
+            file="Source/Modules/SplitterModule.h"/>
+      <FILE id="wZymv8" name="SVFFilterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SVFFilterModule.cpp"/>
+      <FILE id="mxr8Ft" name="SVFFilterModule.h" compile="0" resource="0"
+            file="Source/Modules/SVFFilterModule.h"/>
+      <FILE id="sYm9BG" name="VolumeModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VolumeModule.cpp"/>
+      <FILE id="t1N4CC" name="VolumeModule.h" compile="0" resource="0" file="Source/Modules/VolumeModule.h"/>
+      <FILE id="aqx00c" name="ClockModule.cpp" compile="1" resource="0" file="Source/Modules/ClockModule.cpp"/>
+      <FILE id="aqx00h" name="ClockModule.h" compile="0" resource="0" file="Source/Modules/ClockModule.h"/>
+      <FILE id="aqx01c" name="StepSeqModule.cpp" compile="1" resource="0"
+            file="Source/Modules/StepSeqModule.cpp"/>
+      <FILE id="aqx01h" name="StepSeqModule.h" compile="0" resource="0" file="Source/Modules/StepSeqModule.h"/>
+      <FILE id="aqx02c" name="EuclidModule.cpp" compile="1" resource="0"
+            file="Source/Modules/EuclidModule.cpp"/>
+      <FILE id="aqx02h" name="EuclidModule.h" compile="0" resource="0" file="Source/Modules/EuclidModule.h"/>
+      <FILE id="aqx03c" name="SampleHoldModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SampleHoldModule.cpp"/>
+      <FILE id="aqx03h" name="SampleHoldModule.h" compile="0" resource="0"
+            file="Source/Modules/SampleHoldModule.h"/>
+      <FILE id="aqx04c" name="QuantizerModule.cpp" compile="1" resource="0"
+            file="Source/Modules/QuantizerModule.cpp"/>
+      <FILE id="aqx04h" name="QuantizerModule.h" compile="0" resource="0"
+            file="Source/Modules/QuantizerModule.h"/>
+      <FILE id="aqx05c" name="LogicModule.cpp" compile="1" resource="0" file="Source/Modules/LogicModule.cpp"/>
+      <FILE id="aqx05h" name="LogicModule.h" compile="0" resource="0" file="Source/Modules/LogicModule.h"/>
+      <FILE id="aqx06c" name="EnvFollowModule.cpp" compile="1" resource="0"
+            file="Source/Modules/EnvFollowModule.cpp"/>
+      <FILE id="aqx06h" name="EnvFollowModule.h" compile="0" resource="0"
+            file="Source/Modules/EnvFollowModule.h"/>
+      <FILE id="aqx07c" name="CrossfadeModule.cpp" compile="1" resource="0"
+            file="Source/Modules/CrossfadeModule.cpp"/>
+      <FILE id="aqx07h" name="CrossfadeModule.h" compile="0" resource="0"
+            file="Source/Modules/CrossfadeModule.h"/>
+      <FILE id="aqx08c" name="CompressorModule.cpp" compile="1" resource="0"
+            file="Source/Modules/CompressorModule.cpp"/>
+      <FILE id="aqx08h" name="CompressorModule.h" compile="0" resource="0"
+            file="Source/Modules/CompressorModule.h"/>
+      <FILE id="aqx09c" name="KickModule.cpp" compile="1" resource="0" file="Source/Modules/KickModule.cpp"/>
+      <FILE id="aqx09h" name="KickModule.h" compile="0" resource="0" file="Source/Modules/KickModule.h"/>
+      <FILE id="aqx10c" name="ModalDrumModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ModalDrumModule.cpp"/>
+      <FILE id="aqx10h" name="ModalDrumModule.h" compile="0" resource="0"
+            file="Source/Modules/ModalDrumModule.h"/>
+      <FILE id="aqx11c" name="PluckModule.cpp" compile="1" resource="0" file="Source/Modules/PluckModule.cpp"/>
+      <FILE id="aqx11h" name="PluckModule.h" compile="0" resource="0" file="Source/Modules/PluckModule.h"/>
+      <FILE id="aqx12c" name="HatsModule.cpp" compile="1" resource="0" file="Source/Modules/HatsModule.cpp"/>
+      <FILE id="aqx12h" name="HatsModule.h" compile="0" resource="0" file="Source/Modules/HatsModule.h"/>
+      <FILE id="aqx13c" name="AnyFMModule.cpp" compile="1" resource="0" file="Source/Modules/AnyFMModule.cpp"/>
+      <FILE id="aqx13h" name="AnyFMModule.h" compile="0" resource="0" file="Source/Modules/AnyFMModule.h"/>
+      <FILE id="aqx14c" name="PitchEQModule.cpp" compile="1" resource="0"
+            file="Source/Modules/PitchEQModule.cpp"/>
+      <FILE id="aqx14h" name="PitchEQModule.h" compile="0" resource="0" file="Source/Modules/PitchEQModule.h"/>
+      <FILE id="aqx15c" name="VocoderModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VocoderModule.cpp"/>
+      <FILE id="aqx15h" name="VocoderModule.h" compile="0" resource="0" file="Source/Modules/VocoderModule.h"/>
+      <FILE id="aqs00c" name="SpectralCore.cpp" compile="1" resource="0"
+            file="Source/Modules/SpectralCore.cpp"/>
+      <FILE id="aqs00h" name="SpectralCore.h" compile="0" resource="0" file="Source/Modules/SpectralCore.h"/>
+      <FILE id="aqs01c" name="SpecFilterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpecFilterModule.cpp"/>
+      <FILE id="aqs01h" name="SpecFilterModule.h" compile="0" resource="0"
+            file="Source/Modules/SpecFilterModule.h"/>
+      <FILE id="aqs02c" name="SpecGateModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpecGateModule.cpp"/>
+      <FILE id="aqs02h" name="SpecGateModule.h" compile="0" resource="0"
+            file="Source/Modules/SpecGateModule.h"/>
+      <FILE id="aqs03c" name="SpecEnhanceModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpecEnhanceModule.cpp"/>
+      <FILE id="aqs03h" name="SpecEnhanceModule.h" compile="0" resource="0"
+            file="Source/Modules/SpecEnhanceModule.h"/>
+      <FILE id="aqs04c" name="SpecDelayModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpecDelayModule.cpp"/>
+      <FILE id="aqs04h" name="SpecDelayModule.h" compile="0" resource="0"
+            file="Source/Modules/SpecDelayModule.h"/>
+      <FILE id="aqs05c" name="SpecMorphModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpecMorphModule.cpp"/>
+      <FILE id="aqs05h" name="SpecMorphModule.h" compile="0" resource="0"
+            file="Source/Modules/SpecMorphModule.h"/>
+      <FILE id="aqb00c" name="BitcrushModule.cpp" compile="1" resource="0"
+            file="Source/Modules/BitcrushModule.cpp"/>
+      <FILE id="aqb00h" name="BitcrushModule.h" compile="0" resource="0"
+            file="Source/Modules/BitcrushModule.h"/>
+      <FILE id="aqb01c" name="SRReduceModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SRReduceModule.cpp"/>
+      <FILE id="aqb01h" name="SRReduceModule.h" compile="0" resource="0"
+            file="Source/Modules/SRReduceModule.h"/>
+      <FILE id="aqm00c" name="MidiAddModule.cpp" compile="1" resource="0"
+            file="Source/Modules/MidiAddModule.cpp"/>
+      <FILE id="aqm00h" name="MidiAddModule.h" compile="0" resource="0" file="Source/Modules/MidiAddModule.h"/>
+      <FILE id="aqm01c" name="DCOffsetModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DCOffsetModule.cpp"/>
+      <FILE id="aqm01h" name="DCOffsetModule.h" compile="0" resource="0"
+            file="Source/Modules/DCOffsetModule.h"/>
+      <FILE id="aqd00c" name="DawModModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DawModModule.cpp"/>
+      <FILE id="aqd00h" name="DawModModule.h" compile="0" resource="0" file="Source/Modules/DawModModule.h"/>
+      <FILE id="aqn00c" name="SnareModule.cpp" compile="1" resource="0" file="Source/Modules/SnareModule.cpp"/>
+      <FILE id="aqn00h" name="SnareModule.h" compile="0" resource="0" file="Source/Modules/SnareModule.h"/>
+      <FILE id="aqn01c" name="ClapModule.cpp" compile="1" resource="0" file="Source/Modules/ClapModule.cpp"/>
+      <FILE id="aqn01h" name="ClapModule.h" compile="0" resource="0" file="Source/Modules/ClapModule.h"/>
+      <FILE id="aqn02c" name="PhaseDistortModule.cpp" compile="1" resource="0"
+            file="Source/Modules/PhaseDistortModule.cpp"/>
+      <FILE id="aqn02h" name="PhaseDistortModule.h" compile="0" resource="0"
+            file="Source/Modules/PhaseDistortModule.h"/>
+      <FILE id="aqn03c" name="ComplexOscModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ComplexOscModule.cpp"/>
+      <FILE id="aqn03h" name="ComplexOscModule.h" compile="0" resource="0"
+            file="Source/Modules/ComplexOscModule.h"/>
+      <FILE id="aqn04c" name="UnisonModule.cpp" compile="1" resource="0"
+            file="Source/Modules/UnisonModule.cpp"/>
+      <FILE id="aqn04h" name="UnisonModule.h" compile="0" resource="0" file="Source/Modules/UnisonModule.h"/>
+      <FILE id="aqn05c" name="FormantModule.cpp" compile="1" resource="0"
+            file="Source/Modules/FormantModule.cpp"/>
+      <FILE id="aqn05h" name="FormantModule.h" compile="0" resource="0" file="Source/Modules/FormantModule.h"/>
+      <FILE id="aqn06c" name="BowedModule.cpp" compile="1" resource="0" file="Source/Modules/BowedModule.cpp"/>
+      <FILE id="aqn06h" name="BowedModule.h" compile="0" resource="0" file="Source/Modules/BowedModule.h"/>
+      <FILE id="aqn07c" name="WavetableModule.cpp" compile="1" resource="0"
+            file="Source/Modules/WavetableModule.cpp"/>
+      <FILE id="aqn07h" name="WavetableModule.h" compile="0" resource="0"
+            file="Source/Modules/WavetableModule.h"/>
+      <FILE id="aqn08c" name="AdditiveModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AdditiveModule.cpp"/>
+      <FILE id="aqn08h" name="AdditiveModule.h" compile="0" resource="0"
+            file="Source/Modules/AdditiveModule.h"/>
+      <FILE id="aqn09c" name="ArpModule.cpp" compile="1" resource="0" file="Source/Modules/ArpModule.cpp"/>
+      <FILE id="aqn09h" name="ArpModule.h" compile="0" resource="0" file="Source/Modules/ArpModule.h"/>
+      <FILE id="aqb00c" name="DiscardMidiModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DiscardMidiModule.cpp"/>
+      <FILE id="aqb00h" name="DiscardMidiModule.h" compile="0" resource="0"
+            file="Source/Modules/DiscardMidiModule.h"/>
+      <FILE id="aqb01c" name="DrawLFOModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DrawLFOModule.cpp"/>
+      <FILE id="aqb01h" name="DrawLFOModule.h" compile="0" resource="0" file="Source/Modules/DrawLFOModule.h"/>
+      <FILE id="aqb02c" name="BellEQModule.cpp" compile="1" resource="0"
+            file="Source/Modules/BellEQModule.cpp"/>
+      <FILE id="aqb02h" name="BellEQModule.h" compile="0" resource="0" file="Source/Modules/BellEQModule.h"/>
+      <FILE id="aqb03c" name="CombFilterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/CombFilterModule.cpp"/>
+      <FILE id="aqb03h" name="CombFilterModule.h" compile="0" resource="0"
+            file="Source/Modules/CombFilterModule.h"/>
+      <FILE id="aqb04c" name="FormantFilterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/FormantFilterModule.cpp"/>
+      <FILE id="aqb04h" name="FormantFilterModule.h" compile="0" resource="0"
+            file="Source/Modules/FormantFilterModule.h"/>
+      <FILE id="aqb05c" name="TapeWobbleModule.cpp" compile="1" resource="0"
+            file="Source/Modules/TapeWobbleModule.cpp"/>
+      <FILE id="aqb05h" name="TapeWobbleModule.h" compile="0" resource="0"
+            file="Source/Modules/TapeWobbleModule.h"/>
+      <FILE id="aqb06c" name="AquaFilterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AquaFilterModule.cpp"/>
+      <FILE id="aqb06h" name="AquaFilterModule.h" compile="0" resource="0"
+            file="Source/Modules/AquaFilterModule.h"/>
+      <FILE id="aqb07c" name="DropletsModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DropletsModule.cpp"/>
+      <FILE id="aqb07h" name="DropletsModule.h" compile="0" resource="0"
+            file="Source/Modules/DropletsModule.h"/>
+      <FILE id="aqa01c" name="StereoWidthModule.cpp" compile="1" resource="0"
+            file="Source/Modules/StereoWidthModule.cpp"/>
+      <FILE id="aqa01h" name="StereoWidthModule.h" compile="0" resource="0"
+            file="Source/Modules/StereoWidthModule.h"/>
+      <FILE id="aqa02c" name="AnalogDriftModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AnalogDriftModule.cpp"/>
+      <FILE id="aqa02h" name="AnalogDriftModule.h" compile="0" resource="0"
+            file="Source/Modules/AnalogDriftModule.h"/>
+      <FILE id="aqa03c" name="AudioThruModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AudioThruModule.cpp"/>
+      <FILE id="aqa03h" name="AudioThruModule.h" compile="0" resource="0"
+            file="Source/Modules/AudioThruModule.h"/>
+      <FILE id="aqa04c" name="LimiterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/LimiterModule.cpp"/>
+      <FILE id="aqa04h" name="LimiterModule.h" compile="0" resource="0" file="Source/Modules/LimiterModule.h"/>
+      <FILE id="aqa00c" name="AlwaysMidiModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AlwaysMidiModule.cpp"/>
+      <FILE id="aqa00h" name="AlwaysMidiModule.h" compile="0" resource="0"
+            file="Source/Modules/AlwaysMidiModule.h"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_animation" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_box2d" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_javascript" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_midi_ci" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_opengl" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_osc" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_video" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <EXPORTFORMATS>
+    <VS2026 targetFolder="Builds/VisualStudio2026">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="Aquanode Modular" useRuntimeLibDLL="0"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="Aquanode Modular" useRuntimeLibDLL="0"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_animation" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_box2d" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_dsp" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_javascript" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_opengl" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_osc" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_video" path="../../../../Program Files/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2026>
+  </EXPORTFORMATS>
+</JUCERPROJECT>

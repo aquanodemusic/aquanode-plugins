@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Tactical Tech Interface</title>
+
+<style>
+:root {
+  --bg: #040607;
+  --cyan: #5ffcff;
+  --cyan-soft: rgba(95, 252, 255, 0.25);
+  --cyan-faint: rgba(95, 252, 255, 0.08);
+  --grid-dark: rgba(120, 140, 150, 0.05);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* =========================
+   BASE SCENE & PARALLAX GRIDS
+========================= */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 50%, rgba(95,252,255,0.12), transparent 55%),
+    radial-gradient(circle at 80% 20%, rgba(95,252,255,0.06), transparent 60%);
+}
+
+.grid {
+  position: absolute;
+  inset: -60%;
+  animation: drift linear infinite;
+  pointer-events: none;
+}
+
+.grid.far {
+  background-image:
+    linear-gradient(90deg, var(--grid-dark) 1px, transparent 1px),
+    linear-gradient(var(--grid-dark) 1px, transparent 1px);
+  background-size: 140px 140px;
+  animation-duration: 100s;
+  opacity: 0.35;
+}
+
+.grid.mid {
+  background-image:
+    linear-gradient(90deg, var(--cyan-faint) 1px, transparent 1px),
+    linear-gradient(var(--cyan-faint) 1px, transparent 1px);
+  background-size: 110px 110px;
+  animation-duration: 70s;
+  opacity: 0.55;
+}
+
+.grid.near {
+  background-image:
+    linear-gradient(90deg, rgba(95,252,255,0.12) 1px, transparent 1px),
+    linear-gradient(rgba(95,252,255,0.12) 1px, transparent 1px);
+  background-size: 80px 80px;
+  animation-duration: 45s;
+  opacity: 0.7;
+}
+
+@keyframes drift {
+  to { transform: translate3d(320px, 220px, 0); }
+}
+
+/* =========================
+   DATA BLIPS (The "Spray")
+========================= */
+
+.blip {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: var(--cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--cyan);
+  animation: blipMove linear infinite;
+}
+
+.blip::after {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 1px;
+  width: 10px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan));
+  opacity: 0.6;
+}
+
+@keyframes blipMove {
+  from { transform: translateX(-10vw); opacity: 0; }
+  10% { opacity: 1; }
+  to { transform: translateX(110vw); opacity: 0; }
+}
+
+/* =========================
+   STATIC SVG HEXAGONS
+========================= */
+
+.benzene-wrapper {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  /* Molecules are static - no animation */
+}
+
+.benzene-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 1.2;
+}
+
+/* Gaussian Blur Layer */
+.benzene-glow {
+  filter: blur(6px);
+  opacity: 0.5;
+}
+
+.bond {
+  stroke: var(--cyan);
+  stroke-width: 1.2;
+  opacity: 0.7;
+}
+
+/* =========================
+   MAIN HORIZONTAL LINE
+========================= */
+
+.line-wrapper {
+  position: absolute;
+  left: 0;
+  top: 78%; /* Positioned lower */
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.line-core {
+  width: 100%;
+  height: 100%;
+  /* Bright at left, gradually off to right */
+  background: linear-gradient(
+    90deg,
+    var(--cyan) 0%,
+    rgba(95, 252, 255, 0.4) 30%,
+    rgba(95, 252, 255, 0.05) 70%,
+    transparent 100%
+  );
+  box-shadow: 0 0 15px var(--cyan-soft);
+}
+
+/* =========================
+   SCREEN OVERLAYS
+========================= */
+
+.scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.015),
+    rgba(255,255,255,0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 55%, rgba(0,0,0,0.7) 90%);
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="scene">
+
+  <div class="grid far"></div>
+  <div class="grid mid"></div>
+  <div class="grid near"></div>
+
+  <div class="blips">
+    <div class="blip" style="top:15%; animation-duration:22s;"></div>
+    <div class="blip" style="top:42%; animation-duration:18s; animation-delay: -5s;"></div>
+    <div class="blip" style="top:65%; animation-duration:28s; animation-delay: -2s;"></div>
+    <div class="blip" style="top:85%; animation-duration:20s; animation-delay: -10s;"></div>
+  </div>
+
+  <div class="benzene-wrapper" style="left:55%; top:25%; opacity: 0.4;">
+    <svg class="benzene-svg benzene-glow" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="benzene-wrapper" style="left:72%; top:50%; width: 100px; height: 100px; opacity: 0.2; transform: rotate(15deg);">
+    <svg class="benzene-svg" viewBox="0 0 100 100" style="filter: blur(4px);">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="benzene-wrapper" style="left:15%; top:30%; width: 60px; height: 60px; opacity: 0.15; filter: blur(1px);">
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="line-wrapper">
+    <div class="line-core"></div>
+  </div>
+
+  <div class="scanlines"></div>
+  <div class="noise"></div>
+  <div class="vignette"></div>
+
+</div>
+
+</body>
+</html>

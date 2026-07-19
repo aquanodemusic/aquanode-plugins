@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fizmo Dreamscape</title>
+
+<style>
+
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #04060a;
+}
+
+/* Base background */
+
+body {
+    position: relative;
+    background:
+        radial-gradient(circle at center,
+            rgba(0,80,255,.05),
+            transparent 60%),
+        linear-gradient(
+            135deg,
+            #020305,
+            #08111d 40%,
+            #030407
+        );
+}
+
+/* Moving color cloud */
+
+body::before {
+    content: "";
+    position: absolute;
+    inset: -25%;
+
+    background:
+        conic-gradient(
+            from 0deg,
+            #00e5ff,
+            #5478ff,
+            #ff5fd7,
+            #00ffd0,
+            #00e5ff
+        );
+
+    opacity: .35;
+    filter: blur(180px) saturate(150%);
+
+    animation:
+        colorOrbit 20s ease-in-out infinite;
+}
+
+/* Floating spotlight layers */
+
+.light {
+    position: absolute;
+    width: 900px;
+    height: 900px;
+    border-radius: 50%;
+
+    filter: blur(120px);
+    mix-blend-mode: screen;
+
+    pointer-events: none;
+}
+
+/* Cyan flashlight */
+
+.cyan {
+    left: -250px;
+    top: -150px;
+
+    background:
+        radial-gradient(
+            circle,
+            rgba(0,255,255,.28) 0%,
+            rgba(0,180,255,.14) 40%,
+            transparent 75%
+        );
+
+    animation:
+        cyanMove 12s ease-in-out infinite;
+}
+
+/* Magenta flashlight */
+
+.magenta {
+    right: -250px;
+    bottom: -150px;
+
+    background:
+        radial-gradient(
+            circle,
+            rgba(255,80,220,.24) 0%,
+            rgba(170,0,255,.12) 40%,
+            transparent 75%
+        );
+
+    animation:
+        magentaMove 12s ease-in-out infinite;
+}
+
+/* Organic glowing blobs */
+
+.blob {
+    position: absolute;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+    filter: blur(20px);
+}
+
+.b1 {
+
+    width: 500px;
+    height: 350px;
+
+    left: 5%;
+    top: 10%;
+
+    background:
+        radial-gradient(
+            circle at 30% 30%,
+            rgba(0,255,255,.85),
+            rgba(0,80,255,.35),
+            transparent 70%
+        );
+
+    animation:
+        float1 9s ease-in-out infinite;
+}
+
+.b2 {
+
+    width: 600px;
+    height: 400px;
+
+    right: -50px;
+    bottom: -50px;
+
+    background:
+        radial-gradient(
+            circle at 60% 40%,
+            rgba(255,80,220,.7),
+            rgba(120,0,255,.25),
+            transparent 70%
+        );
+
+    animation:
+        float2 113s ease-in-out infinite;
+}
+
+.b3 {
+
+    width: 350px;
+    height: 350px;
+
+    left: 40%;
+    top: 35%;
+
+    background:
+        radial-gradient(
+            circle,
+            rgba(255,255,255,.3),
+            rgba(0,255,180,.12),
+            transparent 75%
+        );
+
+    animation:
+        float3 67s ease-in-out infinite;
+}
+
+/* Synth rings */
+
+.ring {
+
+    position: absolute;
+
+    border-radius: 50%;
+    border: 2px solid rgba(180,220,255,.15);
+
+    box-shadow:
+        0 0 25px rgba(0,255,255,.15),
+        inset 0 0 25px rgba(255,255,255,.04);
+}
+
+.r1 {
+
+    width: 700px;
+    height: 700px;
+
+    left: 50%;
+    top: 50%;
+
+    transform: translate(-50%, -50%);
+}
+
+.r2 {
+
+    width: 420px;
+    height: 420px;
+
+    left: 52%;
+    top: 48%;
+
+    transform: translate(-50%, -50%);
+}
+
+/* Moving stars */
+
+.stars {
+
+    position: absolute;
+    inset: -20%;
+
+    background-image:
+        radial-gradient(
+            rgba(255,255,255,.8) 0.8px,
+            transparent 1.5px
+        );
+
+    background-size: 80px 80px;
+
+    opacity: .15;
+
+    animation:
+        starDrift 20s linear infinite;
+}
+
+/* CRT texture */
+
+.scanlines {
+
+    position: absolute;
+    inset: 0;
+
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,.02) 0px,
+            rgba(255,255,255,.02) 1px,
+            transparent 2px,
+            transparent 4px
+        );
+
+    opacity: .25;
+    pointer-events: none;
+}
+
+/* ===================================== */
+/* ANIMATIONS */
+/* ===================================== */
+
+@keyframes colorOrbit {
+
+    0% {
+        transform:
+            translate(0px,0px)
+            rotate(0deg)
+            scale(1);
+    }
+
+    25% {
+        transform:
+            translate(40px,-30px)
+            rotate(90deg)
+            scale(1.03);
+    }
+
+    50% {
+        transform:
+            translate(0px,-60px)
+            rotate(180deg)
+            scale(1.06);
+    }
+
+    75% {
+        transform:
+            translate(-40px,-30px)
+            rotate(270deg)
+            scale(1.03);
+    }
+
+    100% {
+        transform:
+            translate(0px,0px)
+            rotate(360deg)
+            scale(1);
+    }
+}
+
+/* Cyan spotlight */
+
+@keyframes cyanMove {
+
+    0%,100% {
+        transform: translate(0px,0px);
+    }
+
+    25% {
+        transform: translate(120px,80px);
+    }
+
+    50% {
+        transform: translate(280px,40px);
+    }
+
+    75% {
+        transform: translate(80px,-60px);
+    }
+}
+
+/* Magenta spotlight */
+
+@keyframes magentaMove {
+
+    0%,100% {
+        transform: translate(0px,0px);
+    }
+
+    25% {
+        transform: translate(-100px,-80px);
+    }
+
+    50% {
+        transform: translate(-250px,-150px);
+    }
+
+    75% {
+        transform: translate(-80px,60px);
+    }
+}
+
+/* Stars */
+
+@keyframes starDrift {
+
+    from {
+        transform: translate(0px,0px);
+    }
+
+    to {
+        transform: translate(120px,120px);
+    }
+}
+
+/* Blobs */
+
+@keyframes float1 {
+
+    0%,100% {
+        transform:
+            translate(0px,0px)
+            rotate(-12deg);
+    }
+
+    50% {
+        transform:
+            translate(50px,-35px)
+            rotate(-6deg);
+    }
+}
+
+@keyframes float2 {
+
+    0%,100% {
+        transform:
+            translate(0px,0px);
+    }
+
+    50% {
+        transform:
+            translate(-70px,45px);
+    }
+}
+
+@keyframes float3 {
+
+    0%,100% {
+        transform:
+            translate(0px,0px)
+            scale(1);
+    }
+
+    50% {
+        transform:
+            translate(25px,-25px)
+            scale(1.08);
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- Moving flashlights -->
+<div class="light cyan"></div>
+<div class="light magenta"></div>
+
+<!-- Floating glow blobs -->
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div class="blob b3"></div>
+
+<!-- Futuristic rings -->
+<div class="ring r1"></div>
+<div class="ring r2"></div>
+
+<!-- Particle field -->
+<div class="stars"></div>
+
+<!-- CRT texture -->
+<div class="scanlines"></div>
+
+</body>
+</html>

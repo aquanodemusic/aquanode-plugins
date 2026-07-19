@@ -1,0 +1,1167 @@
+#include "PluginEditor.h"
+
+using namespace aquanode;
+
+//==============================================================================
+// layout constants
+//==============================================================================
+namespace layout
+{
+    constexpr int pad = 10;
+    constexpr int socketColW = 76;     // width of each side socket column in the header
+    constexpr int socketSlotH = 30;    // vertical space per socket (incl. label)
+    constexpr int headerMinH = 52;     // minimum header height (title area)
+    constexpr int knobRowH = 82;       // taller -> bigger knobs
+    constexpr int wideRowH = 32;       // rows containing only combos/buttons
+    constexpr int unitsPerRow = 5;
+    constexpr int socketSize = 15;
+    constexpr int gridSpacing = 24;
+}
+
+//==============================================================================
+// ModuleComponent
+//==============================================================================
+ModuleComponent::ModuleComponent (AquanodeModularAudioProcessor& proc, PatchCanvas& owner, int idToUse)
+    : processor (proc), canvas (owner), instanceId (idToUse)
+{
+    buildControls();
+    const int h = layoutEverything (false);
+    setSize (moduleWidth, h);
+
+    if (auto* inst = processor.getInstance (instanceId))
+        setTopLeftPosition (inst->position + canvas.getPanOffset());
+
+    layoutEverything (true);
+}
+
+bool ModuleComponent::isParamVisible (const ParamSpec& spec) const
+{
+    if (spec.visibleWhenParamId.isEmpty())
+        return true;
+
+    if (auto* inst = processor.getInstance (instanceId))
+        return std::abs (inst->dsp->getParameter (spec.visibleWhenParamId) - spec.visibleWhenEquals) < 0.5f;
+
+    return true;
+}
+
+void ModuleComponent::buildControls()
+{
+    auto* inst = processor.getInstance (instanceId);
+    if (inst == nullptr)
+        return;
+
+    const auto& desc = inst->descriptor();
+    auto* dsp = inst->dsp.get();
+    juce::WeakReference<SynthModule> weakDsp (dsp);
+
+    for (const auto& spec : desc.params)
+    {
+        ControlEntry entry;
+        entry.spec = &spec;
+
+        switch (spec.type)
+        {
+            case ParamType::Rotary:
+            case ParamType::RotarySteppedList:
+            {
+                auto slider = std::make_unique<juce::Slider> (juce::Slider::RotaryVerticalDrag,
+                                                              juce::Slider::TextBoxBelow);
+                slider->setRange (spec.minValue, spec.maxValue, spec.interval);
+                if (spec.logarithmic && spec.minValue > 0.0f)
+                    slider->setSkewFactorFromMidPoint (std::sqrt ((double) spec.minValue * spec.maxValue));
+
+                if (spec.type == ParamType::RotarySteppedList)
+                {
+                    const auto choices = spec.choices;
+                    slider->textFromValueFunction = [choices] (double v)
+                    {
+                        return choices[juce::jlimit (0, choices.size() - 1, (int) std::round (v))];
+                    };
+                    slider->valueFromTextFunction = [choices] (const juce::String& t)
+                    {
+                        const int i = choices.indexOf (t.trim());
+                        return i >= 0 ? (double) i : t.getDoubleValue();
+                    };
+                }
+                else
+                {
+                    if (spec.unitSuffix.isNotEmpty())
+                        slider->setTextValueSuffix (" " + spec.unitSuffix);
+                    const float range = spec.maxValue - spec.minValue;
+                    int dp = spec.interval == 1.0f ? 0
+                             : range > 1000.0f ? 0
+                             : range > 20.0f ? 1 : 2;
+                    if (spec.logarithmic && spec.minValue < 0.1f)
+                        dp = 3;   // e.g. FM Ratio 0.001..100 needs fine resolution near the bottom
+                    slider->setNumDecimalPlacesToDisplay (dp);
+                }
+
+                slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 52, 17);
+                slider->setValue (dsp->getParameter (spec.id), juce::dontSendNotification);
+                slider->onValueChange = [weakDsp, paramId = spec.id, s = slider.get()]
+                {
+                    if (auto* m = weakDsp.get())
+                        m->setParameter (paramId, (float) s->getValue());
+                };
+                entry.component = std::move (slider);
+                break;
+            }
+
+            case ParamType::Combo:
+            {
+                auto combo = std::make_unique<juce::ComboBox>();
+                combo->addItemList (spec.choices, 1);
+                combo->setSelectedItemIndex ((int) dsp->getParameter (spec.id), juce::dontSendNotification);
+                combo->onChange = [this, weakDsp, paramId = spec.id, c = combo.get()]
+                {
+                    if (auto* m = weakDsp.get())
+                        m->setParameter (paramId, (float) c->getSelectedItemIndex());
+                    refreshLayout();   // a combo may drive another param's visibility
+                };
+                entry.component = std::move (combo);
+                break;
+            }
+
+            case ParamType::Button:
+            {
+                auto button = std::make_unique<juce::TextButton> (spec.label);
+                button->onClick = [weakDsp, paramId = spec.id]
+                {
+                    if (auto* m = weakDsp.get())
+                        m->uiButtonClicked (paramId);
+                };
+                entry.component = std::move (button);
+                break;
+            }
+        }
+
+        addAndMakeVisible (entry.component.get());
+        controls.push_back (std::move (entry));
+    }
+
+    extraContent = dsp->createExtraContentComponent();
+    if (extraContent != nullptr)
+        addAndMakeVisible (extraContent.get());
+}
+
+int ModuleComponent::layoutEverything (bool apply)
+{
+    auto* inst = processor.getInstance (instanceId);
+    if (inst == nullptr)
+        return 40;
+
+    const auto& desc = inst->descriptor();
+    const int innerW = moduleWidth - 2 * layout::pad;
+    int y = layout::pad;
+
+    if (apply)
+        sockets.clear();
+
+    // ---- 3-column header: input column (left) | title (centre) | output column (right)
+    const auto inList = desc.inputs();
+    const auto outList = desc.outputs();
+    const int headerRows = juce::jmax ((int) inList.size(), (int) outList.size());
+    const int headerH = juce::jmax (layout::headerMinH, headerRows * layout::socketSlotH + layout::pad);
+
+    if (apply)
+    {
+        const int leftX = layout::pad + layout::socketSize / 2 + 2;
+        const int rightX = moduleWidth - layout::pad - layout::socketSize / 2 - 2;
+
+        auto placeColumn = [&] (const std::vector<const SocketSpec*>& list, bool isInput, int cx)
+        {
+            const int n = (int) list.size();
+            for (int i = 0; i < n; ++i)
+            {
+                const int slotTop = y + (headerH - n * layout::socketSlotH) / 2 + i * layout::socketSlotH;
+                SocketRef ref;
+                ref.socketId = list[(size_t) i]->id;
+                ref.isInput = isInput;
+                ref.kind = list[(size_t) i]->kind;
+                ref.centre = { cx, slotTop + layout::socketSlotH / 2 };
+                sockets.push_back (ref);
+            }
+        };
+
+        placeColumn (inList, true, leftX);
+        placeColumn (outList, false, rightX);
+    }
+
+    headerHeight = headerH;
+    y += headerH + 2;
+
+    // 4. knob rows per explicit descriptor row/widthUnits (max 5 units per row)
+    int currentRow = -1;
+    bool first = true;
+    for (auto rowIt = 0;; ++rowIt)
+    {
+        // gather visible params of the next existing row index
+        int nextRow = std::numeric_limits<int>::max();
+        for (auto& c : controls)
+            if (isParamVisible (*c.spec) && c.spec->row > currentRow)
+                nextRow = juce::jmin (nextRow, c.spec->row);
+
+        if (nextRow == std::numeric_limits<int>::max())
+            break;
+
+        currentRow = nextRow;
+        juce::ignoreUnused (rowIt, first);
+
+        std::vector<ControlEntry*> rowControls;
+        bool hasKnob = false;
+        for (auto& c : controls)
+        {
+            const bool visible = isParamVisible (*c.spec);
+            if (c.spec->row == currentRow)
+            {
+                if (apply)
+                {
+                    c.visible = visible;
+                    c.component->setVisible (visible);
+                }
+                if (visible)
+                {
+                    rowControls.push_back (&c);
+                    if (c.spec->type == ParamType::Rotary || c.spec->type == ParamType::RotarySteppedList)
+                        hasKnob = true;
+                }
+            }
+        }
+
+        if (rowControls.empty())
+            continue;
+
+        const int rowH = hasKnob ? layout::knobRowH : layout::wideRowH;
+        const int unitW = innerW / layout::unitsPerRow;
+
+        if (apply)
+        {
+            int x = layout::pad;
+            for (auto* c : rowControls)
+            {
+                const int w = unitW * juce::jlimit (1, layout::unitsPerRow, c->spec->widthUnits);
+                auto area = juce::Rectangle<int> (x, y, w, rowH);
+
+                if (c->spec->type == ParamType::Rotary || c->spec->type == ParamType::RotarySteppedList)
+                {
+                    c->labelArea = area.removeFromTop (14);
+                    c->component->setBounds (area.reduced (1));
+                }
+                else
+                {
+                    c->labelArea = {};
+                    c->component->setBounds (area.withSizeKeepingCentre (w - 6, 24)
+                                                 .withY (y + (rowH - 24) / 2 + (hasKnob ? 6 : 0)));
+                }
+                x += w;
+            }
+        }
+        y += rowH + 2;
+    }
+
+    // hide params of rows we never visited (fully hidden rows)
+    if (apply)
+        for (auto& c : controls)
+            if (! isParamVisible (*c.spec))
+            {
+                c.visible = false;
+                c.component->setVisible (false);
+            }
+
+    // 5. optional custom content (Sampler waveform display)
+    if (auto* dsp = inst->dsp.get(); dsp != nullptr && extraContent != nullptr)
+    {
+        const int h = dsp->extraContentHeight();
+        if (apply)
+            extraContent->setBounds (layout::pad, y, innerW, h);
+        y += h + 4;
+    }
+
+    return y + layout::pad - 2;
+}
+
+void ModuleComponent::refreshLayout()
+{
+    const int h = layoutEverything (false);
+    setSize (moduleWidth, h);
+    layoutEverything (true);
+    repaint();
+    canvas.moduleMoved();
+}
+
+void ModuleComponent::refreshFromModel()
+{
+    auto* inst = processor.getInstance (instanceId);
+    if (inst == nullptr)
+        return;
+
+    for (auto& c : controls)
+    {
+        const float v = inst->dsp->getParameter (c.spec->id);
+        if (auto* slider = dynamic_cast<juce::Slider*> (c.component.get()))
+            slider->setValue (v, juce::dontSendNotification);
+        else if (auto* combo = dynamic_cast<juce::ComboBox*> (c.component.get()))
+            combo->setSelectedItemIndex ((int) v, juce::dontSendNotification);
+    }
+
+    refreshLayout();   // a mutated combo may change another param's visibility
+}
+
+const ModuleComponent::SocketRef* ModuleComponent::findSocketNear (juce::Point<int> localPos, int radius) const
+{
+    for (const auto& s : sockets)
+        if (s.centre.getDistanceFrom (localPos) <= radius)
+            return &s;
+    return nullptr;
+}
+
+juce::Point<int> ModuleComponent::socketCentreInParent (const juce::String& socketId, bool isInput) const
+{
+    for (const auto& s : sockets)
+        if (s.socketId == socketId && s.isInput == isInput)
+            return getPosition() + s.centre;
+    return getBounds().getCentre();
+}
+
+void ModuleComponent::paint (juce::Graphics& g)
+{
+    auto* inst = processor.getInstance (instanceId);
+    if (inst == nullptr)
+        return;
+
+    const auto& desc = inst->descriptor();
+    const auto body = sectionColour (desc.section);
+    const auto bounds = getLocalBounds().toFloat();
+
+    g.setColour (body);
+    g.fillRoundedRectangle (bounds.reduced (1.0f), 8.0f);
+
+    const bool selected = canvas.getSelectedModuleId() == instanceId;
+    g.setColour (selected ? juce::Colours::white : juce::Colours::black.withAlpha (0.6f));
+    g.drawRoundedRectangle (bounds.reduced (1.0f), 8.0f, selected ? 2.5f : 1.2f);
+
+    // divider under the header, separating socket/title band from knob rows
+    const float divY = (float) (layout::pad + headerHeight + 1);
+    g.setColour (juce::Colours::black.withAlpha (0.28f));
+    g.drawLine (bounds.getX() + 6.0f, divY, bounds.getRight() - 6.0f, divY, 1.0f);
+
+    // module title, centred in the header column between the socket columns
+    g.setColour (juce::Colours::black);
+    g.setFont (juce::Font (juce::FontOptions (14.0f, juce::Font::bold)));
+    g.drawText (desc.displayName,
+                layout::socketColW, layout::pad,
+                getWidth() - 2 * layout::socketColW, headerHeight,
+                juce::Justification::centred, true);
+
+    // sockets: circular = Audio, square = Modulation, label beside the column
+    for (const auto& s : sockets)
+    {
+        const auto c = s.centre.toFloat();
+        const float r = layout::socketSize * 0.5f;
+
+        g.setColour (juce::Colours::black);
+        if (s.kind == SocketKind::Audio)
+            g.fillEllipse (c.x - r, c.y - r, 2 * r, 2 * r);
+        else
+            g.fillRect (c.x - r, c.y - r, 2 * r, 2 * r);
+
+        g.setColour (juce::Colours::white);
+        if (s.kind == SocketKind::Audio)
+            g.drawEllipse (c.x - r, c.y - r, 2 * r, 2 * r, 1.3f);
+        else
+            g.drawRect (c.x - r, c.y - r, 2 * r, 2 * r, 1.3f);
+
+        const SocketSpec* spec = nullptr;
+        for (const auto& sk : desc.sockets)
+            if (sk.id == s.socketId && (sk.direction == SocketDirection::Input) == s.isInput)
+                spec = &sk;
+
+        if (spec != nullptr)
+        {
+            g.setColour (juce::Colours::black);
+            g.setFont (juce::Font (juce::FontOptions (9.5f)));
+            if (s.isInput)   // input labels sit to the right of the left column
+                g.drawText (spec->label, s.centre.x + (int) r + 3, s.centre.y - 7,
+                            layout::socketColW - (int) r - 4, 14, juce::Justification::centredLeft);
+            else             // output labels sit to the left of the right column
+                g.drawText (spec->label, s.centre.x - (int) r - 3 - (layout::socketColW - (int) r - 4),
+                            s.centre.y - 7, layout::socketColW - (int) r - 4, 14,
+                            juce::Justification::centredRight);
+        }
+    }
+
+    // knob labels
+    g.setColour (juce::Colours::black);
+    g.setFont (juce::Font (juce::FontOptions (10.5f)));
+    for (const auto& c : controls)
+        if (c.visible && ! c.labelArea.isEmpty())
+            g.drawText (c.spec->label, c.labelArea, juce::Justification::centred);
+}
+
+void ModuleComponent::mouseDown (const juce::MouseEvent& e)
+{
+    canvas.selectModule (instanceId);
+
+    if (const auto* socket = findSocketNear (e.getPosition()))
+    {
+        draggingCable = true;
+        canvas.beginCableDrag (instanceId, socket->socketId, socket->isInput, socket->kind,
+                               getPosition() + socket->centre);
+        return;
+    }
+
+    draggingBody = true;
+    dragger.startDraggingComponent (this, e);
+}
+
+void ModuleComponent::mouseDrag (const juce::MouseEvent& e)
+{
+    if (draggingCable)
+    {
+        canvas.updateCableDrag (e.getEventRelativeTo (&canvas).getPosition());
+        return;
+    }
+
+    if (draggingBody)
+    {
+        dragger.dragComponent (this, e, nullptr);
+        processor.setModulePosition (instanceId, getPosition() - canvas.getPanOffset());
+        canvas.moduleMoved();
+    }
+}
+
+void ModuleComponent::mouseUp (const juce::MouseEvent& e)
+{
+    if (draggingCable)
+    {
+        canvas.endCableDrag (e.getEventRelativeTo (&canvas).getPosition());
+        draggingCable = false;
+    }
+    draggingBody = false;
+}
+
+//==============================================================================
+// PatchCanvas
+//==============================================================================
+PatchCanvas::PatchCanvas (AquanodeModularAudioProcessor& proc)
+    : processor (proc)
+{
+    setWantsKeyboardFocus (true);
+}
+
+void PatchCanvas::resized()
+{
+    // decorative "+" grid. Extend one cell beyond every edge so it can be
+    // translated by the pan offset (mod spacing) and still cover the viewport.
+    const int s = layout::gridSpacing;
+    gridPath.clear();
+    for (int x = 0; x <= getWidth() + s; x += s)
+    {
+        for (int y = 0; y <= getHeight() + s; y += s)
+        {
+            gridPath.startNewSubPath ((float) x - 3.0f, (float) y);
+            gridPath.lineTo ((float) x + 3.0f, (float) y);
+            gridPath.startNewSubPath ((float) x, (float) y - 3.0f);
+            gridPath.lineTo ((float) x, (float) y + 3.0f);
+        }
+    }
+}
+
+void PatchCanvas::rebuild()
+{
+    moduleComponents.clear();
+    selectedCableIndex = -1;
+
+    bool selectedStillExists = false;
+    for (const int id : processor.getModuleIds())
+    {
+        auto comp = std::make_unique<ModuleComponent> (processor, *this, id);
+        addAndMakeVisible (comp.get());
+        moduleComponents.push_back (std::move (comp));
+        if (id == selectedModuleId)
+            selectedStillExists = true;
+    }
+
+    if (! selectedStillExists)
+        selectedModuleId = -1;
+
+    repaint();
+}
+
+void PatchCanvas::refreshAllModuleValues()
+{
+    for (auto& m : moduleComponents)
+        m->refreshFromModel();
+    repaint();
+}
+
+ModuleComponent* PatchCanvas::findModuleComponent (int instanceId) const
+{
+    for (const auto& m : moduleComponents)
+        if (m->getInstanceId() == instanceId)
+            return m.get();
+    return nullptr;
+}
+
+void PatchCanvas::selectModule (int instanceId)
+{
+    selectedModuleId = instanceId;
+    selectedCableIndex = -1;
+    repaint();
+}
+
+void PatchCanvas::moduleMoved()
+{
+    repaint();
+}
+
+juce::Path PatchCanvas::cablePath (juce::Point<float> from, juce::Point<float> to) const
+{
+    juce::Path p;
+    const float sag = 30.0f + from.getDistanceFrom (to) * 0.15f;
+    p.startNewSubPath (from);
+    p.cubicTo (from.translated (0.0f, sag), to.translated (0.0f, sag), to);
+    return p;
+}
+
+bool PatchCanvas::getCableEndpoints (const CableInfo& c, juce::Point<float>& from, juce::Point<float>& to) const
+{
+    auto* fromComp = findModuleComponent (c.fromModule);
+    auto* toComp = findModuleComponent (c.toModule);
+    if (fromComp == nullptr || toComp == nullptr)
+        return false;
+
+    from = fromComp->socketCentreInParent (c.fromSocket, false).toFloat();
+    to = toComp->socketCentreInParent (c.toSocket, true).toFloat();
+    return true;
+}
+
+int PatchCanvas::cableIndexNear (juce::Point<float> pos, float maxDistance) const
+{
+    const auto& cables = processor.getCables();
+    for (int i = 0; i < (int) cables.size(); ++i)
+    {
+        juce::Point<float> from, to;
+        if (! getCableEndpoints (cables[(size_t) i], from, to))
+            continue;
+
+        juce::Point<float> nearest;
+        cablePath (from, to).getNearestPoint (pos, nearest);
+        if (nearest.getDistanceFrom (pos) <= maxDistance)
+            return i;
+    }
+    return -1;
+}
+
+void PatchCanvas::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colour (0xff2b2723));            // warm dark brown-grey patch map
+    g.setColour (juce::Colour (0xff3c3730));          // subtle warmer "+" grid
+
+    const int s = layout::gridSpacing;
+    const float ox = (float) (((panOffset.x % s) + s) % s - s);
+    const float oy = (float) (((panOffset.y % s) + s) % s - s);
+    g.strokePath (gridPath, juce::PathStrokeType (1.0f),
+                  juce::AffineTransform::translation (ox, oy));
+}
+
+void PatchCanvas::paintOverChildren (juce::Graphics& g)
+{
+    const auto& cables = processor.getCables();
+
+    for (int i = 0; i < (int) cables.size(); ++i)
+    {
+        const auto& c = cables[(size_t) i];
+
+        juce::Point<float> from, to;
+        if (! getCableEndpoints (c, from, to))
+            continue;
+
+        auto* src = processor.getInstance (c.fromModule);
+        auto* dst = processor.getInstance (c.toModule);
+        if (src == nullptr || dst == nullptr)
+            continue;
+
+        // cable colour always follows the source module's section colour
+        auto colour = sectionColour (src->descriptor().section);
+        if (i == selectedCableIndex)
+            colour = juce::Colours::white;
+
+        const int sockIdx = src->descriptor().outputIndexOf (c.fromSocket);
+        const bool isAudio = sockIdx >= 0
+            && src->descriptor().outputs()[(size_t) sockIdx]->kind == SocketKind::Audio;
+
+        const auto path = cablePath (from, to);
+        g.setColour (colour.withAlpha (0.92f));
+
+        if (isAudio)
+        {
+            g.strokePath (path, juce::PathStrokeType (3.5f,
+                juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        }
+        else
+        {
+            juce::Path dashed;
+            const float dashes[] = { 6.0f, 5.0f };
+            juce::PathStrokeType (1.8f).createDashedStroke (dashed, path, dashes, 2);
+            g.fillPath (dashed);
+        }
+    }
+
+    if (dragActive)
+    {
+        ModuleComponent* comp = findModuleComponent (dragModuleId);
+        if (comp != nullptr)
+        {
+            const auto anchor = comp->socketCentreInParent (dragSocketId, dragFromInput).toFloat();
+            const auto pos = dragCurrentPos.toFloat();
+            const auto path = dragFromInput ? cablePath (pos, anchor) : cablePath (anchor, pos);
+            g.setColour (juce::Colours::white.withAlpha (0.7f));
+            g.strokePath (path, juce::PathStrokeType (2.0f));
+        }
+    }
+}
+
+void PatchCanvas::mouseDown (const juce::MouseEvent& e)
+{
+    grabKeyboardFocus();
+
+    const int hit = cableIndexNear (e.position);
+    selectedCableIndex = hit;
+    selectedModuleId = -1;
+
+    // pressing empty space (not on a cable) starts panning the view
+    panning = (hit < 0);
+    panStartOffset = panOffset;
+    panMouseStart = e.getPosition();
+
+    setMouseCursor (panning ? juce::MouseCursor::DraggingHandCursor
+                            : juce::MouseCursor::NormalCursor);
+    repaint();
+}
+
+void PatchCanvas::mouseDrag (const juce::MouseEvent& e)
+{
+    if (! panning)
+        return;
+
+    panOffset = panStartOffset + (e.getPosition() - panMouseStart);
+    applyPanToChildren();
+    repaint();
+}
+
+void PatchCanvas::mouseUp (const juce::MouseEvent&)
+{
+    panning = false;
+    setMouseCursor (juce::MouseCursor::NormalCursor);
+}
+
+void PatchCanvas::applyPanToChildren()
+{
+    for (auto& m : moduleComponents)
+        if (auto* inst = processor.getInstance (m->getInstanceId()))
+            m->setTopLeftPosition (inst->position + panOffset);
+}
+
+void PatchCanvas::resetView()
+{
+    panOffset = {};
+    panning = false;
+    applyPanToChildren();
+    repaint();
+}
+
+void PatchCanvas::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    // double-clicking a cable removes it
+    const int hit = cableIndexNear (e.position);
+    if (hit >= 0)
+    {
+        processor.removeCable (hit);
+        selectedCableIndex = -1;
+        repaint();
+    }
+}
+
+bool PatchCanvas::keyPressed (const juce::KeyPress& key)
+{
+    if ((key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
+        && selectedCableIndex >= 0)
+    {
+        processor.removeCable (selectedCableIndex);
+        selectedCableIndex = -1;
+        repaint();
+        return true;
+    }
+    return false;
+}
+
+void PatchCanvas::beginCableDrag (int moduleId, const juce::String& socketId, bool isInput,
+                                  SocketKind kind, juce::Point<int> canvasPos)
+{
+    dragActive = true;
+    dragModuleId = moduleId;
+    dragSocketId = socketId;
+    dragFromInput = isInput;
+    dragKind = kind;
+    dragCurrentPos = canvasPos;
+    repaint();
+}
+
+void PatchCanvas::updateCableDrag (juce::Point<int> canvasPos)
+{
+    dragCurrentPos = canvasPos;
+    repaint();
+}
+
+void PatchCanvas::endCableDrag (juce::Point<int> canvasPos)
+{
+    dragActive = false;
+
+    for (const auto& m : moduleComponents)
+    {
+        const auto localPos = canvasPos - m->getPosition();
+        if (const auto* target = m->findSocketNear (localPos))
+        {
+            // direction is normalized to output -> input regardless of which
+            // end the drag started from; output->output / input->input cancels
+            if (target->isInput == dragFromInput)
+                break;
+
+            if (dragFromInput)
+                processor.addCable (m->getInstanceId(), target->socketId, dragModuleId, dragSocketId);
+            else
+                processor.addCable (dragModuleId, dragSocketId, m->getInstanceId(), target->socketId);
+            break;
+        }
+    }
+
+    repaint();
+}
+
+//==============================================================================
+// SidebarComponent
+//==============================================================================
+SidebarComponent::SidebarComponent (std::function<void (const juce::String&)> onModuleClicked)
+    : moduleClicked (std::move (onModuleClicked))
+{
+    buildRows();
+}
+
+void SidebarComponent::buildRows()
+{
+    rows.clear();
+    int y = 10;
+
+    // leave room on the right for the Viewport's scrollbar so it never covers text
+    const int contentWidth = sidebarWidth - scrollBarWidth;
+
+    for (const auto section : allSections())
+    {
+        // section title
+        rows.push_back ({ { 10, y, contentWidth - 20, 20 },
+                          sectionName (section), {}, sectionColour (section) });
+        y += 24;
+
+        // module names in explicit sidebarOrder (never map/alphabetical order)
+        std::vector<const RegisteredModule*> mods;
+        for (const auto& r : ModuleFactory::instance().all())
+            if (r.descriptor.section == section)
+                mods.push_back (&r);
+
+        std::sort (mods.begin(), mods.end(), [] (const RegisteredModule* a, const RegisteredModule* b)
+        {
+            return a->descriptor.sidebarOrder < b->descriptor.sidebarOrder;
+        });
+
+        for (const auto* r : mods)
+        {
+            rows.push_back ({ { 18, y, contentWidth - 28, 18 },
+                              r->descriptor.displayName, r->descriptor.typeId, juce::Colours::white });
+            y += 20;
+        }
+
+        y += 10;
+    }
+
+    // size ourselves to fit every row; the parent Viewport takes care of clipping + scrolling
+    setSize (contentWidth, y);
+}
+
+void SidebarComponent::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colours::black);
+
+    for (const auto& row : rows)
+    {
+        const bool isTitle = row.typeId.isEmpty();
+        g.setColour (row.colour);
+        g.setFont (juce::Font (juce::FontOptions (isTitle ? 14.0f : 12.5f,
+                                                  isTitle ? juce::Font::bold : juce::Font::plain)));
+        g.drawText (row.text, row.area, juce::Justification::centredLeft);
+    }
+}
+
+void SidebarComponent::mouseUp (const juce::MouseEvent& e)
+{
+    for (const auto& row : rows)
+    {
+        if (row.typeId.isNotEmpty() && row.area.contains (e.getPosition()))
+        {
+            if (moduleClicked != nullptr)
+                moduleClicked (row.typeId);
+            return;
+        }
+    }
+}
+
+//==============================================================================
+// MutatorPanel
+//==============================================================================
+MutatorPanel::MutatorPanel (AquanodeModularAudioProcessor& p, PatchCanvas& c)
+    : processor (p), canvas (c)
+{
+    amountSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    amountSlider.setRange (1.0, 100.0, 1.0);
+    amountSlider.setValue (25.0, juce::dontSendNotification);
+    amountSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 40, 18);
+    amountSlider.setTextValueSuffix (" %");
+    addAndMakeVisible (amountSlider);
+
+    for (auto* b : { &mutateButton, &undoButton, &storeAButton, &storeBButton,
+                     &recallAButton, &recallBButton, &breedButton })
+        addAndMakeVisible (b);
+
+    mutateButton.onClick  = [this] { doMutate(); };
+    undoButton.onClick    = [this]
+    {
+        if (! history.empty())
+        {
+            apply (history.back());
+            history.pop_back();
+            canvas.refreshAllModuleValues();
+        }
+    };
+    storeAButton.onClick  = [this] { slotA = capture(); hasA = true; };
+    storeBButton.onClick  = [this] { slotB = capture(); hasB = true; };
+    recallAButton.onClick = [this] { doRecall (slotA, hasA); };
+    recallBButton.onClick = [this] { doRecall (slotB, hasB); };
+    breedButton.onClick   = [this] { doBreed(); };
+}
+
+void MutatorPanel::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colour (0xdd141210));   // dark strip over the canvas
+    g.setColour (juce::Colours::white.withAlpha (0.7f));
+    g.setFont (juce::Font (juce::FontOptions (11.0f)));
+    g.drawText ("Amount", 8, 0, 52, getHeight(), juce::Justification::centredLeft);
+}
+
+void MutatorPanel::resized()
+{
+    auto area = getLocalBounds().reduced (4);
+    area.removeFromLeft (56);                              // "Amount" label
+    amountSlider.setBounds (area.removeFromLeft (150));
+    area.removeFromLeft (8);
+
+    const int bw = (area.getWidth() - 6 * 4) / 7;
+    for (auto* b : { &mutateButton, &undoButton, &storeAButton, &storeBButton,
+                     &recallAButton, &recallBButton, &breedButton })
+    {
+        b->setBounds (area.removeFromLeft (bw));
+        area.removeFromLeft (4);
+    }
+}
+
+MutatorPanel::Snapshot MutatorPanel::capture() const
+{
+    Snapshot snap;
+    for (const int id : processor.getModuleIds())
+    {
+        auto* inst = processor.getInstance (id);
+        if (inst == nullptr)
+            continue;
+
+        auto& values = snap[id];
+        for (const auto& p : inst->descriptor().params)
+            if (p.type != ParamType::Button)
+                values[p.id] = inst->dsp->getParameter (p.id);
+    }
+    return snap;
+}
+
+void MutatorPanel::apply (const Snapshot& snap)
+{
+    for (const auto& [id, values] : snap)
+    {
+        auto* inst = processor.getInstance (id);
+        if (inst == nullptr)
+            continue;   // topology changed since capture - skip gracefully
+
+        for (const auto& [paramId, value] : values)
+            inst->dsp->setParameter (paramId, value);
+    }
+}
+
+void MutatorPanel::pushHistory()
+{
+    history.push_back (capture());
+    if (history.size() > 64)
+        history.erase (history.begin());
+}
+
+float MutatorPanel::mutateValue (const ParamSpec& p, float v, float amount)
+{
+    // approximate Gaussian from four uniforms
+    auto gauss = [this]
+    {
+        return (rng.nextFloat() + rng.nextFloat() + rng.nextFloat() + rng.nextFloat() - 2.0f) * 0.7f;
+    };
+
+    switch (p.type)
+    {
+        case ParamType::Button:
+            return v;
+
+        case ParamType::Combo:
+        case ParamType::RotarySteppedList:
+            // discrete params jump to a random choice with low probability -
+            // rare but drastic, which is where the fun mutations come from
+            if (p.choices.size() > 1 && rng.nextFloat() < amount * 0.25f)
+                return (float) rng.nextInt (p.choices.size());
+            return v;
+
+        default:
+        {
+            if (p.interval == 1.0f)   // integer rotary (grain count, note, stages...)
+            {
+                const float range = p.maxValue - p.minValue;
+                const float nv = v + std::round (gauss() * amount * range * 0.2f);
+                return juce::jlimit (p.minValue, p.maxValue, nv);
+            }
+
+            // continuous: perturb in normalised, taper-aware space so log
+            // knobs (cutoff, times) mutate musically instead of linearly
+            const bool logTaper = p.logarithmic && p.minValue > 0.0f;
+            float norm;
+            if (logTaper)
+                norm = std::log (juce::jmax (p.minValue, v) / p.minValue)
+                       / std::log (p.maxValue / p.minValue);
+            else
+                norm = (v - p.minValue) / juce::jmax (1.0e-9f, p.maxValue - p.minValue);
+
+            norm = juce::jlimit (0.0f, 1.0f, norm + gauss() * amount * 0.25f);
+
+            return logTaper ? p.minValue * std::pow (p.maxValue / p.minValue, norm)
+                            : p.minValue + norm * (p.maxValue - p.minValue);
+        }
+    }
+}
+
+void MutatorPanel::doMutate()
+{
+    pushHistory();
+    const float amount = (float) amountSlider.getValue() * 0.01f;
+
+    for (const int id : processor.getModuleIds())
+    {
+        auto* inst = processor.getInstance (id);
+        if (inst == nullptr || inst->descriptor().section == ModuleSection::InputOutput)
+            continue;   // never mutate Audio In/Out levels
+
+        for (const auto& p : inst->descriptor().params)
+        {
+            // FM Ratio sets the oscillator's harmonic relationship to the note being
+            // played (DX7-style operator ratio) - randomising it detunes the whole
+            // patch's FM structure, so the Mutate button leaves it untouched.
+            if (inst->descriptor().typeId == "osc.basic" && p.id == "fmRatio")
+                continue;
+
+            const float v = inst->dsp->getParameter (p.id);
+            inst->dsp->setParameter (p.id, mutateValue (p, v, amount));
+        }
+    }
+
+    canvas.refreshAllModuleValues();
+}
+
+void MutatorPanel::doBreed()
+{
+    if (! hasA || ! hasB)
+        return;
+
+    pushHistory();
+    const float amount = (float) amountSlider.getValue() * 0.01f;
+
+    for (const int id : processor.getModuleIds())
+    {
+        auto* inst = processor.getInstance (id);
+        if (inst == nullptr || inst->descriptor().section == ModuleSection::InputOutput)
+            continue;
+
+        const auto itA = slotA.find (id);
+        const auto itB = slotB.find (id);
+
+        for (const auto& p : inst->descriptor().params)
+        {
+            if (p.type == ParamType::Button)
+                continue;
+
+            // uniform crossover: each gene comes from parent A or B; fall
+            // back to the current value when a parent doesn't know this param
+            float v = inst->dsp->getParameter (p.id);
+            const auto* parent = rng.nextBool() ? (itA != slotA.end() ? &itA->second : nullptr)
+                                                : (itB != slotB.end() ? &itB->second : nullptr);
+            if (parent != nullptr)
+            {
+                const auto pv = parent->find (p.id);
+                if (pv != parent->end())
+                    v = pv->second;
+            }
+
+            // light mutation on top of the crossover
+            inst->dsp->setParameter (p.id, mutateValue (p, v, amount * 0.3f));
+        }
+    }
+
+    canvas.refreshAllModuleValues();
+}
+
+void MutatorPanel::doRecall (const Snapshot& snap, bool exists)
+{
+    if (! exists)
+        return;
+    pushHistory();
+    apply (snap);
+    canvas.refreshAllModuleValues();
+}
+
+//==============================================================================
+// Editor
+//==============================================================================
+AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (AquanodeModularAudioProcessor& p)
+    : AudioProcessorEditor (&p),
+      processor (p),
+      sidebar ([this] (const juce::String& typeId)
+      {
+          // clicking a sidebar name opens one instance in the patch map
+          // spawn into the currently visible area, regardless of pan
+          const auto viewSpawn = juce::Point<int> (40 + (placementCounter % 4) * 36,
+                                                   40 + (placementCounter % 6) * 30);
+          const auto pos = viewSpawn - canvas.getPanOffset();
+          ++placementCounter;
+          const int newId = processor.addModule (typeId, pos);
+          canvas.rebuild();
+          canvas.selectModule (newId);
+      }),
+      canvas (p),
+      mutatorPanel (p, canvas)
+{
+    addAndMakeVisible (sidebarViewport);
+    sidebarViewport.setViewedComponent (&sidebar, false);   // false: sidebar is a member, viewport must not delete it
+    sidebarViewport.setScrollBarsShown (true, false);        // vertical only
+    addAndMakeVisible (canvas);
+    addChildComponent (mutatorPanel);   // hidden until the Mutator button toggles it
+
+    for (auto* b : { &cloneButton, &deleteButton, &exportButton, &importButton, &mutatorButton })
+        addAndMakeVisible (b);
+
+    mutatorButton.setClickingTogglesState (true);
+    mutatorButton.onClick = [this]
+    {
+        mutatorPanel.setVisible (mutatorButton.getToggleState());
+    };
+
+    cloneButton.onClick = [this]
+    {
+        const int sel = canvas.getSelectedModuleId();
+        if (sel >= 0)
+        {
+            const int newId = processor.cloneModule (sel);   // params kept, no cables
+            canvas.rebuild();
+            canvas.selectModule (newId);
+        }
+    };
+
+    deleteButton.onClick = [this]
+    {
+        const int sel = canvas.getSelectedModuleId();
+        if (sel >= 0)
+        {
+            processor.removeModule (sel);                    // removes its cables too
+            canvas.rebuild();
+        }
+    };
+
+    exportButton.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Export Patch", juce::File(), "*.zip");
+        fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                  | juce::FileBrowserComponent::canSelectFiles,
+            [this] (const juce::FileChooser& fc)
+            {
+                auto file = fc.getResult();
+                if (file != juce::File())
+                    processor.exportPatchToZip (file.withFileExtension ("zip"));
+            });
+    };
+
+    importButton.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Import Patch", juce::File(), "*.zip");
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                  | juce::FileBrowserComponent::canSelectFiles,
+            [this] (const juce::FileChooser& fc)
+            {
+                auto file = fc.getResult();
+                if (file.existsAsFile())
+                {
+                    processor.importPatchFromZip (file);
+                    canvas.rebuild();
+                }
+            });
+    };
+
+    processor.addChangeListener (this);
+
+    setSize (1000, 700);
+    setResizable (false, false);
+
+    canvas.rebuild();
+}
+
+AquanodeModularAudioProcessorEditor::~AquanodeModularAudioProcessorEditor()
+{
+    processor.removeChangeListener (this);
+}
+
+void AquanodeModularAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster*)
+{
+    canvas.resetView();
+    canvas.rebuild();
+}
+
+void AquanodeModularAudioProcessorEditor::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colours::black);
+}
+
+void AquanodeModularAudioProcessorEditor::resized()
+{
+    auto area = getLocalBounds();
+    sidebarViewport.setBounds (area.removeFromLeft (SidebarComponent::sidebarWidth));
+    canvas.setBounds (area);
+
+    // mutator strip along the bottom of the patch area
+    mutatorPanel.setBounds (area.getX(), getHeight() - 34, area.getWidth(), 34);
+
+    // top-right corner, always visible, plain rectangular buttons
+    const int bw = 104, bh = 22, gap = 5;
+    int x = getWidth() - gap - bw;
+    for (auto* b : { &mutatorButton, &importButton, &exportButton, &deleteButton, &cloneButton })
+    {
+        b->setBounds (x, 8, bw, bh);
+        x -= bw + gap;
+    }
+}

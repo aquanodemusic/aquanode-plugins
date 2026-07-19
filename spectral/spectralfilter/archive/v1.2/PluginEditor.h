@@ -1,0 +1,126 @@
+#pragma once
+
+#include <JuceHeader.h>
+#include "PluginProcessor.h"
+
+class SpectralFilterAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                           private juce::Timer
+{
+public:
+    SpectralFilterAudioProcessorEditor(SpectralFilterAudioProcessor&);
+    ~SpectralFilterAudioProcessorEditor() override;
+
+    void paint(juce::Graphics&) override;
+    void resized() override;
+
+    void mouseDown       (const juce::MouseEvent&) override;
+    void mouseDrag       (const juce::MouseEvent&) override;
+    void mouseUp         (const juce::MouseEvent&) override;
+    void mouseMove       (const juce::MouseEvent&) override;
+    void mouseDoubleClick(const juce::MouseEvent&) override;
+
+private:
+    void timerCallback() override;
+    void updateExportIREnabled();
+
+    // Drawing
+    void drawBackground (juce::Graphics&);
+    void drawFFTSpectrum(juce::Graphics&);
+    void drawFilterCurve(juce::Graphics&);
+    void drawPhaseCurve (juce::Graphics&);
+    void drawFreqShiftCurve(juce::Graphics&);
+    void drawPanCurve   (juce::Graphics&);
+    void drawLabels     (juce::Graphics&);
+
+    // Coordinate helpers
+    int   xToBin(float x) const;
+    float binToX(int bin) const;
+    float yToDB (float y) const;
+    float dBToY (float dB) const;
+    float yToRad(float y) const;
+    float radToY(float rad) const;
+    float yToFreqOffset(float y) const;   // maps y to per-bin offset in bins
+    float freqOffsetToY(float off) const;
+    float yToPan(float y) const;           // maps y to pan [-1,+1]
+    float panToY(float pan) const;
+    float nyquist() const { return static_cast<float>(audioProcessor.currentSampleRate * 0.5); }
+
+    // Curve drawing helpers
+    void paintSegment(float x, float y);   // dispatches to whichever curve is active
+
+    SpectralFilterAudioProcessor& audioProcessor;
+    static constexpr int maxDisplayBins = SpectralFilterAudioProcessor::maxBins;
+
+    // 60-fps display copies (no lock held during paint)
+    std::array<float, maxDisplayBins> displayCurveDB;
+    std::array<float, maxDisplayBins> displayPhaseRad;
+    std::array<float, maxDisplayBins> displayFreqShift;
+    std::array<float, maxDisplayBins> displayPan;
+    std::array<float, maxDisplayBins> fftDisplayData;
+
+    // Drawing state
+    bool  isDrawing  = false;
+    float lastDragX  = 0.f, lastDragY = 0.f;
+    float hoverX     = -1.f;
+
+    // Which curve the Edit combo is pointing to
+    enum class EditMode { Filter, Phase, FreqShift, Pan };
+    EditMode editMode = EditMode::Filter;
+
+    // dB range
+    static constexpr float maxDB =  24.0f;
+    static constexpr float minDB = -96.0f;
+
+    // -----------------------------------------------------------------------
+    // Right-panel controls
+    // -----------------------------------------------------------------------
+    juce::ComboBox  fftSizeCombo;
+    juce::Label     fftSizeLabel;
+
+    juce::TextButton randomFilterButton, resetFilterButton;
+    juce::TextButton randomPhaseButton,  resetPhaseButton;
+    juce::TextButton randomFreqButton,   resetFreqButton;
+    juce::TextButton randomPanButton,    resetPanButton;
+
+    juce::ComboBox  editModeCombo;
+    juce::Label     editModeLabel;
+
+    juce::TextButton wetOnlyButton;
+    juce::TextButton exportIRButton;
+
+    // Color inputs
+    juce::Label      bgColorLabel,      gridColorLabel;
+    juce::TextEditor bgColorInput,      gridColorInput;
+    juce::Label      filterColorLabel,  phaseColorLabel;
+    juce::TextEditor filterColorInput,  phaseColorInput;
+    juce::Label      freqColorLabel,    panColorLabel;
+    juce::TextEditor freqColorInput,    panColorInput;
+    juce::TextButton resetColorsButton;
+
+    void updateBgColor();
+    void updateGridColor();
+    void updateFilterColor();
+    void updatePhaseColor();
+    void updateFreqColor();
+    void updatePanColor();
+
+    // -----------------------------------------------------------------------
+    // Bottom-strip sliders: Filter Shift, Phase Shift, Freq Shift, Pan Shift, Global Freq Shift
+    // Each has: label, slider, auto button, speed input
+    // Global Freq Shift also has a Wrap button
+    // -----------------------------------------------------------------------
+    struct ShiftStrip
+    {
+        juce::Label      label;
+        juce::Slider     slider;
+        juce::TextButton autoBtn;
+        juce::TextEditor speedInput;
+        std::array<float, maxDisplayBins> baseline;
+        std::unique_ptr<juce::LookAndFeel_V2> lf;
+    };
+
+    ShiftStrip filterShift, phaseShift, freqShift, panShift, globalFreqShift;
+    juce::TextButton globalFreqWrapButton;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SpectralFilterAudioProcessorEditor)
+};

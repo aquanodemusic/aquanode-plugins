@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Phase Waves</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #6ffcff 0%, #ffffff 80%);
+  }
+
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+let t = 0;
+
+// === HEX GRID ===
+function drawHexGrid(time) {
+  const baseSize = 42;
+  const h = Math.sqrt(3) * baseSize;
+
+  ctx.lineWidth = 1;
+
+  for (let y = -h; y < canvas.height + h; y += h) {
+    for (let x = -baseSize; x < canvas.width + baseSize; x += baseSize * 3) {
+      const row = Math.floor(y / h);
+      const offset = (row % 2) * baseSize * 1.5;
+
+      // Per-hex size variation + slow phasing
+      const noise =
+        Math.sin(x * 0.02 + y * 0.015 + time * 0.6) * 6;
+      const size = baseSize + noise;
+
+      const alpha =
+        0.08 + Math.sin(time * 0.5 + (x + y) * 0.002) * 0.05;
+
+      ctx.strokeStyle = `rgba(80, 160, 200, ${alpha})`;
+      drawHex(x + offset, y, size);
+    }
+  }
+}
+
+function drawHex(x, y, size) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 3 * i;
+    ctx.lineTo(
+      x + Math.cos(a) * size,
+      y + Math.sin(a) * size
+    );
+  }
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// === SINE WAVES ===
+function drawWaves(time) {
+  ctx.globalCompositeOperation = "lighter";
+
+  for (let i = 0; i < 6; i++) {
+    const phase = time * 0.9 + i;
+    const amp = 35 + Math.sin(time + i) * 18;
+    const yBase = canvas.height / 2 + (i - 2.5) * 70;
+
+    ctx.beginPath();
+    for (let x = 0; x < canvas.width; x += 8) {
+      const y =
+        yBase +
+        Math.sin(x * 0.012 + phase) * amp *
+        (0.6 + Math.sin(time * 0.6) * 0.4);
+      ctx.lineTo(x, y);
+    }
+
+    ctx.strokeStyle = `rgba(100, 200, 220, 0.22)`;
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = "#7ffcff";
+    ctx.stroke();
+  }
+
+  ctx.globalCompositeOperation = "source-over";
+}
+
+// === ANIMATION LOOP ===
+function animate() {
+  t += 0.01;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawHexGrid(t);
+  drawWaves(t);
+
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>

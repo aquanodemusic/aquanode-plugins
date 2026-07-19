@@ -1,0 +1,926 @@
+#include "PluginProcessor.h"
+#include "PluginEditor.h"
+
+//==============================================================================
+// Custom LookAndFeel for the shift slider only.
+// Inherits from LookAndFeel_V2 (neutral/no dark defaults) so it does NOT
+// cascade a dark colour scheme onto unrelated components like TextEditors.
+struct ShiftSliderLookAndFeel : public juce::LookAndFeel_V2
+{
+    ShiftSliderLookAndFeel()
+    {
+        setColour(juce::Slider::thumbColourId, juce::Colour(0xff55eedd));
+        setColour(juce::Slider::trackColourId, juce::Colour(0xff444444));
+        setColour(juce::Slider::backgroundColourId, juce::Colour(0xff1a1a1a));
+        setColour(juce::Slider::textBoxTextColourId, juce::Colours::lightgrey);
+        setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff2a2a2a));
+        setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff444444));
+        setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    }
+
+    void drawLinearSliderBackground(juce::Graphics& g, int x, int y, int width, int height,
+        float /*sliderPos*/, float /*minSliderPos*/, float /*maxSliderPos*/,
+        const juce::Slider::SliderStyle, juce::Slider& slider) override
+    {
+        // Fill the whole widget area with the dark background first
+        g.setColour(findColour(juce::Slider::backgroundColourId));
+        g.fillRect(slider.getLocalBounds());
+
+        // Draw the groove
+        const float trackH = 4.0f;
+        const float trackY = y + (height - trackH) * 0.5f;
+        g.setColour(findColour(juce::Slider::trackColourId));
+        g.fillRoundedRectangle((float)x, trackY, (float)width, trackH, 2.0f);
+    }
+
+    void drawLinearSliderThumb(juce::Graphics& g, int /*x*/, int /*y*/, int /*width*/, int height,
+        float sliderPos, float /*minSliderPos*/, float /*maxSliderPos*/,
+        const juce::Slider::SliderStyle, juce::Slider&) override
+    {
+        const float thumbW = 10.0f;
+        const float thumbH = (float)height * 0.7f;
+        g.setColour(findColour(juce::Slider::thumbColourId));
+        g.fillRoundedRectangle(sliderPos - thumbW * 0.5f,
+            (height - thumbH) * 0.5f,
+            thumbW, thumbH, 3.0f);
+    }
+
+    void drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
+        float sliderPos, float minSliderPos, float maxSliderPos,
+        const juce::Slider::SliderStyle style, juce::Slider& slider) override
+    {
+        drawLinearSliderBackground(g, x, y, width, height, sliderPos, minSliderPos, maxSliderPos, style, slider);
+        drawLinearSliderThumb(g, x, y, width, height, sliderPos, minSliderPos, maxSliderPos, style, slider);
+    }
+};
+
+//==============================================================================
+SpectralFilterAudioProcessorEditor::SpectralFilterAudioProcessorEditor(SpectralFilterAudioProcessor& p)
+    : AudioProcessorEditor(&p), audioProcessor(p)
+{
+    setSize(860, 552);
+    setMouseCursor(juce::MouseCursor::CrosshairCursor);
+
+    displayCurveDB.fill(0.0f);
+    fftDisplayData.fill(0.0f);
+
+    // FFT size selector
+    fftSizeLabel.setText("FFT Size:", juce::dontSendNotification);
+    fftSizeLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    fftSizeLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(fftSizeLabel);
+
+    fftSizeCombo.addItem("1024", 1);
+    fftSizeCombo.addItem("2048", 2);
+    fftSizeCombo.addItem("4096", 3);
+    fftSizeCombo.addItem("8192", 4);
+
+    // Set current selection based on processor's FFT size
+    int currentSize = audioProcessor.fftSize;
+    if (currentSize == 1024) fftSizeCombo.setSelectedId(1, juce::dontSendNotification);
+    else if (currentSize == 2048) fftSizeCombo.setSelectedId(2, juce::dontSendNotification);
+    else if (currentSize == 4096) fftSizeCombo.setSelectedId(3, juce::dontSendNotification);
+    else if (currentSize == 8192) fftSizeCombo.setSelectedId(4, juce::dontSendNotification);
+
+    fftSizeCombo.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff2a2a2a));
+    fftSizeCombo.setColour(juce::ComboBox::textColourId, juce::Colours::lightgrey);
+    fftSizeCombo.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff444444));
+    fftSizeCombo.onChange = [this]()
+        {
+            int selectedId = fftSizeCombo.getSelectedId();
+            int newSize = 2048;
+            if (selectedId == 1) newSize = 1024;
+            else if (selectedId == 2) newSize = 2048;
+            else if (selectedId == 3) newSize = 4096;
+            else if (selectedId == 4) newSize = 8192;
+
+            audioProcessor.setFFTSize(newSize);
+
+            // Reset shift slider ranges to match new bin/fft count
+            shiftSlider.setRange(0.0, static_cast<double>(audioProcessor.fftSize - 1), 1.0);
+            shiftSlider.setValue(0.0, juce::dontSendNotification);
+            shiftBaseline.fill(0.0f);
+
+            const double bsMax = static_cast<double>(audioProcessor.fftSize - 1);
+            binShiftSlider.setRange(0.0, bsMax, 1.0);
+            binShiftSlider.setValue(0.0, juce::dontSendNotification);
+            audioProcessor.binShiftAmount.store(0, std::memory_order_relaxed);
+        };
+    addAndMakeVisible(fftSizeCombo);
+
+    // Background color input
+    bgColorLabel.setText("BG:", juce::dontSendNotification);
+    bgColorLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    bgColorLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(bgColorLabel);
+
+    bgColorInput.setText(audioProcessor.getBackgroundColor().toDisplayString(false));
+    bgColorInput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff2a2a2a));
+    bgColorInput.setColour(juce::TextEditor::textColourId, juce::Colours::lightgrey);
+    bgColorInput.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff444444));
+    bgColorInput.setFont(11.0f);
+    bgColorInput.onReturnKey = [this]() { updateBackgroundColor(); };
+    bgColorInput.onFocusLost = [this]() { updateBackgroundColor(); };
+    addAndMakeVisible(bgColorInput);
+
+    // Curve color input
+    curveColorLabel.setText("Curve:", juce::dontSendNotification);
+    curveColorLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    curveColorLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(curveColorLabel);
+
+    curveColorInput.setText(audioProcessor.getCurveColor().toDisplayString(false));
+    curveColorInput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff2a2a2a));
+    curveColorInput.setColour(juce::TextEditor::textColourId, juce::Colours::lightgrey);
+    curveColorInput.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff444444));
+    curveColorInput.setFont(11.0f);
+    curveColorInput.onReturnKey = [this]() { updateCurveColor(); };
+    curveColorInput.onFocusLost = [this]() { updateCurveColor(); };
+    addAndMakeVisible(curveColorInput);
+
+    // Grid color input
+    gridColorLabel.setText("Grid:", juce::dontSendNotification);
+    gridColorLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    gridColorLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(gridColorLabel);
+
+    gridColorInput.setText(audioProcessor.getGridColor().toDisplayString(false));
+    gridColorInput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff2a2a2a));
+    gridColorInput.setColour(juce::TextEditor::textColourId, juce::Colours::lightgrey);
+    gridColorInput.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff444444));
+    gridColorInput.setFont(11.0f);
+    gridColorInput.onReturnKey = [this]() { updateGridColor(); };
+    gridColorInput.onFocusLost = [this]() { updateGridColor(); };
+    addAndMakeVisible(gridColorInput);
+
+    // Spectrum color input
+    spectrumColorLabel.setText("Spectrum:", juce::dontSendNotification);
+    spectrumColorLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    spectrumColorLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(spectrumColorLabel);
+
+    spectrumColorInput.setText(audioProcessor.getSpectrumColor().toDisplayString(false));
+    spectrumColorInput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff2a2a2a));
+    spectrumColorInput.setColour(juce::TextEditor::textColourId, juce::Colours::lightgrey);
+    spectrumColorInput.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff444444));
+    spectrumColorInput.setFont(11.0f);
+    spectrumColorInput.onReturnKey = [this]() { updateSpectrumColor(); };
+    spectrumColorInput.onFocusLost = [this]() { updateSpectrumColor(); };
+    addAndMakeVisible(spectrumColorInput);
+
+    // Randomizer button
+    randomButton.setButtonText("Random");
+    randomButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    randomButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    randomButton.onClick = [this]() { audioProcessor.randomizeFilterCurve(); };
+    addAndMakeVisible(randomButton);
+
+    // Reset Filter button
+    resetFilterButton.setButtonText("Reset Filter");
+    resetFilterButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    resetFilterButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    resetFilterButton.onClick = [this]() { audioProcessor.resetFilterCurve(); };
+    addAndMakeVisible(resetFilterButton);
+
+    // Export IR button
+    exportIRButton.setButtonText("Export IR");
+    exportIRButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    exportIRButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    exportIRButton.onClick = [this]()
+        {
+            auto chooser = std::make_shared<juce::FileChooser>("Save Impulse Response",
+                juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+                "*.wav");
+
+            auto flags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles;
+
+            chooser->launchAsync(flags, [this, chooser](const juce::FileChooser& fc)
+                {
+                    auto file = fc.getResult();
+                    if (file != juce::File{})
+                    {
+                        audioProcessor.exportImpulseResponse(file);
+                    }
+                });
+        };
+    addAndMakeVisible(exportIRButton);
+
+    // Reset Colors button
+    resetColorsButton.setButtonText("Reset Colors");
+    resetColorsButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    resetColorsButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    resetColorsButton.onClick = [this]()
+        {
+            audioProcessor.resetColors();
+            bgColorInput.setText(audioProcessor.getBackgroundColor().toDisplayString(false), juce::dontSendNotification);
+            curveColorInput.setText(audioProcessor.getCurveColor().toDisplayString(false), juce::dontSendNotification);
+            gridColorInput.setText(audioProcessor.getGridColor().toDisplayString(false), juce::dontSendNotification);
+            spectrumColorInput.setText(audioProcessor.getSpectrumColor().toDisplayString(false), juce::dontSendNotification);
+            repaint();
+        };
+    addAndMakeVisible(resetColorsButton);
+
+    // Wet Only button
+    wetOnlyButton.setButtonText("Wet Only");
+    wetOnlyButton.setClickingTogglesState(true);
+    wetOnlyButton.setToggleState(false, juce::dontSendNotification);
+    wetOnlyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    wetOnlyButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff662233));
+    wetOnlyButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    wetOnlyButton.setColour(juce::TextButton::textColourOnId, juce::Colour(0xffff6688));
+    wetOnlyButton.onClick = [this]()
+        {
+            audioProcessor.wetOnly.store(wetOnlyButton.getToggleState(), std::memory_order_relaxed);
+        };
+    addAndMakeVisible(wetOnlyButton);
+
+    // Bin shift slider — full-width at the bottom of the UI.
+    // Uses an absolute approach: on drag-start we snapshot the current curve,
+    // then every value change applies shift = sliderValue from that snapshot.
+    shiftLabel.setText("Filter Shift:", juce::dontSendNotification);
+    shiftLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    shiftLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(shiftLabel);
+
+    shiftBaseline.fill(0.0f);
+
+    shiftSliderLF = std::make_unique<ShiftSliderLookAndFeel>();
+    shiftSlider.setLookAndFeel(shiftSliderLF.get());
+    shiftSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    shiftSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 56, 28);
+    shiftSlider.setRange(0.0, static_cast<double>(audioProcessor.fftSize - 1), 1.0);
+    shiftSlider.setValue(0.0, juce::dontSendNotification);
+    shiftSlider.setDoubleClickReturnValue(true, 0.0);
+
+    shiftSlider.textFromValueFunction = [this](double val) -> juce::String
+        {
+            double pct = val / static_cast<double>(audioProcessor.fftSize - 1) * 200.0;
+            return juce::String(static_cast<int>(std::round(pct))) + "%";
+        };
+    shiftSlider.valueFromTextFunction = [this](const juce::String& text) -> double
+        {
+            double pct = text.trimCharactersAtEnd("%").getDoubleValue();
+            return pct / 200.0 * static_cast<double>(audioProcessor.fftSize - 1);
+        };
+
+    shiftSlider.onDragStart = [this]()
+        {
+            // Snapshot the curve as it is right now before any shifting
+            audioProcessor.getFilterCurve(shiftBaseline);
+            shiftSlider.setValue(0.0, juce::dontSendNotification);
+        };
+
+    shiftSlider.onValueChange = [this]()
+        {
+            int shift = static_cast<int>(shiftSlider.getValue());
+            audioProcessor.setFilterCurveShifted(shiftBaseline, shift);
+        };
+
+    addAndMakeVisible(shiftSlider);
+
+    // Auto Shift Filter button
+    autoShiftFilterButton.setButtonText("Auto");
+    autoShiftFilterButton.setClickingTogglesState(true);
+    autoShiftFilterButton.setToggleState(false, juce::dontSendNotification);
+    autoShiftFilterButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    autoShiftFilterButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff225566));
+    autoShiftFilterButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    autoShiftFilterButton.setColour(juce::TextButton::textColourOnId, juce::Colour(0xff55eedd));
+    autoShiftFilterButton.onClick = [this]()
+        {
+            bool on = autoShiftFilterButton.getToggleState();
+            audioProcessor.autoShiftFilter.store(on, std::memory_order_relaxed);
+            audioProcessor.autoShiftFilterAccum = 0.0f;
+            shiftSlider.setEnabled(!on);
+            if (!on)
+            {
+                // Reset filter shift back to 0
+                audioProcessor.resetFilterCurve();
+                shiftSlider.setValue(0.0, juce::dontSendNotification);
+                shiftBaseline.fill(0.0f);
+            }
+        };
+    addAndMakeVisible(autoShiftFilterButton);
+
+    // Auto Shift Filter speed input
+    autoShiftFilterSpeedInput.setText("10", juce::dontSendNotification);
+    autoShiftFilterSpeedInput.setInputRestrictions(7, "-0123456789.");
+    autoShiftFilterSpeedInput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff2a2a2a));
+    autoShiftFilterSpeedInput.setColour(juce::TextEditor::textColourId, juce::Colours::lightgrey);
+    autoShiftFilterSpeedInput.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff444444));
+    autoShiftFilterSpeedInput.setFont(11.0f);
+    autoShiftFilterSpeedInput.setTooltip("bins/sec");
+    auto updateFilterSpeed = [this]()
+        {
+            float spd = autoShiftFilterSpeedInput.getText().getFloatValue();
+            if (spd != 0.0f)
+                audioProcessor.autoShiftFilterSpeed.store(spd, std::memory_order_relaxed);
+        };
+    autoShiftFilterSpeedInput.onReturnKey = updateFilterSpeed;
+    autoShiftFilterSpeedInput.onFocusLost = updateFilterSpeed;
+    addAndMakeVisible(autoShiftFilterSpeedInput);
+    binShiftLabel.setText("Bin Shift:", juce::dontSendNotification);
+    binShiftLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    binShiftLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(binShiftLabel);
+
+    binShiftSliderLF = std::make_unique<ShiftSliderLookAndFeel>();
+    binShiftSlider.setLookAndFeel(binShiftSliderLF.get());
+    binShiftSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    binShiftSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 56, 28);
+
+    const double binShiftMax = static_cast<double>(audioProcessor.fftSize - 1);
+    binShiftSlider.setRange(0.0, binShiftMax, 1.0);
+    binShiftSlider.setValue(0.0, juce::dontSendNotification);
+    binShiftSlider.setDoubleClickReturnValue(true, 0.0);
+
+    binShiftSlider.textFromValueFunction = [this](double val) -> juce::String
+        {
+            double maxVal = static_cast<double>(audioProcessor.fftSize - 1);
+            double pct = val / maxVal * 200.0;
+            return juce::String(static_cast<int>(std::round(pct))) + "%";
+        };
+    binShiftSlider.valueFromTextFunction = [this](const juce::String& text) -> double
+        {
+            double pct = text.trimCharactersAtEnd("%").getDoubleValue();
+            return pct / 200.0 * static_cast<double>(audioProcessor.fftSize - 1);
+        };
+
+    binShiftSlider.onValueChange = [this]()
+        {
+            audioProcessor.binShiftAmount.store(static_cast<int>(binShiftSlider.getValue()),
+                std::memory_order_relaxed);
+        };
+    addAndMakeVisible(binShiftSlider);
+
+    // Auto Shift Bin button
+    autoShiftBinButton.setButtonText("Auto");
+    autoShiftBinButton.setClickingTogglesState(true);
+    autoShiftBinButton.setToggleState(false, juce::dontSendNotification);
+    autoShiftBinButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    autoShiftBinButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff225566));
+    autoShiftBinButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    autoShiftBinButton.setColour(juce::TextButton::textColourOnId, juce::Colour(0xff55eedd));
+    autoShiftBinButton.onClick = [this]()
+        {
+            bool on = autoShiftBinButton.getToggleState();
+            audioProcessor.autoShiftBin.store(on, std::memory_order_relaxed);
+            audioProcessor.autoShiftBinAccum = 0.0f;
+            audioProcessor.autoShiftBinPos = 0;
+            binShiftSlider.setEnabled(!on);
+            binShiftWrapButton.setEnabled(!on);
+            if (!on)
+            {
+                audioProcessor.binShiftAmount.store(0, std::memory_order_relaxed);
+                binShiftSlider.setValue(0.0, juce::dontSendNotification);
+            }
+        };
+    addAndMakeVisible(autoShiftBinButton);
+
+    // Auto Shift Bin speed input
+    autoShiftBinSpeedInput.setText("10", juce::dontSendNotification);
+    autoShiftBinSpeedInput.setInputRestrictions(7, "-0123456789.");
+    autoShiftBinSpeedInput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff2a2a2a));
+    autoShiftBinSpeedInput.setColour(juce::TextEditor::textColourId, juce::Colours::lightgrey);
+    autoShiftBinSpeedInput.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff444444));
+    autoShiftBinSpeedInput.setFont(11.0f);
+    autoShiftBinSpeedInput.setTooltip("bins/sec");
+    auto updateBinSpeed = [this]()
+        {
+            float spd = autoShiftBinSpeedInput.getText().getFloatValue();
+            if (spd != 0.0f)
+                audioProcessor.autoShiftBinSpeed.store(spd, std::memory_order_relaxed);
+        };
+    autoShiftBinSpeedInput.onReturnKey = updateBinSpeed;
+    autoShiftBinSpeedInput.onFocusLost = updateBinSpeed;
+    addAndMakeVisible(autoShiftBinSpeedInput);
+
+    // Wrap toggle button
+    binShiftWrapButton.setButtonText("Wrap");
+    binShiftWrapButton.setClickingTogglesState(true);
+    binShiftWrapButton.setToggleState(true, juce::dontSendNotification); // wrap on by default
+    binShiftWrapButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a2a));
+    binShiftWrapButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff226655));
+    binShiftWrapButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    binShiftWrapButton.setColour(juce::TextButton::textColourOnId, juce::Colour(0xff55eedd));
+    binShiftWrapButton.onClick = [this]()
+        {
+            audioProcessor.binShiftWrap.store(binShiftWrapButton.getToggleState(),
+                std::memory_order_relaxed);
+        };
+    addAndMakeVisible(binShiftWrapButton);
+
+    startTimerHz(60);
+}
+
+SpectralFilterAudioProcessorEditor::~SpectralFilterAudioProcessorEditor()
+{
+    shiftSlider.setLookAndFeel(nullptr);
+    binShiftSlider.setLookAndFeel(nullptr);
+    stopTimer();
+}
+
+//==============================================================================
+void SpectralFilterAudioProcessorEditor::timerCallback()
+{
+    // Pull fresh curve and spectrum data from the processor — no lock held during paint
+    audioProcessor.getFilterCurve(displayCurveDB);
+    audioProcessor.getFFTData(fftDisplayData.data(), audioProcessor.numBins);
+    repaint();
+}
+
+//==============================================================================
+// Coordinate helpers
+//==============================================================================
+
+int SpectralFilterAudioProcessorEditor::xToBin(float x) const
+{
+    const float kNyquist = nyquist();
+    const float kLogMin = std::log10(20.0f);
+    const float kLogMax = std::log10(kNyquist);
+
+    float w = static_cast<float>(getWidth());
+    float normalized = juce::jlimit(0.0f, 1.0f, x / w);
+    float logFreq = kLogMin + normalized * (kLogMax - kLogMin);
+    float freq = std::pow(10.0f, logFreq);
+
+    float freqPerBin = kNyquist / static_cast<float>(audioProcessor.numBins - 1);
+    int bin = static_cast<int>(freq / freqPerBin);
+    return juce::jlimit(0, audioProcessor.numBins - 1, bin);
+}
+
+float SpectralFilterAudioProcessorEditor::binToX(int bin) const
+{
+    const float kNyquist = nyquist();
+    const float kLogMin = std::log10(20.0f);
+    const float kLogMax = std::log10(kNyquist);
+
+    float w = static_cast<float>(getWidth());
+    float freqPerBin = kNyquist / static_cast<float>(audioProcessor.numBins - 1);
+    float freq = static_cast<float>(bin) * freqPerBin;
+    freq = juce::jmax(freq, 20.0f);
+    float logFreq = std::log10(freq);
+    float normalized = (logFreq - kLogMin) / (kLogMax - kLogMin);
+    return normalized * w;
+}
+
+float SpectralFilterAudioProcessorEditor::yToDB(float y) const
+{
+    float h = static_cast<float>(getHeight());
+    float normalized = 1.0f - juce::jlimit(0.0f, 1.0f, y / h);
+    return minDB + normalized * (maxDB - minDB);
+}
+
+float SpectralFilterAudioProcessorEditor::dBToY(float dB) const
+{
+    float h = static_cast<float>(getHeight());
+    float normalized = (dB - minDB) / (maxDB - minDB);
+    return h * (1.0f - juce::jlimit(0.0f, 1.0f, normalized));
+}
+
+//==============================================================================
+// Mouse
+//==============================================================================
+
+void SpectralFilterAudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
+{
+    isDrawing = true;
+    lastDragX = static_cast<float>(event.x);
+    lastDragY = static_cast<float>(event.y);
+    paintCurveSegment(lastDragX, lastDragY);
+}
+
+void SpectralFilterAudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
+{
+    if (!isDrawing) return;
+    float x = static_cast<float>(event.x);
+    float y = static_cast<float>(event.y);
+    paintCurveSegment(x, y);
+    lastDragX = x;
+    lastDragY = y;
+}
+
+void SpectralFilterAudioProcessorEditor::mouseUp(const juce::MouseEvent&)
+{
+    isDrawing = false;
+}
+
+void SpectralFilterAudioProcessorEditor::mouseMove(const juce::MouseEvent& event)
+{
+    hoverX = static_cast<float>(event.x);
+}
+
+void SpectralFilterAudioProcessorEditor::mouseDoubleClick(const juce::MouseEvent&)
+{
+    audioProcessor.resetFilterCurve();
+}
+
+void SpectralFilterAudioProcessorEditor::paintCurveSegment(float x, float y)
+{
+    int   endBin = xToBin(x);
+    float endDB = yToDB(y);
+    int   startBin = xToBin(lastDragX);
+    float startDB = yToDB(lastDragY);
+    audioProcessor.setFilterCurveRange(startBin, endBin, startDB, endDB);
+}
+
+//==============================================================================
+// Paint
+//==============================================================================
+
+void SpectralFilterAudioProcessorEditor::paint(juce::Graphics& g)
+{
+    drawBackground(g);
+    drawFFTSpectrum(g);
+    drawFilterCurve(g);
+    drawLabels(g);
+}
+
+void SpectralFilterAudioProcessorEditor::drawBackground(juce::Graphics& g)
+{
+    const float kNyquist = nyquist();
+    const float kLogMin = std::log10(20.0f);
+    const float kLogMax = std::log10(kNyquist);
+    auto bounds = getLocalBounds();
+
+    g.fillAll(audioProcessor.getBackgroundColor());
+
+    // Horizontal dB grid lines
+    const float gridDBs[] = { 24.f, 18.f, 12.f, 6.f, 0.f, -6.f, -12.f, -24.f, -48.f, -96.f };
+    for (float dB : gridDBs)
+    {
+        float y = dBToY(dB);
+        g.setColour(dB == 0.0f ? juce::Colour(0xff44aacc) : audioProcessor.getGridColor());
+        g.drawHorizontalLine(static_cast<int>(y), 0.f, static_cast<float>(bounds.getWidth()));
+    }
+
+    // Vertical frequency grid lines
+    const float gridFreqs[] = { 20.f, 50.f, 100.f, 200.f, 500.f,
+                                  1000.f, 2000.f, 5000.f, 10000.f, 20000.f };
+    for (float freq : gridFreqs)
+    {
+        if (freq < 20.0f || freq > kNyquist) continue;
+        float logF = std::log10(freq);
+        float norm = (logF - kLogMin) / (kLogMax - kLogMin);
+        float x = norm * static_cast<float>(bounds.getWidth());
+        g.setColour(audioProcessor.getGridColor());
+        g.drawVerticalLine(static_cast<int>(x), 0.f, static_cast<float>(bounds.getHeight()));
+    }
+}
+
+void SpectralFilterAudioProcessorEditor::drawFFTSpectrum(juce::Graphics& g)
+{
+    // fftDisplayData already populated in timerCallback — no lock needed here
+    const float kNyquist = nyquist();
+    const float kLogMin = std::log10(20.0f);
+    const float kLogMax = std::log10(kNyquist);
+
+    float w = static_cast<float>(getWidth());
+    float h = static_cast<float>(getHeight());
+
+    float freqPerBin = kNyquist / static_cast<float>(audioProcessor.numBins - 1);
+
+    float maxMag = 0.001f;
+    for (int i = 0; i < audioProcessor.numBins; ++i)
+        maxMag = juce::jmax(maxMag, fftDisplayData[i]);
+
+    juce::Path specPath;
+    bool started = false;
+
+    for (int i = 1; i < audioProcessor.numBins; ++i)
+    {
+        float freq = static_cast<float>(i) * freqPerBin;
+        if (freq < 20.0f) continue;
+
+        float logF = std::log10(freq);
+        float norm = (logF - kLogMin) / (kLogMax - kLogMin);
+        float x = norm * w;
+
+        float dB = 20.0f * std::log10(fftDisplayData[i] / maxMag + 0.00001f);
+        float specNorm = juce::jlimit(0.0f, 1.0f, (dB + 90.0f) / 90.0f);
+        float y = h - specNorm * h * 0.65f;
+
+        if (!started)
+        {
+            specPath.startNewSubPath(x, h);
+            specPath.lineTo(x, y);
+            started = true;
+        }
+        else
+        {
+            specPath.lineTo(x, y);
+        }
+    }
+
+    if (started)
+    {
+        specPath.lineTo(w, h);
+        specPath.closeSubPath();
+    }
+
+    g.setColour(audioProcessor.getSpectrumColor().withAlpha(0.13f));
+    g.fillPath(specPath);
+    g.setColour(audioProcessor.getSpectrumColor().withAlpha(0.35f));
+    g.strokePath(specPath, juce::PathStrokeType(1.0f));
+}
+
+void SpectralFilterAudioProcessorEditor::drawFilterCurve(juce::Graphics& g)
+{
+    const float kNyquist = nyquist();
+
+    // Filled area between the curve and 0 dB
+    juce::Path fillPath;
+    float zeroY = dBToY(0.0f);
+    bool  started = false;
+
+    for (int bin = 0; bin < audioProcessor.numBins; ++bin)
+    {
+        float x = binToX(bin);
+        float y = dBToY(displayCurveDB[bin]);
+
+        if (!started)
+        {
+            fillPath.startNewSubPath(x, zeroY);
+            fillPath.lineTo(x, y);
+            started = true;
+        }
+        else
+        {
+            fillPath.lineTo(x, y);
+        }
+    }
+
+    if (started)
+    {
+        fillPath.lineTo(binToX(audioProcessor.numBins - 1), zeroY);
+        fillPath.closeSubPath();
+    }
+
+    g.setColour(audioProcessor.getCurveColor().withAlpha(0.2f));
+    g.fillPath(fillPath);
+
+    // Curve line
+    juce::Path curvePath;
+    started = false;
+
+    for (int bin = 0; bin < audioProcessor.numBins; ++bin)
+    {
+        float x = binToX(bin);
+        float y = dBToY(displayCurveDB[bin]);
+
+        if (!started) { curvePath.startNewSubPath(x, y); started = true; }
+        else { curvePath.lineTo(x, y); }
+    }
+
+    g.setColour(audioProcessor.getCurveColor());
+    g.strokePath(curvePath, juce::PathStrokeType(2.0f,
+        juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Hover tooltip
+    if (hoverX >= 0.f && hoverX <= static_cast<float>(getWidth()))
+    {
+        int   hoverBin = xToBin(hoverX);
+        float hoverDB = displayCurveDB[juce::jlimit(0, audioProcessor.numBins - 1, hoverBin)];
+        float hoverY = dBToY(hoverDB);
+
+        // Dot on curve
+        g.setColour(juce::Colours::white);
+        g.fillEllipse(hoverX - 4.f, hoverY - 4.f, 8.f, 8.f);
+
+        // Frequency value from actual sample rate
+        float freqPerBin = kNyquist / static_cast<float>(audioProcessor.numBins - 1);
+        float freq = static_cast<float>(hoverBin) * freqPerBin;
+        juce::String freqStr = (freq < 1000.f)
+            ? juce::String(static_cast<int>(freq)) + " Hz"
+            : juce::String(freq / 1000.f, 1) + " kHz";
+
+        juce::String dbStr = (hoverDB <= -144.f) ? "-inf dB"
+            : juce::String(hoverDB, 1) + " dB";
+
+        juce::String tooltip = freqStr + "  " + dbStr;
+
+        float labelX = hoverX + 8.f;
+        if (labelX + 130.f > static_cast<float>(getWidth()))
+            labelX = hoverX - 138.f;
+        float labelY = hoverY - 20.f;
+        if (labelY < 4.f) labelY = hoverY + 8.f;
+
+        g.setColour(juce::Colour(0xcc111416));
+        g.fillRoundedRectangle(labelX - 4.f, labelY - 2.f, 134.f, 18.f, 3.f);
+        g.setColour(juce::Colours::white);
+        g.setFont(11.0f);
+        g.drawText(tooltip, static_cast<int>(labelX), static_cast<int>(labelY),
+            130, 16, juce::Justification::left);
+    }
+}
+
+void SpectralFilterAudioProcessorEditor::drawLabels(juce::Graphics& g)
+{
+    const float kNyquist = nyquist();
+    const float kLogMin = std::log10(20.0f);
+    const float kLogMax = std::log10(kNyquist);
+
+    int w = getWidth();
+    int h = getHeight();
+
+    g.setFont(10.0f);
+
+    // dB axis labels (right edge)
+    const float labelDBs[] = { 24.f, 12.f, 6.f, 0.f, -6.f, -12.f, -24.f, -48.f };
+    for (float dB : labelDBs)
+    {
+        float y = dBToY(dB);
+        juce::String label = (dB == 0.f) ? "0 dB"
+            : juce::String(static_cast<int>(dB)) + " dB";
+        g.setColour(dB == 0.f ? juce::Colour(0xff44aacc) : audioProcessor.getGridColor().brighter(0.3f));
+        g.drawText(label, w - 44, static_cast<int>(y) - 7, 42, 14,
+            juce::Justification::right);
+    }
+
+    // Frequency axis labels (bottom edge)
+    const float labelFreqs[] = { 20.f, 50.f, 100.f, 200.f, 500.f,
+                                   1000.f, 2000.f, 5000.f, 10000.f, 20000.f };
+    for (float freq : labelFreqs)
+    {
+        if (freq > kNyquist) continue;
+        float logF = std::log10(freq);
+        float norm = (logF - kLogMin) / (kLogMax - kLogMin);
+        float x = norm * static_cast<float>(w);
+
+        juce::String label = (freq < 1000.f)
+            ? juce::String(static_cast<int>(freq))
+            : (freq < 10000.f ? juce::String(freq / 1000.f, 1) + "k"
+                : juce::String(static_cast<int>(freq / 1000.f)) + "k");
+
+        g.setColour(audioProcessor.getGridColor().brighter(0.3f));
+        g.drawText(label, static_cast<int>(x) - 18, h - 14, 36, 12,
+            juce::Justification::centred);
+    }
+
+    // Usage hint
+    g.setColour(audioProcessor.getGridColor().brighter(0.1f));
+    g.drawText("SpectralFilter by aquanode | Click and Drag to Draw Curve | Click Twice to Reset | Choose UI Colors in the Menu | Click Random for Random Filtering",
+        4, 4, w - 180, 14, juce::Justification::left);
+}
+
+//==============================================================================
+void SpectralFilterAudioProcessorEditor::updateBackgroundColor()
+{
+    juce::String hexText = bgColorInput.getText().trim();
+
+    // Remove # if present
+    if (hexText.startsWith("#"))
+        hexText = hexText.substring(1);
+
+    // Parse hex color
+    try
+    {
+        juce::Colour newColor = juce::Colour::fromString("ff" + hexText);
+        audioProcessor.setBackgroundColor(newColor);
+        repaint();
+    }
+    catch (...)
+    {
+        // Invalid color, reset to current
+        bgColorInput.setText(audioProcessor.getBackgroundColor().toDisplayString(false));
+    }
+}
+
+void SpectralFilterAudioProcessorEditor::updateCurveColor()
+{
+    juce::String hexText = curveColorInput.getText().trim();
+
+    // Remove # if present
+    if (hexText.startsWith("#"))
+        hexText = hexText.substring(1);
+
+    // Parse hex color
+    try
+    {
+        juce::Colour newColor = juce::Colour::fromString("ff" + hexText);
+        audioProcessor.setCurveColor(newColor);
+        repaint();
+    }
+    catch (...)
+    {
+        // Invalid color, reset to current
+        curveColorInput.setText(audioProcessor.getCurveColor().toDisplayString(false));
+    }
+}
+
+void SpectralFilterAudioProcessorEditor::updateGridColor()
+{
+    juce::String hexText = gridColorInput.getText().trim();
+
+    // Remove # if present
+    if (hexText.startsWith("#"))
+        hexText = hexText.substring(1);
+
+    // Parse hex color
+    try
+    {
+        juce::Colour newColor = juce::Colour::fromString("ff" + hexText);
+        audioProcessor.setGridColor(newColor);
+        repaint();
+    }
+    catch (...)
+    {
+        // Invalid color, reset to current
+        gridColorInput.setText(audioProcessor.getGridColor().toDisplayString(false));
+    }
+}
+
+void SpectralFilterAudioProcessorEditor::updateSpectrumColor()
+{
+    juce::String hexText = spectrumColorInput.getText().trim();
+
+    // Remove # if present
+    if (hexText.startsWith("#"))
+        hexText = hexText.substring(1);
+
+    // Parse hex color
+    try
+    {
+        juce::Colour newColor = juce::Colour::fromString("ff" + hexText);
+        audioProcessor.setSpectrumColor(newColor);
+        repaint();
+    }
+    catch (...)
+    {
+        // Invalid color, reset to current
+        spectrumColorInput.setText(audioProcessor.getSpectrumColor().toDisplayString(false));
+    }
+}
+
+//==============================================================================
+void SpectralFilterAudioProcessorEditor::resized()
+{
+    int w = getWidth();
+
+    // Top-right controls
+    int rightEdge = w - 26;
+    int inputWidth = 80;
+    int labelWidth = 68;
+    int rowHeight = 26;
+    int startY = 6;
+
+    // Row 0: FFT Size
+    fftSizeCombo.setBounds(rightEdge - inputWidth, startY + rowHeight * 0, inputWidth, 22);
+    fftSizeLabel.setBounds(rightEdge - inputWidth - 58, startY + rowHeight * 0, 58, 22);
+
+    // Row 1: Random
+    randomButton.setBounds(rightEdge - inputWidth, startY + rowHeight * 1, inputWidth, 22);
+
+    // Row 2: Reset Filter
+    resetFilterButton.setBounds(rightEdge - inputWidth, startY + rowHeight * 2, inputWidth, 22);
+
+    // Row 3: Wet Only
+    wetOnlyButton.setBounds(rightEdge - inputWidth, startY + rowHeight * 3, inputWidth, 22);
+
+    // Row 4: Export IR
+    exportIRButton.setBounds(rightEdge - inputWidth, startY + rowHeight * 4, inputWidth, 22);
+
+    // Row 5: BG Color
+    bgColorInput.setBounds(rightEdge - inputWidth, startY + rowHeight * 5, inputWidth, 22);
+    bgColorLabel.setBounds(rightEdge - inputWidth - 58, startY + rowHeight * 5, 58, 22);
+
+    // Row 6: Curve Color
+    curveColorInput.setBounds(rightEdge - inputWidth, startY + rowHeight * 6, inputWidth, 22);
+    curveColorLabel.setBounds(rightEdge - inputWidth - 58, startY + rowHeight * 6, 58, 22);
+
+    // Row 7: Grid Color
+    gridColorInput.setBounds(rightEdge - inputWidth, startY + rowHeight * 7, inputWidth, 22);
+    gridColorLabel.setBounds(rightEdge - inputWidth - 58, startY + rowHeight * 7, 58, 22);
+
+    // Row 8: Spectrum Color
+    spectrumColorInput.setBounds(rightEdge - inputWidth, startY + rowHeight * 8, inputWidth, 22);
+    spectrumColorLabel.setBounds(rightEdge - inputWidth - labelWidth, startY + rowHeight * 8, labelWidth, 22);
+
+    // Row 9: Reset Colors
+    resetColorsButton.setBounds(rightEdge - inputWidth, startY + rowHeight * 9, inputWidth, 22);
+
+    // Bottom strip 1: Filter Shift slider + Auto button + speed input
+    const int sliderH = 28;
+    const int labelW = 76;
+    const int autoBtnW = 44;
+    const int speedInputW = 52;
+    const int wrapBtnW = 48;
+    const int gap = 4;
+    const int strip1Y = getHeight() - (sliderH + gap) * 2;
+
+    shiftLabel.setBounds(gap, strip1Y, labelW, sliderH);
+    autoShiftFilterSpeedInput.setBounds(w - speedInputW - gap, strip1Y, speedInputW, sliderH);
+    autoShiftFilterButton.setBounds(w - speedInputW - autoBtnW - gap * 2, strip1Y, autoBtnW, sliderH);
+    shiftSlider.setBounds(labelW + gap, strip1Y,
+        w - labelW - autoBtnW - speedInputW - gap * 4, sliderH);
+
+    // Bottom strip 2: Bin Shift slider + Wrap + Auto button + speed input
+    const int strip2Y = getHeight() - sliderH - gap;
+
+    binShiftLabel.setBounds(gap, strip2Y, labelW, sliderH);
+    autoShiftBinSpeedInput.setBounds(w - speedInputW - gap, strip2Y, speedInputW, sliderH);
+    autoShiftBinButton.setBounds(w - speedInputW - autoBtnW - gap * 2, strip2Y, autoBtnW, sliderH);
+    binShiftWrapButton.setBounds(w - speedInputW - autoBtnW - wrapBtnW - gap * 3, strip2Y, wrapBtnW, sliderH);
+    binShiftSlider.setBounds(labelW + gap, strip2Y,
+        w - labelW - wrapBtnW - autoBtnW - speedInputW - gap * 5, sliderH);
+}
