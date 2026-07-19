@@ -2,6 +2,8 @@
 
 Free VST3 plugins and standalone apps for Windows, made with JUCE. The C++ source code is included for every plugin and should compile for Windows, Mac and Linux (I only provide Windows builds since I only have a Windows machine).
 
+[![YouTube Video Preview](https://youtube.com)](https://youtube.com)
+
 # Downloads:
 All builds (standalone .exe and .vst3) are on the [Releases](../../releases) page. 
 For the source code and manuals: https://github.com/aquanodemusic/aquanode-plugins/archive/refs/heads/main.zip
