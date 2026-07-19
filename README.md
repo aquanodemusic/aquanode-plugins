@@ -102,3 +102,11 @@ plugin-name/
 ```
 
 Most plugins were made with the help of Claude AI. Unless noted otherwise in the plugin folder (NoteAdder is GPLv3, AudioStretcher is GPL v2 due to Rubber Band), see the repository license. Have fun with the plugins! — Aquanode
+
+---
+
+If you scrolled this far - thank you! Here is a little more about myself. 
+
+One thing I really don’t like as an artist is not owning my tools. Online activation, license servers, and “phone-home” plugins are common practices in modern creative software. I understand why they’re used, but I’m not sure why online activation is so prevalent rather than something like a personalized offline installer - which some vendors kindly provide. These online systems create unnecessary dependencies and take control away from artists who simply want reliable tools. That’s why all of my plugins are fully self-contained and activation-free. There are no installers, no online authorization or accounts, and nothing that can suddenly stop working because a server goes offline or similar - hence, my software is also open source so anyone can maintain it as long as they want.
+
+Furthermore, I value creative, colorful, and genuinely human design and want interfaces that feel tactile, expressive, natural and alive. Tools should invite playful curiosity and comfort, with warmth, depth, and personality. They should be a joy to use and evoke a sense of freedom whilst having their own character. Even though I use AI to make my plugins, which goes against some of these ideals, I still care about them and am glad that these AI systems gave me the ability to create them - there are many projects I would never have found the time nor the mental energy for otherwise, so I hope that is understandable!
