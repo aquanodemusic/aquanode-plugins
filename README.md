@@ -2,7 +2,9 @@
 
 Free VST3 plugins and standalone apps for Windows, made with JUCE. The C++ source code is included for every plugin and should compile for Windows, Mac and Linux (I only provide Windows builds since I only have a Windows machine).
 
-[![YouTube Video Preview](https://youtube.com)](https://youtube.com)
+Watch the video:
+
+[![Watch the video](https://img.youtube.com/vi/6Zfvsw8TNzE/hqdefault.jpg)](https://www.youtube.com/watch?v=6Zfvsw8TNzE)
 
 # Downloads:
 All builds (standalone .exe and .vst3) are on the [Releases](../../releases) page. 
