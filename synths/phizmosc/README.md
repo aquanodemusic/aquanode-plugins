@@ -8,7 +8,7 @@ PhizmOsc is a 2-Oscillator Transwave Synthesizer loosely modelled after (or rath
 
 ### About the Project
 
-PhizmOsc is NOT an emulation of the Fizmo, but is capable of generating very similar sounds as the Fizmo's Transwaves / Wavetables are included in the download as .wav files. I obtained the wavetables from nilamox.com, which were originally .vitaltable files, and converted them to .wav files myself.
+PhizmOsc is NOT an emulation of the Fizmo, but is capable of generating very similar sounds when you import the Fizmo's Transwaves / Wavetables. These are not included in the download for copyright reasons, but there are community projects such as nilamox, that preserve such files e.g. for owners of the original hardware.
 
 Even though I own other great Fizmo emulations (Echograin's Tranzwave and Puremagnetik's Waveframe), I wanted a standalone .vst3 version to play around with and wanted to give a free alternative to the community. If you have the money, please purchase those products; I am not affiliated in any way with either of them.
 
@@ -16,7 +16,7 @@ Even though I own other great Fizmo emulations (Echograin's Tranzwave and Purema
 
 PhizmOsc is a dual oscillator transwave synthesizer. Each oscillator morphs through its transwave at a rate and trajectory the user can design visually in a sound evolution envelope. The two oscillators share a single scan clock but can follow completely different curve shapes, so their timbres evolve in lockstep but may diverge in character. A single cycle through the evolution pattern can last to anywhere from 0.1 seconds to 100 seconds, perfect for slowly evolving pads.
 
-**Please Note:** The transwaves are not directly built-in into the synthesizer. Make sure to save them into a directory of your choice and always load them from there. When you load a preset, the synth expects the transwave .wav files to be at the same location from where you accessed them when saving the preset. Preset loading may fail if the directory changed, however you can always reconstruct the name of the wavetable from opening the .phizm preset files using a text editor, which saves the absolute path to the presets.
+**Please Note:** The transwaves are not directly built-in into the synthesizer. Make sure to save them into a directory of your choice and load from there. Presets however also bake the sound sources into them, so even if you move the original files, the presets are safe.
 
 The oscillator is the focus of PhizmOsc. Other characteristics that make up the Fizmo or other great synthesizers, like the Fizmo's extensive FX section, are not included besides a simple Chorus and Reverb. For many more free effects, feel free to have a look around my other VSTs!
 
