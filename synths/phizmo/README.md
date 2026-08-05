@@ -11,10 +11,7 @@ effects and global reverb, and a set of real-time performance macros.
 Phizmo loads ordinary `.wav` wavetables — normally 2048 samples per cycle — and
 it can also **generate transwaves from scratch**, so you never need a table you
 don't have. **No factory wavetables are included**: the original Ensoniq tables
-are copyrighted and I prefer not to include them here in the official release.
-You may however find these on the web, look for the nilamox website for example
-which provides these in the form of Vitaltables you can batch-convert to .wav
-using the AI of your choice if you like.
+are copyrighted and I prefer not to include them here in the official release. There are websites like nilamox that preserve such files and sounds, but checking if it is fine to obtain these files is up to you to be safe.
 
 ---
 
