@@ -1,0 +1,7 @@
+# build artifacts and binaries live in GitHub Releases, not the repo
+*.exe
+*.vst3
+Builds/
+JuceLibraryCode/
+.DS_Store
+Thumbs.db

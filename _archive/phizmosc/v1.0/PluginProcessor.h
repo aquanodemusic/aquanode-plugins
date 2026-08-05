@@ -1,0 +1,343 @@
+#pragma once
+#include <JuceHeader.h>
+
+//==============================================================================
+static constexpr int EVO_POINTS = 32;
+
+//==============================================================================
+// Two cascaded biquads = 4-pole (24 dB/oct) lowpass
+// Defined before TranswaveVoice so the voice struct can embed one.
+struct StereoBiquad
+{
+    float x1L = 0, x2L = 0, y1L = 0, y2L = 0, x1R = 0, x2R = 0, y1R = 0, y2R = 0;
+    float b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0;
+
+    void setLowpass(float freq, float q, double sr)
+    {
+        float w = 2.f * juce::MathConstants<float>::pi * freq / (float)sr;
+        w = juce::jlimit(0.001f, juce::MathConstants<float>::pi * 0.98f, w);
+        float cw = std::cos(w), alpha = std::sin(w) / (2.f * q);
+        float b0c = (1.f - cw) * 0.5f, b1c = 1.f - cw, b2c = b0c, a0 = 1.f + alpha;
+        b0 = b0c / a0; b1 = b1c / a0; b2 = b2c / a0;
+        a1 = -2.f * cw / a0; a2 = (1.f - alpha) / a0;
+    }
+    float processL(float in) { float o = b0 * in + b1 * x1L + b2 * x2L - a1 * y1L - a2 * y2L; x2L = x1L;x1L = in;y2L = y1L;y1L = o; return o; }
+    float processR(float in) { float o = b0 * in + b1 * x1R + b2 * x2R - a1 * y1R - a2 * y2R; x2R = x1R;x1R = in;y2R = y1R;y1R = o; return o; }
+    void reset() { x1L = x2L = y1L = y2L = x1R = x2R = y1R = y2R = 0; }
+};
+
+struct StereoFilter4Pole
+{
+    StereoBiquad s1, s2;
+    void setLowpass(float freq, float q, double sr)
+    {
+        float q1 = q * 0.7071f;
+        float q2 = q * 1.3066f;
+        s1.setLowpass(freq, q1, sr);
+        s2.setLowpass(freq, q2, sr);
+    }
+    float processL(float in) { return s2.processL(s1.processL(in)); }
+    float processR(float in) { return s2.processR(s1.processR(in)); }
+    void reset() { s1.reset(); s2.reset(); }
+};
+
+//==============================================================================
+struct TranswaveVoice
+{
+    bool   active = false;
+    int    midiNote = 0;
+    float  velocity = 1.0f;
+
+    double phaseA = 0.0;
+    double phaseB = 0.0;
+
+    // Per-voice curve scanning state
+    double curvePhase = 0.0;
+    int    scanDir = 1;
+    bool   curveFinished = false;
+    float  evoPhaseCarryStart = 0.0f;  // phase to restore when evoPhaseCarry is on
+
+    float  frameOffset = 0.0f;   // random jump offset (additive, wraps)
+    float  velFrameOffset = 0.0f; // velocity → frame start offset (additive)
+
+    // Amplitude envelope
+    enum class Env { Idle, Attack, Decay, Sustain, Release } envStage = Env::Idle;
+    float envLevel = 0.0f;
+    float releaseStartLevel = 0.0f;
+
+    // Filter envelope (separate ADSR, same stage enum)
+    Env   fenvStage = Env::Idle;
+    float fenvLevel = 0.0f;
+    float fenvReleaseStart = 0.0f;
+
+    // Pitch envelope (attack + decay only, returns to 0)
+    float penvLevel = 0.0f;
+    bool  penvDone = false;
+
+    // OSC 2 (B) amplitude envelope
+    Env   env2Stage = Env::Idle;
+    float env2Level = 0.0f;
+    float rel2StartLevel = 0.0f;
+
+    // Per-voice filter (used when filterPerVoice mode is active)
+    StereoFilter4Pole voiceFilter;
+
+    // Glide state
+    double glideStartFreq = 0.0;   // frequency we are sliding FROM
+    double glideTargetFreq = 0.0;   // frequency we are sliding TO
+    float  glideProgress = 1.0f;  // 0=start, 1=arrived
+
+    void noteOn(int note, float vel, double prevFreq = 0.0, float glideTime = 0.f,
+                float velFrameAmt = 0.f, bool carryPhase = false, float carryPhaseVal = 0.f)
+    {
+        midiNote = note;
+        velocity = vel;
+        active = true;
+        phaseA = phaseB = 0.0;
+        // amplitude env
+        envStage = Env::Attack;   envLevel = 0.0f;
+        // osc 2 env
+        env2Stage = Env::Attack;  env2Level = 0.0f; rel2StartLevel = 0.0f;
+        // filter env
+        fenvStage = Env::Attack;  fenvLevel = 0.0f; fenvReleaseStart = 0.0f;
+        // pitch env
+        penvLevel = 1.0f;         penvDone = false;
+        // per-voice curve
+        if (carryPhase)
+            curvePhase = (double)carryPhaseVal;
+        else
+            curvePhase = 0.0;
+        scanDir = 1;  curveFinished = false;
+        frameOffset = 0.0f;
+        // velocity → frame offset
+        velFrameOffset = vel * velFrameAmt;
+        // glide
+        glideTargetFreq = 440.0 * std::pow(2.0, (note - 69.0) / 12.0);
+        if (prevFreq > 0.0 && glideTime > 0.001f) {
+            glideStartFreq = prevFreq;
+            glideProgress = 0.0f;
+        }
+        else {
+            glideStartFreq = glideTargetFreq;
+            glideProgress = 1.0f;
+        }
+    }
+    void noteOff()
+    {
+        releaseStartLevel = envLevel;
+        envStage = Env::Release;
+        rel2StartLevel = env2Level;
+        env2Stage = Env::Release;
+        fenvReleaseStart = fenvLevel;
+        fenvStage = Env::Release;
+    }
+};
+
+//==============================================================================
+struct StereoChorus
+{
+    static constexpr int MAX_DELAY = 4096;
+    float bufL[MAX_DELAY] = {}, bufR[MAX_DELAY] = {};
+    int   writePos = 0;
+    double lfoPhase = 0.0;
+
+    void reset() { std::fill(bufL, bufL + MAX_DELAY, 0.f); std::fill(bufR, bufR + MAX_DELAY, 0.f); writePos = 0; lfoPhase = 0.0; }
+
+    void process(float& L, float& R, float rate, float depth, double sr)
+    {
+        float ds = depth * (float)(sr * 0.025f);
+        float bd = ds * 0.5f + 1.f;
+        lfoPhase += rate / sr;
+        if (lfoPhase > 1.0) lfoPhase -= 1.0;
+        float lL = (float)std::sin(lfoPhase * juce::MathConstants<double>::twoPi), lR = -lL;
+        float dL = bd + lL * ds * 0.5f, dR = bd + lR * ds * 0.5f;
+        bufL[writePos % MAX_DELAY] = L;
+        bufR[writePos % MAX_DELAY] = R;
+        auto ri = [&](float* b, float d) -> float {
+            float rf = (float)writePos - d;
+            while (rf < 0) rf += MAX_DELAY;
+            int r0 = (int)rf % MAX_DELAY, r1 = (r0 + 1) % MAX_DELAY;
+            float fr = rf - (int)rf;
+            return b[r0] + fr * (b[r1] - b[r0]);
+            };
+        float wL = ri(bufL, dL), wR = ri(bufR, dR);
+        ++writePos;
+        L += wL * 0.5f;
+        R += wR * 0.5f;
+    }
+};
+
+//==============================================================================
+// Scan modes:  0=Forward  1=Fwd Stay  2=Back&Forth  3=Bwd Stay  4=Backward
+enum class ScanMode { Forward = 0, FwdStay = 1, BackForth = 2, BwdStay = 3, Backward = 4 };
+
+//==============================================================================
+class TranswaveAudioProcessor : public juce::AudioProcessor,
+    public juce::AudioProcessorValueTreeState::Listener
+{
+public:
+    TranswaveAudioProcessor();
+    ~TranswaveAudioProcessor() override;
+
+    void prepareToPlay(double sampleRate, int samplesPerBlock) override;
+    void releaseResources() override;
+    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor()    const override { return true; }
+    const juce::String getName() const override { return "TranswaveEngine"; }
+    bool acceptsMidi()  const override { return true; }
+    bool producesMidi() const override { return false; }
+    bool isMidiEffect() const override { return false; }
+    double getTailLengthSeconds() const override { return 2.0; }
+    int  getNumPrograms()   override { return 1; }
+    int  getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
+
+    void getStateInformation(juce::MemoryBlock& destData) override;
+    void setStateInformation(const void* data, int sizeInBytes) override;
+
+    juce::AudioProcessorValueTreeState apvts;
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    void parameterChanged(const juce::String& paramID, float newValue) override;
+
+    // --- Wavetable loading ---
+    void         loadWavetable(const juce::File& file, int singleCycleSamples, int slot);
+    bool         isWavetableLoaded(int slot) const;
+    int          getNumFrames(int slot) const;
+    int          getCycleSamples(int slot) const;
+    juce::String getWavetableName(int slot) const;
+    juce::String getWavetableFilePath(int slot) const;
+
+    // osc: 0 = Osc A, 1 = Osc B (each oscillator now reads its own evolution curve)
+    float getCurrentEvoFramePos(int osc = 0) const;
+    bool  getFrameSamples(int slot, int frameIndex, std::vector<float>& out) const;
+    bool  getWavetableOverview(int slot, int displayWidth, int displayHeight, std::vector<float>& out) const;
+    float sampleFrameNearest(int slot, float frameIndex, double phase);
+
+    // Both slots always potentially active; display uses this for highlight
+    std::atomic<int> activeSlot{ 0 };  // kept for display highlight only
+
+    // --- Evolution curves (32 points each) ---
+    // The scan position/time/LFOs stay shared & linked between oscillators (per the
+    // original design); only the curve SHAPE (and its stepped flag) is independent
+    // per oscillator, so Osc A and Osc B can morph through their wavetables differently
+    // while still being scanned in lockstep.
+    std::atomic<float> evoCurve[EVO_POINTS];    // Osc A curve
+    std::atomic<float> evoCurveB[EVO_POINTS];   // Osc B curve
+    void  setCurvePoint(int idx, float val, int osc = 0);
+    float getCurvePoint(int idx, int osc = 0) const { return (osc == 0 ? evoCurve : evoCurveB)[idx].load(); }
+    float evalCurve(float t, int osc = 0) const;
+
+    // Playhead (average across active voices, for display) - shared scan position
+    std::atomic<float> evoPlayhead{ 0.0f };
+
+    // --- Preset persistence ---
+    static juce::File getPresetsDirectory();
+    bool savePreset(const juce::File& destFile);
+    bool loadPreset(const juce::File& srcFile);
+
+private:
+    struct WavetableSlot
+    {
+        std::vector<std::vector<float>> frames;
+        int   numFrames = 0, cycleSamples = 0;
+        bool  loaded = false;
+        juce::String name, filePath;
+        mutable juce::CriticalSection lock;
+    };
+    WavetableSlot wt[2];
+
+    static constexpr int MAX_VOICES = 16;
+    TranswaveVoice voices[MAX_VOICES];
+    double currentSampleRate = 44100.0;
+
+    juce::SmoothedValue<float> gainSmooth;
+    StereoFilter4Pole filter;
+    StereoChorus      chorus;
+    juce::Reverb      reverb;
+
+    // Global LFO phases (pitch LFO remains global; evo/pos are now per-voice)
+    double pitchLFOPhase = 0.0;
+
+    // --- Raw param pointers ---
+    std::atomic<float>* pEvoTime = nullptr;
+    std::atomic<float>* pEvoStepped = nullptr;
+    std::atomic<float>* pEvoSteppedB = nullptr;
+    std::atomic<float>* pEvoLFORate = nullptr;
+    std::atomic<float>* pEvoLFODepth = nullptr;
+    std::atomic<float>* pPosLFORate = nullptr;
+    std::atomic<float>* pPosLFODepth = nullptr;
+    std::atomic<float>* pAttack = nullptr;
+    std::atomic<float>* pDecay = nullptr;
+    std::atomic<float>* pSustain = nullptr;
+    std::atomic<float>* pRelease = nullptr;
+    std::atomic<float>* pGain = nullptr;
+    std::atomic<float>* pBitCrush = nullptr;
+    std::atomic<float>* pGrit = nullptr;
+    std::atomic<float>* pDetune = nullptr;
+    std::atomic<float>* pPitchLFO = nullptr;
+    std::atomic<float>* pPitchLFORate = nullptr;
+    std::atomic<float>* pScanStyle = nullptr;
+    std::atomic<float>* pJumpProb = nullptr;
+    std::atomic<float>* pFilterFreq = nullptr;
+    std::atomic<float>* pFilterQ = nullptr;
+    std::atomic<float>* pFilterAtt = nullptr;
+    std::atomic<float>* pFilterDec = nullptr;
+    std::atomic<float>* pFilterSus = nullptr;
+    std::atomic<float>* pFilterRel = nullptr;
+    std::atomic<float>* pFilterEnvAmt = nullptr;
+    std::atomic<float>* pFilterLFODep = nullptr;
+    std::atomic<float>* pPitchEnvAmt = nullptr;
+    std::atomic<float>* pPitchEnvAtt = nullptr;
+    std::atomic<float>* pPitchEnvDec = nullptr;
+    std::atomic<float>* pOscMix = nullptr;
+    std::atomic<float>* pSpread = nullptr;
+    std::atomic<float>* pStereoWidth = nullptr;
+    std::atomic<float>* pUniDetune = nullptr;
+    std::atomic<float>* pStereoPhase = nullptr;
+    std::atomic<float>* pChorusRate = nullptr;
+    std::atomic<float>* pChorusDepth = nullptr;
+    std::atomic<float>* pRingMod = nullptr;
+    std::atomic<float>* pReverbSize = nullptr;
+    std::atomic<float>* pReverbDamp = nullptr;
+    std::atomic<float>* pReverbWet = nullptr;
+    // New params
+    std::atomic<float>* pAttack2 = nullptr;
+    std::atomic<float>* pDecay2 = nullptr;
+    std::atomic<float>* pSustain2 = nullptr;
+    std::atomic<float>* pRelease2 = nullptr;
+    std::atomic<float>* pOctaveA = nullptr;
+    std::atomic<float>* pOctaveB = nullptr;
+    std::atomic<float>* pGlide = nullptr;
+    std::atomic<float>* pMono = nullptr;
+    std::atomic<float>* pNoise = nullptr;
+
+    // Engine mode toggles
+    std::atomic<float>* pFrameInterp     = nullptr;  // 1 = bilinear within-cycle interp
+    std::atomic<float>* pFilterPerVoice  = nullptr;  // 1 = per-voice filter
+    std::atomic<float>* pVelToFrame      = nullptr;  // 1 = velocity offsets frame start
+    std::atomic<float>* pEvoPhaseCarry   = nullptr;  // 1 = new note inherits scan position
+
+    // Block-level LFO values computed once per block
+    float blockPosLFO = 0.0f;
+    float blockPitchLFO = 0.0f;
+
+    // Mono glide state: track last active note frequency
+    double lastNoteFreq = 0.0;
+    bool   monoActive = false;
+
+    // Per-voice LFO phases (evo and pos, separated per voice via noteOn seed)
+    double voiceEvoLFOPhase[MAX_VOICES] = {};
+    double voicePosLFOPhase[MAX_VOICES] = {};
+
+    void  synthesiseVoice(TranswaveVoice& v, int vi,
+        float posLFOMod, double pitchMult,
+        float& outL, float& outR);
+    float applyBitCrush(float s, float bits);
+    float sampleFrameRaw(const WavetableSlot& s, float frameIndex, double phase, bool interp) const;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TranswaveAudioProcessor)
+};

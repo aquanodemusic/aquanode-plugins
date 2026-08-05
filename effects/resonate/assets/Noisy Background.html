@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Tactical Interface - Reference Match</title>
+
+<style>
+:root {
+  /* Colors sampled from the provided image */
+  --bg-color: #060b0d;           /* Deep dark teal background */
+  --grid-color: rgba(64, 160, 160, 0.08); 
+  --accent-teal: #4db6ac;        /* The muted teal from the image */
+  --bright-cyan: #5ffcff;        /* For the focal points */
+  --line-glow: rgba(95, 252, 255, 0.3);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-color);
+  overflow: hidden;
+}
+
+/* =========================
+   PARALLAX GRID SYSTEM
+========================= */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  /* Deep greenish radial glow from the reference */
+  background: radial-gradient(circle at 20% 50%, rgba(10, 40, 40, 0.4), transparent 70%);
+}
+
+.grid-layer {
+  position: absolute;
+  inset: -100%;
+  pointer-events: none;
+  animation: drift linear infinite;
+}
+
+.grid-far {
+  background-image:
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+    linear-gradient(var(--grid-color) 1px, transparent 1px);
+  background-size: 120px 120px;
+  animation-duration: 150s;
+  opacity: 0.5;
+}
+
+.grid-near {
+  background-image:
+    linear-gradient(90deg, rgba(64, 160, 160, 0.12) 1px, transparent 1px),
+    linear-gradient(rgba(64, 160, 160, 0.12) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation-duration: 80s;
+  opacity: 0.4;
+}
+
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(240px, 240px, 0); }
+}
+
+/* =========================
+   MOVING SCANLINE LAYERS
+========================= */
+
+.scanline-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scanline {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.01) 0px,
+    rgba(255, 255, 255, 0.01) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+  animation: scanMove linear infinite;
+}
+
+.scan-1 { animation-duration: 10s; opacity: 0.5; }
+.scan-2 { animation-duration: 18s; opacity: 0.3; animation-direction: reverse; }
+
+@keyframes scanMove {
+  from { transform: translateY(0); }
+  to { transform: translateY(100px); }
+}
+
+/* =========================
+   STATIC BENZENE RINGS
+========================= */
+
+.molecule {
+  position: absolute;
+  pointer-events: none;
+}
+
+.benzene-svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--accent-teal);
+  stroke-width: 1.5;
+}
+
+.bond {
+  stroke: var(--accent-teal);
+  stroke-width: 1.5;
+  opacity: 0.6;
+}
+
+/* =========================
+   MAIN HORIZONTAL LINE
+========================= */
+
+.line-wrapper {
+  position: absolute;
+  left: 0;
+  bottom: 12%; /* Low position matched to reference */
+  width: 100%;
+  height: 2px;
+}
+
+.line-core {
+  width: 100%;
+  height: 100%;
+  /* Bright teal on left, fading to nothing on right */
+  background: linear-gradient(
+    90deg,
+    var(--bright-cyan) 0%,
+    var(--accent-teal) 15%,
+    rgba(77, 182, 172, 0.1) 60%,
+    transparent 100%
+  );
+  box-shadow: 0 0 15px var(--line-glow);
+}
+
+/* =========================
+   ATMOSPHERIC OVERLAYS
+========================= */
+
+.noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  background-image: repeating-radial-gradient(#fff 0 0.0001%, #000 0 0.0002%);
+  background-size: 100px 100px;
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 30%, rgba(0,0,0,0.85) 100%);
+  pointer-events: none;
+}
+
+</style>
+</head>
+<body>
+
+<div class="scene">
+  <div class="grid-layer grid-far"></div>
+  <div class="grid-layer grid-near"></div>
+
+  <div class="scanline-container">
+    <div class="scanline scan-1"></div>
+    <div class="scanline scan-2"></div>
+  </div>
+
+  <div class="molecule" style="right: 15%; top: 12%; width: 140px; height: 140px; opacity: 0.6;">
+    <svg viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" class="benzene-svg"/>
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="molecule" style="left: -5%; top: 30%; width: 450px; height: 450px; filter: blur(14px); opacity: 0.12;">
+    <svg viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" class="benzene-svg"/>
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="molecule" style="right: 35%; bottom: 20%; width: 220px; height: 220px; filter: blur(5px); opacity: 0.15; transform: rotate(20deg);">
+    <svg viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" class="benzene-svg"/>
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="molecule" style="left: 20%; top: 20%; width: 100px; height: 100px; opacity: 0.3; transform: rotate(-10deg);">
+    <svg viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" class="benzene-svg"/>
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="line-wrapper">
+    <div class="line-core"></div>
+  </div>
+
+  <div class="noise"></div>
+  <div class="vignette"></div>
+</div>
+
+</body>
+</html>

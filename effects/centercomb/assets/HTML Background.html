@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Y2K Aqua Parallax</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #00ffff;
+    height: 100%;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+addEventListener("resize", resize);
+resize();
+
+let t = 0;
+
+/* -------- PARALLAX WAVES -------- */
+const waveLayers = [
+  { count: 3, speed: 0.25, alpha: 0.15, width: 1.5, depth: -120 },
+  { count: 4, speed: 0.55, alpha: 0.25, width: 2,   depth: 0 },
+  { count: 5, speed: 1.0,  alpha: 0.35, width: 2.5, depth: 140 }
+];
+
+const waves = waveLayers.flatMap(layer =>
+  Array.from({ length: layer.count }, (_, i) => ({
+    amp: 8 + Math.random() * 22,
+    freq: 0.006 + Math.random() * 0.012,
+    speed: layer.speed * (0.8 + Math.random() * 0.5),
+    offset: layer.depth + i * 60,
+    alpha: layer.alpha,
+    width: layer.width
+  }))
+);
+
+/* -------- PARALLAX OUTLINE CIRCLES -------- */
+const circleLayers = [
+  { count: 14, speed: 0.15, alpha: 0.12, size: [10, 24], line: 1 },
+  { count: 18, speed: 0.35, alpha: 0.2,  size: [14, 32], line: 1.5 },
+  { count: 22, speed: 0.7,  alpha: 0.3,  size: [18, 44], line: 2 }
+];
+
+const circles = circleLayers.flatMap(layer =>
+  Array.from({ length: layer.count }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: layer.size[0] + Math.random() * (layer.size[1] - layer.size[0]),
+    speed: layer.speed,
+    alpha: layer.alpha,
+    line: layer.line
+  }))
+);
+
+/* -------- BACKGROUND -------- */
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  g.addColorStop(0, "#00ffff");
+  g.addColorStop(0.4, "#4dffff");
+  g.addColorStop(0.7, "#00ccff");
+  g.addColorStop(1, "#00ffff");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+/* -------- SUN RAYS -------- */
+function drawSunRays() {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+
+  for (let i = -canvas.height; i < canvas.width; i += 160) {
+    const grad = ctx.createLinearGradient(i, 0, i + 500, 500);
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(0.5, "rgba(255,255,255,0.22)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(i + (t * 20 % 160), 0);
+    ctx.lineTo(i + 340 + (t * 20 % 160), 0);
+    ctx.lineTo(i + 980 + (t * 20 % 160), 620);
+    ctx.lineTo(i + 640 + (t * 20 % 160), 620);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/* -------- WAVES -------- */
+function drawWave(w) {
+  ctx.beginPath();
+  for (let x = 0; x <= canvas.width; x += 3) {
+    const y =
+      canvas.height / 2 +
+      w.offset +
+      Math.sin(x * w.freq + t * w.speed) * w.amp;
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = `rgba(255,255,255,${w.alpha})`;
+  ctx.lineWidth = w.width;
+  ctx.stroke();
+}
+
+/* -------- OUTLINE CIRCLES -------- */
+function drawCircles() {
+  for (const c of circles) {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,255,255,${c.alpha})`;
+    ctx.lineWidth = c.line;
+    ctx.stroke();
+
+    c.y -= c.speed;
+    if (c.y < -c.r) {
+      c.y = canvas.height + c.r;
+      c.x = Math.random() * canvas.width;
+    }
+  }
+}
+
+/* -------- CAUSTICS -------- */
+function drawCaustics() {
+  ctx.save();
+  ctx.globalAlpha = 0.05;
+  ctx.globalCompositeOperation = "overlay";
+
+  for (let y = 0; y < canvas.height; y += 50) {
+    ctx.beginPath();
+    for (let x = 0; x <= canvas.width; x += 30) {
+      ctx.lineTo(
+        x,
+        y + Math.sin(x * 0.018 + t * 2.2 + y) * 10
+      );
+    }
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/* -------- LOOP -------- */
+function animate() {
+  t += 0.01;
+
+  drawBackground();
+  drawSunRays();
+  drawCaustics();
+  waves.forEach(drawWave);
+  drawCircles();
+
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>

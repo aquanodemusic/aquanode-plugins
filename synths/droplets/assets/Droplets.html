@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Water Droplets & Glowing Sine Waves</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: white;
+    width: 100%;
+    height: 100%;
+  }
+
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ---------------- DROPLETS ---------------- */
+
+const droplets = [];
+const DROPLET_COUNT = 700;
+
+class Droplet {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.x = Math.random() * canvas.width;
+    this.y = canvas.height + Math.random() * canvas.height;
+    this.radius = Math.random() * 10 + 1;
+    this.speed = Math.random() * 1.2 + 0.6;
+    this.alpha = Math.random() * 0.5 + 0.3;
+    this.lineWidth = Math.random() * 0.8 + 0.4;
+  }
+
+  update() {
+    this.y -= this.speed;
+    if (this.y < -20) {
+      this.reset();
+    }
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(0, 250, 250, ${this.alpha})`;
+    ctx.lineWidth = this.lineWidth;
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+for (let i = 0; i < DROPLET_COUNT; i++) {
+  droplets.push(new Droplet());
+}
+
+/* ---------------- SINE WAVES ---------------- */
+
+let time = 0;
+
+function drawSineWave(yOffset, amplitude, wavelength, speed) {
+  ctx.beginPath();
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = "rgba(0, 200, 220, 0.25)";
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = "rgba(0, 220, 240, 0.4)";
+
+  for (let x = 0; x < canvas.width; x += 4) {
+    const y =
+      yOffset +
+      Math.sin((x / wavelength) + time * speed) * amplitude;
+    ctx.lineTo(x, y);
+  }
+
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+/* ---------------- ANIMATION LOOP ---------------- */
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Sine waves
+  drawSineWave(canvas.height * 0.3, 25, 160, 0.6);
+  drawSineWave(canvas.height * 0.5, 18, 220, 0.4);
+  drawSineWave(canvas.height * 0.7, 30, 180, 0.5);
+
+  // Droplets
+  for (const d of droplets) {
+    d.update();
+    d.draw();
+  }
+
+  time += 0.01;
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+
+</body>
+</html>

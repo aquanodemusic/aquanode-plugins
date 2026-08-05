@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Laboratory Testing Room</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: white;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ---------- Soft Cyan Dots ---------- */
+
+const dots = [];
+const DOT_COUNT = 16;
+
+for (let i = 0; i < DOT_COUNT; i++) {
+  dots.push({
+    x: Math.random(),
+    y: Math.random(),
+    r: 160 + Math.random() * 220,
+    vx: (Math.random() - 0.5) * 0.0002,
+    vy: (Math.random() - 0.5) * 0.0002,
+    alpha: 0.10 + Math.random() * 0.08
+  });
+}
+
+function drawDots() {
+  for (const d of dots) {
+    d.x += d.vx;
+    d.y += d.vy;
+
+    if (d.x < -0.3) d.x = 1.3;
+    if (d.x > 1.3) d.x = -0.3;
+    if (d.y < -0.3) d.y = 1.3;
+    if (d.y > 1.3) d.y = -0.3;
+
+    const cx = d.x * canvas.width;
+    const cy = d.y * canvas.height;
+
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, d.r);
+    g.addColorStop(0, `rgba(0, 235, 235, ${d.alpha})`);
+    g.addColorStop(1, "rgba(0, 235, 235, 0)");
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, d.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* ---------- 3D Cyan Grid ---------- */
+
+const GRID_SIZE = 14;
+const SUBDIV = 5;
+const DEPTH = 28;
+
+function project(x, y, z) {
+  const scale = 1 / (z * 0.10);
+  return {
+    x: canvas.width / 2 + x * scale * canvas.width * 0.45,
+    y: canvas.height / 2 + y * scale * canvas.height * 0.45
+  };
+}
+
+let t = 0;
+
+function drawGrid() {
+  for (let z = 1; z < DEPTH; z++) {
+    const fade = 1 - z / DEPTH;
+
+    const mainAlpha = 0.35 * fade;
+    const subAlpha  = 0.16 * fade;
+
+    for (let i = -GRID_SIZE; i <= GRID_SIZE; i++) {
+      /* main grid lines */
+      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = `rgba(0, 235, 235, ${mainAlpha})`;
+
+      let p1 = project(i, -GRID_SIZE, z + t);
+      let p2 = project(i,  GRID_SIZE, z + t);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+
+      p1 = project(-GRID_SIZE, i, z + t);
+      p2 = project( GRID_SIZE, i, z + t);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+
+      /* sub grid */
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(0, 235, 235, ${subAlpha})`;
+
+      for (let s = 1; s < SUBDIV; s++) {
+        const o = i + s / SUBDIV;
+
+        p1 = project(o, -GRID_SIZE, z + t);
+        p2 = project(o,  GRID_SIZE, z + t);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        p1 = project(-GRID_SIZE, o, z + t);
+        p2 = project( GRID_SIZE, o, z + t);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+/* ---------- Loop ---------- */
+
+function loop() {
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawDots();
+  drawGrid();
+
+  t += 0.0012; // calmer forward drift
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

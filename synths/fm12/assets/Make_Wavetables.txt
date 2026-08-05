@@ -1,0 +1,46 @@
+# THE FOLLOWING IS A PYTHON CODE WITH WHICH YOU CAN CREATE SINGLE CYCLE WAVEFORMS, 
+# COMPRISED OF A SINE WAVE AND ITS HARMONICS WITH CHOOSABLE CYCLE LENGHT. SAVE THIS
+# FILE AS Make_Wavetables.py TO RUN IT IN PYTHON! 
+
+import math
+import wave
+import struct
+
+def generate_wavetable(num_points, harmonics, filename="wavetable.wav"):
+    """
+    Generates a single cycle wavetable.
+    :param num_points: 512, 1024, or 2048
+    :param harmonics: List of [harmonic_multiplier, amplitude]
+    :param filename: Output filename
+    """
+    samples = []
+    
+    for n in range(num_points):
+        value = 0
+        for harmonic, volume in harmonics:
+            # Calculate the sine component for this harmonic
+            # angle = 2 * pi * n * harmonic / total_points
+            angle = (2 * math.pi * n * harmonic) / num_points
+            value += volume * math.sin(angle)
+        # Clamp and convert to 16-bit PCM scale (-32768 to 32767)
+        # Note: If the sum of volumes > 1.0, this may clip.
+        if value > 1.0: value = 1.0
+        if value < -1.0: value = -1.0
+        int_sample = int(value * 32767)
+        samples.append(int_sample)
+    # Write to WAV
+    with wave.open(filename, 'w') as f:
+        # Mono, 2 bytes per sample, 44100Hz (standard)
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(44100)
+        for sample in samples:
+            f.writeframesraw(struct.pack('<h', sample))
+    print(f"File saved: {filename} with {num_points} points.")
+
+# Example Usage:
+# Harmonics: [[Harmonic #, Volume (0.0 to 1.0)]]
+my_harmonics = [[1, 0.6], [2, 0.3], [3, 0.1], [7, 0.05]]
+generate_wavetable(512, my_harmonics,   "512_Wavetable.wav")
+generate_wavetable(1024, my_harmonics, "1024_Wavetable.wav")
+generate_wavetable(2048, my_harmonics, "2048_Wavetable.wav")
