@@ -59,7 +59,8 @@ All `.vst3` plugins have been tested on Windows 11 23H2 64bit in FL Studio 2025 
 | 🌾<br />**[SampleField](synths/samplefield/)** | A 24-voice polyphonic sampler that continuously loops and chains random audio files from a pool of up to 128 samples for generative, evolving textures as long as a note is held. |
 | <img src="synths/slicer/assets/Icon.webp" width="64" align="center" /><br />**[Slicer](synths/slicer/)** | A simple recreation of a well-known drum slicing plugin - slicing only, with no installers, online activations, or crowded UI. |
 | <img src="synths/tabla/assets/GUI.png" width="64" align="center" /><br />**[Tabla](synths/tabla/)** | A very simple physical Tabla Drum modelling synthesizer. Allows you to play it rather expressively with your mouse in either repeated hit or pitch slide modes. |
-| <img src="synths/virtual-dx7/assets/GUI.png" width="64" align="center" /><br />**[VirtualDX7](synths/virtual-dx7/)** | A Windows port of VDX7 by [chiaccona](https://github.com/chiaccona/VDX7), a bit-accurate Yamaha DX7 synthesizer originally for Linux only. |
+| <img src="synths/virtual-dx7/assets/GUI.png" width="64" align="center" /><br />**[VirtualDX7](synths/virtual-dx7/)** | A Windows port of VDX7 by [chiaccona](https://github.com/chiaccona/VDX7), a bit-accurate Yamaha DX7 synthesizer originally for Linux only. Contains a native engine too. |
+| ~<br />**[VirtualK5](synths/virtual-k5/)** | An additive synthesizer loosely inspired by the Kawai K5. |
 
 ## Effects
 
