@@ -3,7 +3,7 @@
 ![VirtualDX7](assets/GUI.png)
 
 This is the **Android Port** of the VirtualDX7 synthesizer plugin.
-It is the same codebase as the version from the `synths` folder with the addition of the Android folder.
+It is the same codebase as the version from the `synths` folder with the addition of the Android folder, except for the MTS-ESP microtuning which is currently not available for Android.
 VirtualDX7, also the Android App, can load the original DX7 rom,
 which however is not included due to copyright reasons. Nevertheless, it includes its own native
 recreation of the DX7's engine, similar to other projects such as dexed, which captures the DX7's sound.

@@ -240,36 +240,6 @@ public:
     juce::String getWavetableName(int slot) const;
     juce::String getWavetableFilePath(int slot) const;
 
-    // --- Wave generation (Transwave factory, ported from Phizmo) -------------
-    // generateRandomWavetable(): build a Transwave from a seed + archetype.
-    // transwavifyFile():        turn any audio file into a Transwave.
-    // Both write straight into wt[slot] at the given cycle size, so everything
-    // downstream (sampleFrameRaw, the display, preset embedding) is unchanged.
-    bool generateRandomWavetable(int slot, juce::int64 seed, int numFrames,
-        int cycleSamples, juce::String& statusOut,
-        int archetypeOverride = -1);
-    bool transwavifyFile(int slot, const juce::File& file, int numFrames,
-        int cycleSamples, bool forceUnpitched, juce::String& statusOut);
-    bool rerollSlot(int slot, juce::String& statusOut);
-    bool exportSlotAsWav(int slot, const juce::File& dest, juce::String& statusOut) const;
-
-    // 0 = loaded from a file, 1 = random recipe, 2 = transwavified sample.
-    int          getSlotOrigin(int slot) const;
-    juce::String getSlotStatus(int slot) const;
-
-    // Index 0 is "Auto"; 1..N map onto the generator's archetypes.
-    static juce::StringArray getArchetypeNames();
-
-    // Generator settings. Deliberately NOT APVTS parameters: they are editor
-    // preferences rather than anything a host should automate, and adding
-    // parameters here would shift every existing automation slot.
-    int  getGenFrames() const { return genFramesSetting.load(); }
-    void setGenFrames(int f) { genFramesSetting.store(juce::jlimit(4, 256, f)); }
-    int  getGenArchetype() const { return genArchetypeSetting.load(); }
-    void setGenArchetype(int a) { genArchetypeSetting.store(juce::jmax(0, a)); }
-    bool getGenSlice() const { return genSliceSetting.load(); }
-    void setGenSlice(bool b) { genSliceSetting.store(b); }
-
     float getCurrentEvoFramePos(int osc = 0) const;
     bool  getFrameSamples(int slot, int frameIndex, std::vector<float>& out) const;
     bool  getWavetableOverview(int slot, int displayWidth, int displayHeight, std::vector<float>& out) const;
@@ -327,15 +297,6 @@ private:
         juce::String filePath;      // absolute path, local-machine only (never persisted in shared presets)
         juce::String fileName;      // original file name WITH extension, e.g. "MyWave.wav" - safe to embed/share
         juce::MemoryBlock originalFileData; // raw bytes of the original file, kept so presets can embed it
-
-        // --- generator bookkeeping (origin 0 = file, 1 = random, 2 = sampled)
-        int          origin = 0;
-        juce::int64  genSeed = 0;
-        int          genFrames = 0;
-        int          genArchetype = -1;
-        bool         genUnpitched = false;
-        juce::String genStatus;
-
         mutable juce::CriticalSection lock;
     };
     WavetableSlot wt[2];
@@ -459,21 +420,6 @@ private:
                                    const juce::String& originalFileName,
                                    const juce::String& displayFilePath,
                                    int cycleSamplesRequested, int slot);
-
-    // Shared tail of both generators: renders the frames out as a plain
-    // wavetable WAV into originalFileData (so the preset zip embeds a
-    // generated table exactly like a loaded one), quantises to 16 bit to match
-    // the file-loading path, then installs them into the slot.
-    bool installGeneratedFrames(int slot,
-        std::vector<std::vector<float>>&& frames,
-        int cycleSamples,
-        const juce::String& displayName,
-        int origin, juce::int64 seed, int genFrames,
-        bool genUnpitched, const juce::String& status);
-
-    std::atomic<int>  genFramesSetting{ 32 };
-    std::atomic<int>  genArchetypeSetting{ 0 };   // 0 = Auto
-    std::atomic<bool> genSliceSetting{ false };
 
     juce::String sampleFolder;
     juce::String presetFolder;

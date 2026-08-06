@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="4kOrDF" name="VirtualDX7" projectType="audioplug" jucerFormatVersion="1"
-              version="4.0" companyName="aquanodemusic" companyCopyright="GPLv3"
-              bundleIdentifier="com.virtualdx7" cppLanguageStandard="17" defines="INLINE_EGS=1;VDX7_USE_MTS_ESP=1"
+              version="2.0.0" companyName="aquanodemusic" companyCopyright="GPLv3"
+              bundleIdentifier="com.virtualdx7" cppLanguageStandard="17" defines="INLINE_EGS=1"
               displaySplashScreen="0" pluginFormats="buildVST3,buildStandalone"
               pluginName="VirtualDX7" pluginDesc="Six-operator FM synth: bit-accurate DX7 emulation with a ROM-free native engine"
               pluginManufacturer="aquanodemusic" pluginManufacturerCode="vdx7"
@@ -12,13 +12,6 @@
               companyEmail="node.aqua@gmail.com">
   <MAINGROUP id="5hpwx0" name="VirtualDX7">
     <GROUP id="{64DA7937-25F3-5B42-B904-40EDBF018F0D}" name="External">
-      <GROUP id="{7F1C4A02-91D6-4E33-A5B7-0C9E2D48B311}" name="MTS-ESP">
-        <FILE id="mtsCli1" name="libMTSClient.h" compile="0" resource="0" file="Source/External/MTS-ESP/libMTSClient.h"/>
-        <FILE id="mtsCli2" name="libMTSClient.cpp" compile="1" resource="0"
-              file="Source/External/MTS-ESP/libMTSClient.cpp"/>
-        <FILE id="mtsCli3" name="LICENSE.MTS-ESP" compile="0" resource="1"
-              file="Source/External/MTS-ESP/LICENSE.MTS-ESP"/>
-      </GROUP>
       <GROUP id="{58C42C5E-3EC5-C47A-53B2-B11B60814857}" name="samplerate">
         <FILE id="s7iiYv" name="common.h" compile="0" resource="0" file="Source/External/samplerate/common.h"/>
         <FILE id="EXCHde" name="fastest_coeffs.h" compile="0" resource="0"

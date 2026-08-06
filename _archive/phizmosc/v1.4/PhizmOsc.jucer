@@ -2,20 +2,16 @@
 
 <JUCERPROJECT id="S8IALV" name="PhizmOsc" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" companyName="aquanodemusic"
-              companyCopyright="none" companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3"
-              pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
-              pluginCode="phsc" pluginManufacturerCode="phos">
+              companyCopyright="none" companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3">
   <MAINGROUP id="Uj4APg" name="PhizmOsc">
-    <GROUP id="{13E6373C-8422-90BC-DC38-1DC4D70A569A}" name="Source">
-      <FILE id="fijQqK" name="PhizmOscWaveFactory.cpp" compile="1" resource="0"
-            file="Source/PhizmOscWaveFactory.cpp"/>
-      <FILE id="vAPbOb" name="PluginEditor.cpp" compile="1" resource="0"
-            file="Source/PluginEditor.cpp"/>
-      <FILE id="OTGnQz" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
-      <FILE id="TiQeNW" name="PluginProcessor.cpp" compile="1" resource="0"
-            file="Source/PluginProcessor.cpp"/>
-      <FILE id="L3GcqO" name="PluginProcessor.h" compile="0" resource="0"
-            file="Source/PluginProcessor.h"/>
+    <GROUP id="{FD81B6EE-7B3B-B1C8-63E2-601A7462667A}" name="Source">
+      <FILE id="XjY5Ma" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="PluginProcessor.cpp"/>
+      <FILE id="r2jiIq" name="PluginProcessor.h" compile="0" resource="0"
+            file="PluginProcessor.h"/>
+      <FILE id="ZlhQ3b" name="PluginEditor.cpp" compile="1" resource="0"
+            file="PluginEditor.cpp"/>
+      <FILE id="iawYYp" name="PluginEditor.h" compile="0" resource="0" file="PluginEditor.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

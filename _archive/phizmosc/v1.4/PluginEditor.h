@@ -126,15 +126,7 @@ public:
 
 private:
     void timerCallback() override;
-
-    // LOAD button: shows the Import / Generate menu, and each of its branches.
     void loadWavetableClicked(int slot);
-    void loadWavetableFromChooser(int slot);
-    void addGenerateMenuItems(juce::PopupMenu& menu, int slot);
-    bool handleGenerateMenuResult(int result, int slot);
-    void exportSlotAsWavClicked(int slot);
-    void refreshSlotName(int slot);
-    int  cycleSizeForSlot(int slot) const;
     void savePresetClicked();
     void loadPresetClicked();
     void setSampleFolderClicked();

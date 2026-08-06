@@ -737,43 +737,7 @@ void TranswaveAudioProcessorEditor::timerCallback()
         presetNameLabel.setText(pname, juce::dontSendNotification);
 }
 
-int TranswaveAudioProcessorEditor::cycleSizeForSlot(int slot) const
-{
-    int cs = (slot == 0) ? cycleSizeEditorA.getText().getIntValue()
-                         : cycleSizeEditorB.getText().getIntValue();
-    return (cs < 16) ? 2048 : cs;
-}
-
-// The filename strip is the only place a generated table can announce itself,
-// so every branch that fills a slot ends up here.
-void TranswaveAudioProcessorEditor::refreshSlotName(int slot)
-{
-    juce::String n = audioProcessor.getWavetableName(slot);
-    if (n.isEmpty()) n = "No file loaded";
-    if (slot == 0) filenameLabelA.setText(n, juce::dontSendNotification);
-    else           filenameLabelB.setText(n, juce::dontSendNotification);
-}
-
-//==============================================================================
-// LOAD button. Previously this went straight to a file chooser; now it opens
-// the same Import / Generate menu Phizmo uses, and "Import wavetable..." is
-// the entry that reaches the chooser.
 void TranswaveAudioProcessorEditor::loadWavetableClicked(int slot)
-{
-    juce::PopupMenu menu;
-    menu.setLookAndFeel(&laf);
-    menu.addItem(9000, "Import wavetable...");
-    addGenerateMenuItems(menu, slot);
-
-    menu.showMenuAsync(juce::PopupMenu::Options(),
-        [this, slot](int r)
-        {
-            if (r == 9000) loadWavetableFromChooser(slot);
-            else           handleGenerateMenuResult(r, slot);
-        });
-}
-
-void TranswaveAudioProcessorEditor::loadWavetableFromChooser(int slot)
 {
     juce::File startDir = audioProcessor.getSampleFolder().isNotEmpty()
         ? juce::File(audioProcessor.getSampleFolder())
@@ -782,142 +746,12 @@ void TranswaveAudioProcessorEditor::loadWavetableFromChooser(int slot)
     fileChooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
         [this, slot](const juce::FileChooser& ch) {
             auto f = ch.getResult(); if (!f.existsAsFile()) return;
-            audioProcessor.loadWavetable(f, cycleSizeForSlot(slot), slot);
-            refreshSlotName(slot); });
-}
-
-//==============================================================================
-// Wave-generation entries. Same IDs and layout as Phizmo, so anything learned
-// there carries straight over.
-void TranswaveAudioProcessorEditor::addGenerateMenuItems(juce::PopupMenu& menu, int slot)
-{
-    const int  frames = audioProcessor.getGenFrames();
-    const bool slice = audioProcessor.getGenSlice();
-
-    menu.addSeparator();
-    menu.addSectionHeader("Generate wavetable (" + juce::String(frames) + " frames)");
-    menu.addItem(9100, "Random Transwave");
-    menu.addItem(9101, "Transwavify audio file...");
-
-    const int origin = audioProcessor.getSlotOrigin(slot);
-    menu.addItem(9102, origin == 1 ? "Re-roll (new seed)"
-        : origin == 2 ? "Re-analyse (flip pitched/slice)"
-        : "Re-roll", origin != 0);
-    menu.addItem(9103, "Export wave as .wav...", audioProcessor.isWavetableLoaded(slot));
-
-    juce::PopupMenu framesMenu;
-    for (int i = 0; i < 6; ++i)
-    {
-        const int f = 8 << i;                       // 8,16,32,64,128,256
-        framesMenu.addItem(9200 + i, juce::String(f), true, f == frames);
-    }
-    menu.addSubMenu("Frames", framesMenu);
-    menu.addItem(9110, "Slice mode (skip pitch detection)", true, slice);
-
-    // Archetype picker for the random generator. Index 0 is Auto.
-    {
-        juce::PopupMenu archMenu;
-        const auto names = TranswaveAudioProcessor::getArchetypeNames();
-        const int  cur = audioProcessor.getGenArchetype();
-        for (int i = 0; i < names.size(); ++i)
-            archMenu.addItem(9300 + i, names[i], true, i == cur);
-        menu.addSubMenu("Archetype", archMenu);
-    }
-
-    const juce::String status = audioProcessor.getSlotStatus(slot);
-    if (status.isNotEmpty())
-    {
-        menu.addSeparator();
-        menu.addSectionHeader(status);
-    }
-}
-
-bool TranswaveAudioProcessorEditor::handleGenerateMenuResult(int result, int slot)
-{
-    const int    frames = audioProcessor.getGenFrames();
-    const bool   slice = audioProcessor.getGenSlice();
-    const int    cycle = cycleSizeForSlot(slot);
-    juce::String status;
-
-    // The three settings items only change a preference and re-open nothing;
-    // the user re-opens the menu themselves to act on the new setting.
-    if (result >= 9300 && result < 9300 + TranswaveAudioProcessor::getArchetypeNames().size())
-    {
-        audioProcessor.setGenArchetype(result - 9300);
-        return true;
-    }
-    if (result >= 9200 && result <= 9205)
-    {
-        audioProcessor.setGenFrames(8 << (result - 9200));
-        return true;
-    }
-    if (result == 9110)
-    {
-        audioProcessor.setGenSlice(!slice);
-        return true;
-    }
-
-    if (result == 9100)
-    {
-        audioProcessor.generateRandomWavetable(slot, 0, frames, cycle, status);
-        refreshSlotName(slot);
-        return true;
-    }
-    if (result == 9102)
-    {
-        audioProcessor.rerollSlot(slot, status);
-        refreshSlotName(slot);
-        return true;
-    }
-    if (result == 9103)
-    {
-        exportSlotAsWavClicked(slot);
-        return true;
-    }
-    if (result == 9101)
-    {
-        juce::File startDir = audioProcessor.getSampleFolder().isNotEmpty()
-            ? juce::File(audioProcessor.getSampleFolder())
-            : TranswaveAudioProcessor::getPresetsDirectory();
-
-        fileChooser = std::make_unique<juce::FileChooser>(
-            "Choose audio to Transwavify", startDir,
-            "*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
-        fileChooser->launchAsync(juce::FileBrowserComponent::openMode
-            | juce::FileBrowserComponent::canSelectFiles,
-            [this, slot, frames, cycle, slice](const juce::FileChooser& ch)
-            {
-                auto f = ch.getResult();
-                if (!f.existsAsFile()) return;
-                juce::String st;
-                audioProcessor.transwavifyFile(slot, f, frames, cycle, slice, st);
-                refreshSlotName(slot);
-            });
-        return true;
-    }
-    return false;
-}
-
-void TranswaveAudioProcessorEditor::exportSlotAsWavClicked(int slot)
-{
-    auto startDir = (audioProcessor.getSampleFolder().isNotEmpty()
-        ? juce::File(audioProcessor.getSampleFolder())
-        : TranswaveAudioProcessor::getPresetsDirectory())
-        .getChildFile(audioProcessor.getWavetableName(slot) + ".wav");
-
-    fileChooser = std::make_unique<juce::FileChooser>("Export wave as .wav...", startDir, "*.wav");
-    fileChooser->launchAsync(juce::FileBrowserComponent::saveMode
-        | juce::FileBrowserComponent::canSelectFiles
-        | juce::FileBrowserComponent::warnAboutOverwriting,
-        [this, slot](const juce::FileChooser& ch)
-        {
-            auto dest = ch.getResult();
-            if (dest == juce::File{}) return;
-            if (dest.getFileExtension().toLowerCase() != ".wav")
-                dest = dest.withFileExtension(".wav");
-            juce::String status;
-            audioProcessor.exportSlotAsWav(slot, dest, status);
-        });
+            int cs = (slot == 0) ? cycleSizeEditorA.getText().getIntValue()
+                : cycleSizeEditorB.getText().getIntValue();
+            if (cs < 16) cs = 2048;
+            audioProcessor.loadWavetable(f, cs, slot);
+            if (slot == 0) filenameLabelA.setText(f.getFileNameWithoutExtension(), juce::dontSendNotification);
+            else           filenameLabelB.setText(f.getFileNameWithoutExtension(), juce::dontSendNotification); });
 }
 
 void TranswaveAudioProcessorEditor::savePresetClicked()

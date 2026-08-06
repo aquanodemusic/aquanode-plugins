@@ -2,13 +2,13 @@
 
 ![PhizmOsc banner](assets/Banner.webp)
 
-**Latest version:** 1.4 — download builds from the [Releases](../../../../releases) page.
+**Latest version:** 1.5 — download builds from the [Releases](../../../../releases) page.
 
 PhizmOsc is a 2-Oscillator Transwave Synthesizer loosely modelled after (or rather, inspired by) the Ensoniq Fizmo Hardware Synthesizer.
 
 ### About the Project
 
-PhizmOsc is NOT an emulation of the Fizmo, but is capable of generating very similar sounds when you import the Fizmo's Transwaves / Wavetables. These are not included in the download for copyright reasons, but there are community projects such as nilamox, that preserve such files e.g. for owners of the original hardware.
+PhizmOsc is NOT an emulation of the Fizmo, but is capable of generating very similar sounds when you either let the synth generate Transwaves using the Load Button -> Generate Transwaves, or import the Fizmo's Transwaves / Wavetables if you have them. These are not included in the download for copyright reasons, but there are community projects such as nilamox, that preserve such files e.g. for owners of the original hardware.
 
 Even though I own other great Fizmo emulations (Echograin's Tranzwave and Puremagnetik's Waveframe), I wanted a standalone .vst3 version to play around with and wanted to give a free alternative to the community. If you have the money, please purchase those products; I am not affiliated in any way with either of them.
 

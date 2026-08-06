@@ -6,7 +6,7 @@ A **Windows/cross-platform VST3 + Standalone** six-operator FM synthesizer built
 in JUCE, with a **Dexed-inspired** knob-based editor GUI and **two interchangeable sound
 engines**:
 
-* a **native FM engine** that runs out of the box, needs no ROM of any kind, and
+* a **native FM engine** that runs out of the box, needs no ROM of any kind, supports MTS-ESP Microtuning and
   responds to knob and automation moves in real time, even under a held note;
 * the bit-accurate **VDX7** Yamaha DX7 emulation (an emulated HD6303 CPU driving
   emulated OPS/EGS sound chips), available to anyone who supplies their own
@@ -46,7 +46,7 @@ Two things the native engine offers that the hardware cannot:
   and both envelope generators are re-evaluated from the live patch every
   control block, so a knob move re-aims a running envelope's ramp instead of
   snapping the level. A sustained note morphs in place, click-free.
-* **Microtuning** via optional ODDSound MTS-ESP (see below).
+* **Microtuning** via ODDSound MTS-ESP, built in (see below).
 
 ### Emulated engine (bring your own ROM)
 
@@ -109,22 +109,40 @@ can differ freely — one loaded, one not, or two different files. You can place
   keyboard-focusable and arrow-key manipulatable, and its whole tile is grabbable.
 * Patches are saved with the host session.
 
-## Microtuning (optional)
+## Microtuning
 
+Microtuning (MTS ESP) is supported by default, but again only in the native engine.
 MTS-ESP is not a MIDI message — it is a small shared library that a tuning
 master plugin and its clients both talk to, so the master can change the scale
 live and every client follows, including under held notes.
 
-The client library is ODDSound's and is not bundled. To switch it on:
+ODDSound's client library is vendored in
+`Source/External/MTS-ESP/` and compiled with the plugin. There is nothing to
+switch on, and no new control on the panel: load a master into the session and VirtualDX7 follows it. The engine
+line at the top of the GUI reports the state — `Native FM (no ROM) - MTS-ESP`,
+with the master's scale name in brackets when it publishes one.
 
-1. Get `libMTSClient.h` and `libMTSClient.cpp` from
-   <https://github.com/ODDSound/MTS-ESP>
-2. Drop both into `Source/`, add the `.cpp` to the Projucer project, and define
-   `VDX7_USE_MTS_ESP=1`.
+Details worth knowing:
 
-Only the native engine can use it — loading a firmware ROM turns microtuning
-off, and clearing it turns microtuning back on. That is a property of the
-hardware being modelled, not a limitation of this code.
+* The frequency is looked up **per control block while a note sounds**, not only
+  at note-on, so a scale change or an automated tuning glides through held
+  notes, exactly as ODDSound recommend.
+* Keys a master leaves **unmapped are silent**, rather than sounding at some
+  fallback pitch (`MTS_ShouldFilterNote`).
+* With no master in the session, or on a machine where LIBMTS was never
+  installed, the plugin runs exactly as before: the client reports no master and
+  the engine stays on its own tuning table. Nothing has to be installed for the
+  plugin to work.
+* Without MTS-ESP, the native engine still accepts **MIDI Tuning Standard
+  SysEx** — bulk dumps, single-note changes and scale/octave messages.
+* To leave the client out of a build entirely, define `VDX7_USE_MTS_ESP=0`.
+* Linux builds need `-ldl`, since the client loads LIBMTS at runtime.
+
+Only the native engine can use any of this — loading a firmware ROM turns
+microtuning off, and clearing it turns microtuning back on. That is a property
+of the hardware being modelled, not a limitation of this code: the mk1 DX7 has
+no microtuning, so there is no parameter to retune and no SysEx that would reach
+one to the best of my and the AIs current knowledge.
 
 # ROM files
 
@@ -142,11 +160,6 @@ switch on the bit-accurate emulation instead.
 `voices.bin` is eight 4096-byte banks back to back. Shorter files are accepted
 as long as they are a whole number of 4096-byte banks; the selector repeats what
 you gave it to fill the remaining slots.
-
-The original project also embedded an `example.ram` file — a dump of a real
-machine's battery-backed memory. **That file is not needed.** The firmware
-boots perfectly well from a RAM image the plugin assembles itself, so there is
-one less thing to source.
 
 ## Loading them
 
@@ -202,7 +215,7 @@ puts this in perspective. Spectral centroid, 200 ms into a middle-C note:
 BRASS 1 is the interesting row: **Dexed is also markedly duller than the
 hardware there**, so this is a known characteristic of floating-point DX7
 implementations rather than something peculiar to this one. That patch drives
-maximum feedback into a modulator which is not carrier-attenuated - the most
+full feedback into a modulator which is not carrier-attenuated - the most
 extreme regime the chip has - and every operator in it sits within about 4 dB of
 the emulator's own envelope registers, so it is not a level or scaling error.
 
@@ -238,8 +251,8 @@ VirtualDX7/
     RomStore.h                runtime loading of user-supplied ROM files
     StarterBank.h             32 original patches, bundled
     FxChain.h                 chorus / delay / phaser / reverb
-    MtsEsp.h                  optional MTS-ESP microtuning
-    External/                 vendored VDX7 emulator + libsamplerate (3rd party)
+    MtsEsp.h                  MTS-ESP microtuning client wrapper
+    External/                 vendored VDX7 emulator, libsamplerate, MTS-ESP client (3rd party)
   VirtualDX7.jucer
 ```
 
@@ -259,6 +272,10 @@ medium- and best-quality coefficient tables are not present and not needed.
   This project vendors and links it. No firmware or voice data is included.
 * The voice pack/unpack byte layout follows the public DX7 SysEx voice format,
   as also implemented by **Dexed** (which inspired this editor's layout).
+* **MTS-ESP client** © 2021 ODDSound Ltd, vendored unmodified from
+  <https://github.com/ODDSound/MTS-ESP> under its permissive licence — see
+  `Source/External/MTS-ESP/LICENSE.MTS-ESP`. Only the client half is included;
+  the LIBMTS shared library and any master plugin are ODDSound's to distribute.
 * **libsamplerate** by Erik de Castro Lopo is vendored under
   `Source/External/samplerate/` (**BSD-2-Clause**, GPL-compatible) — see
   `LICENSE.libsamplerate`.

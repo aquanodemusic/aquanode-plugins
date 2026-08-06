@@ -496,16 +496,6 @@ bool TranswaveAudioProcessor::loadWavetableFromReader(std::unique_ptr<juce::Audi
         wt[slot].filePath = displayFilePath;
         wt[slot].fileName = originalFileName;
         wt[slot].originalFileData = std::move(originalBytes);
-
-        // A plain file load clears any generator history the slot had, so
-        // Re-roll correctly reports that there is nothing to re-roll. State
-        // restore re-applies the saved metadata immediately after this call.
-        wt[slot].origin = 0;
-        wt[slot].genSeed = 0;
-        wt[slot].genFrames = 0;
-        wt[slot].genArchetype = -1;
-        wt[slot].genUnpitched = false;
-        wt[slot].genStatus = {};
     }
 
     for (auto& v : voices) { v.active = false; v.envStage = TranswaveVoice::Env::Idle; }
@@ -1211,25 +1201,6 @@ void TranswaveAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     xml->setAttribute("sampleFolder", sampleFolder);
     xml->setAttribute("presetFolder", presetFolder);
     xml->setAttribute("presetName", currentPresetName);
-
-    // Generator settings + per-slot recipe, so Re-roll still works after the
-    // DAW reloads the project. The audio itself already travels as the
-    // rendered WAV in the zip, exactly like a file-loaded table.
-    xml->setAttribute("genFramesSetting", genFramesSetting.load());
-    xml->setAttribute("genArchetypeSetting", genArchetypeSetting.load());
-    xml->setAttribute("genSliceSetting", genSliceSetting.load() ? 1 : 0);
-    for (int s = 0; s < 2; ++s)
-    {
-        const juce::String sfx(s == 0 ? "A" : "B");
-        juce::ScopedLock l(wt[s].lock);
-        xml->setAttribute("origin" + sfx, wt[s].origin);
-        xml->setAttribute("genSeed" + sfx, juce::String(wt[s].genSeed));
-        xml->setAttribute("genFrames" + sfx, wt[s].genFrames);
-        xml->setAttribute("genArch" + sfx, wt[s].genArchetype);
-        xml->setAttribute("genUnpitched" + sfx, wt[s].genUnpitched ? 1 : 0);
-        xml->setAttribute("genStatus" + sfx, wt[s].genStatus);
-    }
-
     juce::String xmlString = xml->toString();
 
     juce::ZipFile::Builder zb;
@@ -1287,25 +1258,6 @@ void TranswaveAudioProcessor::setStateInformation(const void* data, int sizeInBy
                         juce::MemoryBlock mb;
                         es->readIntoMemoryBlock(mb);
                         loadWavetableFromMemory(mb, baseName, slot == 0 ? csA : csB, slot);
-                    }
-
-                    // Generator settings and per-slot recipes, restored after
-                    // the loads above (which deliberately clear them).
-                    genFramesSetting.store(juce::jlimit(4, 256,
-                        xml->getIntAttribute("genFramesSetting", 32)));
-                    genArchetypeSetting.store(juce::jmax(0,
-                        xml->getIntAttribute("genArchetypeSetting", 0)));
-                    genSliceSetting.store(xml->getIntAttribute("genSliceSetting", 0) != 0);
-                    for (int s = 0; s < 2; ++s)
-                    {
-                        const juce::String sfx(s == 0 ? "A" : "B");
-                        juce::ScopedLock l(wt[s].lock);
-                        wt[s].origin = xml->getIntAttribute("origin" + sfx, 0);
-                        wt[s].genSeed = xml->getStringAttribute("genSeed" + sfx, "0").getLargeIntValue();
-                        wt[s].genFrames = xml->getIntAttribute("genFrames" + sfx, 0);
-                        wt[s].genArchetype = xml->getIntAttribute("genArch" + sfx, -1);
-                        wt[s].genUnpitched = xml->getIntAttribute("genUnpitched" + sfx, 0) != 0;
-                        wt[s].genStatus = xml->getStringAttribute("genStatus" + sfx);
                     }
                     return;
                 }
@@ -1415,21 +1367,6 @@ bool TranswaveAudioProcessor::savePreset(const juce::File& dest)
     if (fnB.isEmpty() && hasB) fnB = "WavetableB.wav";
 
     auto xml = buildPresetStateXml(apvts, activeSlot.load(), fnA, csA, fnB, csB);
-
-    // Per-slot generator recipe travels with the preset, so Re-roll keeps
-    // working on a preset that was saved from a generated table.
-    for (int s = 0; s < 2; ++s)
-    {
-        const juce::String sfx(s == 0 ? "A" : "B");
-        juce::ScopedLock l(wt[s].lock);
-        xml->setAttribute("origin" + sfx, wt[s].origin);
-        xml->setAttribute("genSeed" + sfx, juce::String(wt[s].genSeed));
-        xml->setAttribute("genFrames" + sfx, wt[s].genFrames);
-        xml->setAttribute("genArch" + sfx, wt[s].genArchetype);
-        xml->setAttribute("genUnpitched" + sfx, wt[s].genUnpitched ? 1 : 0);
-        xml->setAttribute("genStatus" + sfx, wt[s].genStatus);
-    }
-
     juce::String xmlString = xml->toString();
 
     juce::ZipFile::Builder zb;
@@ -1485,19 +1422,6 @@ bool TranswaveAudioProcessor::loadPreset(const juce::File& src)
             juce::MemoryBlock mb;
             es->readIntoMemoryBlock(mb);
             loadWavetableFromMemory(mb, baseName, slot == 0 ? csA : csB, slot);
-        }
-
-        // Generator recipes, restored after the loads above (which clear them).
-        for (int s = 0; s < 2; ++s)
-        {
-            const juce::String sfx(s == 0 ? "A" : "B");
-            juce::ScopedLock l(wt[s].lock);
-            wt[s].origin = xml->getIntAttribute("origin" + sfx, 0);
-            wt[s].genSeed = xml->getStringAttribute("genSeed" + sfx, "0").getLargeIntValue();
-            wt[s].genFrames = xml->getIntAttribute("genFrames" + sfx, 0);
-            wt[s].genArchetype = xml->getIntAttribute("genArch" + sfx, -1);
-            wt[s].genUnpitched = xml->getIntAttribute("genUnpitched" + sfx, 0) != 0;
-            wt[s].genStatus = xml->getStringAttribute("genStatus" + sfx);
         }
         return true;
     }
