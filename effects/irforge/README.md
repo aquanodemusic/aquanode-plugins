@@ -2,6 +2,8 @@
 
 *An Impulse response foundry and convolver.*
 
+>LOUDNESS WARNING: To make the impulse response sound loud enough, turn up both the Mix and Output Knobs all the way up. But then, make sure NOT to turn down the Mix knob anymore - otherwise you'd hear the raw audio you send in much louder than before.
+
 IRForge is an all-in-one Cepstral Impulse Response Generation and Application Plugin.
 
 Live-Record or Drop in any audio sample and IRForge turns it into an impulse response (IR)
