@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Floating Water Droplets</title>
+
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: white;
+    overflow: hidden;
+  }
+
+  svg {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+  }
+</style>
+</head>
+<body>
+
+<!-- MAIN SVG -->
+<svg viewBox="0 0 1200 800">
+
+  <defs>
+    <path id="dropShape" d="
+      M100 10
+      C140 80, 170 130, 170 180
+      C170 240, 135 280, 100 280
+      C65 280, 30 240, 30 180
+      C30 130, 60 80, 100 10
+      Z" />
+
+    <radialGradient id="shine">
+      <stop offset="0%" stop-color="white" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+
+    <clipPath id="clipA"><use href="#dropShape"/></clipPath>
+    <clipPath id="clipB"><use href="#dropShape"/></clipPath>
+    <clipPath id="clipC"><use href="#dropShape"/></clipPath>
+  </defs>
+
+  <!-- DROPLET 1 -->
+  <g id="drop1" transform="translate(200 140) scale(1.5)">
+    <use href="#dropShape" fill="#4fd1ff"/>
+    <g clip-path="url(#clipA)">
+      <path id="d1w1" stroke="rgba(255,255,255,0.55)" stroke-width="3" fill="none"/>
+      <path id="d1w2" stroke="rgba(255,255,255,0.35)" stroke-width="2" fill="none"/>
+    </g>
+    <ellipse cx="80" cy="90" rx="40" ry="60" fill="url(#shine)" />
+  </g>
+
+  <!-- DROPLET 2 -->
+  <g id="drop2" transform="translate(520 220) scale(1.7)">
+    <use href="#dropShape" fill="#4fd1ff"/>
+    <g clip-path="url(#clipB)">
+      <path id="d2w1" stroke="rgba(255,255,255,0.5)" stroke-width="3" fill="none"/>
+      <path id="d2w2" stroke="rgba(255,255,255,0.3)" stroke-width="2" fill="none"/>
+    </g>
+    <ellipse cx="80" cy="90" rx="40" ry="60" fill="url(#shine)" />
+  </g>
+
+  <!-- DROPLET 3 -->
+  <g id="drop3" transform="translate(860 160) scale(1.4)">
+    <use href="#dropShape" fill="#4fd1ff"/>
+    <g clip-path="url(#clipC)">
+      <path id="d3w1" stroke="rgba(255,255,255,0.45)" stroke-width="3" fill="none"/>
+      <path id="d3w2" stroke="rgba(255,255,255,0.25)" stroke-width="2" fill="none"/>
+    </g>
+    <ellipse cx="80" cy="90" rx="40" ry="60" fill="url(#shine)" />
+  </g>
+
+  <!-- BOTTOM WAVES -->
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <path id="bgWave1" stroke="#4fd1ff" stroke-width="4" fill="none" filter="url(#glow)"/>
+  <path id="bgWave2" stroke="rgba(79,209,255,0.6)" stroke-width="3" fill="none" filter="url(#glow)"/>
+  <path id="bgWave3" stroke="rgba(79,209,255,0.4)" stroke-width="2" fill="none" filter="url(#glow)"/>
+
+</svg>
+
+<script>
+  const drops = [
+    { el: drop1, baseY: 140, amp: 20, speed: 0.8 },
+    { el: drop2, baseY: 220, amp: 28, speed: 0.6 },
+    { el: drop3, baseY: 160, amp: 22, speed: 1.0 }
+  ];
+
+  const internalWaves = [
+    { el: d1w1, y: 140, amp: 10, freq: 1 },
+    { el: d1w2, y: 170, amp: 6, freq: 1.3 },
+    { el: d2w1, y: 140, amp: 12, freq: 1 },
+    { el: d2w2, y: 170, amp: 7, freq: 1.2 },
+    { el: d3w1, y: 140, amp: 9, freq: 1 },
+    { el: d3w2, y: 170, amp: 5, freq: 1.4 }
+  ];
+
+  const bgWaves = [
+    { el: bgWave1, y: 620, amp: 18, freq: 0.6 },
+    { el: bgWave2, y: 660, amp: 14, freq: 0.8 },
+    { el: bgWave3, y: 700, amp: 10, freq: 1.1 }
+  ];
+
+  let t = 0;
+
+  function sinePath(y, amp, freq, phase = 0) {
+    let d = `M 0 ${y}`;
+    for (let x = 0; x <= 1200; x += 20) {
+      const yy = y + Math.sin((x * freq + t + phase) * 0.02) * amp;
+      d += ` L ${x} ${yy}`;
+    }
+    return d;
+  }
+
+  function animate() {
+    t += 1;
+
+    // float droplets
+    drops.forEach((d, i) => {
+      const y = d.baseY + Math.sin(t * 0.02 * d.speed) * d.amp;
+      d.el.setAttribute(
+        "transform",
+        d.el.getAttribute("transform").replace(/translate\([^)]*\)/,
+        `translate(${[200,520,860][i]} ${y})`)
+      );
+    });
+
+    // internal waves
+    internalWaves.forEach((w, i) =>
+      w.el.setAttribute("d", sinePath(w.y, w.amp, w.freq, i * 30))
+    );
+
+    // background waves
+    bgWaves.forEach((w, i) =>
+      w.el.setAttribute("d", sinePath(w.y, w.amp, w.freq, i * 80))
+    );
+
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+</script>
+
+</body>
+</html>

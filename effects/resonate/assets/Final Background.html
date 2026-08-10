@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Tactical Tech Interface - Molecular Focus</title>
+
+<style>
+:root {
+  --bg: #040607;
+  --cyan: #5ffcff;
+  --cyan-soft: rgba(95, 252, 255, 0.25);
+  --cyan-faint: rgba(95, 252, 255, 0.08);
+  --grid-dark: rgba(120, 140, 150, 0.05);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+/* =========================
+   BASE SCENE & PARALLAX GRIDS
+========================= */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 50%, rgba(95,252,255,0.12), transparent 55%),
+    radial-gradient(circle at 80% 20%, rgba(95,252,255,0.06), transparent 60%);
+}
+
+.grid {
+  position: absolute;
+  inset: -60%;
+  animation: drift linear infinite;
+  pointer-events: none;
+}
+
+.grid.far {
+  background-image:
+    linear-gradient(90deg, var(--grid-dark) 1px, transparent 1px),
+    linear-gradient(var(--grid-dark) 1px, transparent 1px);
+  background-size: 140px 140px;
+  animation-duration: 100s;
+  opacity: 0.35;
+}
+
+.grid.mid {
+  background-image:
+    linear-gradient(90deg, var(--cyan-faint) 1px, transparent 1px),
+    linear-gradient(var(--cyan-faint) 1px, transparent 1px);
+  background-size: 110px 110px;
+  animation-duration: 70s;
+  opacity: 0.55;
+}
+
+.grid.near {
+  background-image:
+    linear-gradient(90deg, rgba(95,252,255,0.12) 1px, transparent 1px),
+    linear-gradient(rgba(95,252,255,0.12) 1px, transparent 1px);
+  background-size: 80px 80px;
+  animation-duration: 45s;
+  opacity: 0.7;
+}
+
+@keyframes drift {
+  to { transform: translate3d(320px, 220px, 0); }
+}
+
+/* =========================
+   STATIC SVG HEXAGONS
+========================= */
+
+.benzene-wrapper {
+  position: absolute;
+  /* Visual depth setup */
+}
+
+.benzene-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 1.2;
+}
+
+.bond {
+  stroke: var(--cyan);
+  stroke-width: 1.2;
+  opacity: 0.7;
+}
+
+/* =========================
+   MAIN HORIZONTAL LINE
+========================= */
+
+.line-wrapper {
+  position: absolute;
+  left: 0;
+  top: 78%; 
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.line-core {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--cyan) 0%,
+    rgba(95, 252, 255, 0.4) 30%,
+    rgba(95, 252, 255, 0.05) 70%,
+    transparent 100%
+  );
+  box-shadow: 0 0 15px var(--cyan-soft);
+}
+
+/* =========================
+   SCREEN OVERLAYS
+========================= */
+
+.scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.015),
+    rgba(255,255,255,0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 55%, rgba(0,0,0,0.7) 90%);
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="scene">
+
+  <div class="grid far"></div>
+  <div class="grid mid"></div>
+  <div class="grid near"></div>
+
+  <div class="benzene-wrapper" style="left:10%; top:10%; width: 300px; height: 300px; opacity: 0.1; filter: blur(12px); transform: rotate(-10deg);">
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="benzene-wrapper" style="right:-5%; bottom:10%; width: 250px; height: 250px; opacity: 0.15; filter: blur(8px); transform: rotate(25deg);">
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="benzene-wrapper" style="left:55%; top:20%; width: 140px; height: 140px; opacity: 0.3; filter: blur(4px);">
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="benzene-wrapper" style="left:72%; top:45%; width: 110px; height: 110px; opacity: 0.25; filter: blur(3px); transform: rotate(15deg);">
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="benzene-wrapper" style="left:20%; top:40%; width: 60px; height: 60px; opacity: 0.5; filter: blur(1px);">
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="benzene-wrapper" style="left:40%; top:65%; width: 45px; height: 45px; opacity: 0.6; filter: blur(0px); transform: rotate(-5deg);">
+    <svg class="benzene-svg" viewBox="0 0 100 100">
+      <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" />
+      <line x1="78" y1="34" x2="78" y2="66" class="bond" />
+      <line x1="46" y1="83" x2="22" y2="70" class="bond" />
+      <line x1="22" y1="30" x2="46" y2="17" class="bond" />
+    </svg>
+  </div>
+
+  <div class="line-wrapper">
+    <div class="line-core"></div>
+  </div>
+
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NoteAdder — Free MIDI Chord Plugin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sky-top:    #0a1628;
+    --sky-mid:    #1a3a6e;
+    --sky-light:  #2d6ab4;
+    --sky-glow:   #5b9bd5;
+    --wood-dark:  #2a1a0a;
+    --wood-mid:   #4a2f14;
+    --wood-light: #7a4f28;
+    --ivory:      #f5f0e8;
+    --key-shadow: #1a0f05;
+    --accent:     #7aa2f7;
+    --accent2:    #bb9af7;
+    --green:      #9ece6a;
+    --orange:     #ff9e64;
+    --teal:       #2ac3de;
+    --red:        #f7768e;
+    --yellow:     #e0af68;
+    --text:       #e8e4dc;
+    --text-dim:   #9a96a0;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--sky-top);
+    color: var(--text);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ── HERO SCENE ─────────────────────────────────────── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .sky {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%, #4a90d9 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 20% 30%, #2d6ab4 0%, transparent 50%),
+      radial-gradient(ellipse 50% 30% at 80% 20%, #1e4f8a 0%, transparent 45%),
+      linear-gradient(180deg,
+        #0d1f3c 0%,
+        #1a3a6e 25%,
+        #2d6ab4 55%,
+        #4a8fd4 70%,
+        #6baed6 82%,
+        #a8d4f0 90%,
+        #d4eaf8 100%
+      );
+  }
+
+  .clouds { position: absolute; inset: 0; pointer-events: none; }
+  .cloud { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.06); filter: blur(40px); }
+  .cloud-1 { width: 600px; height: 200px; top: 10%; left: -100px; background: rgba(255,255,255,0.08); filter: blur(60px); }
+  .cloud-2 { width: 400px; height: 150px; top: 20%; right: -50px; background: rgba(255,255,255,0.05); filter: blur(50px); }
+  .cloud-3 { width: 700px; height: 180px; top: 5%;  left: 20%;   background: rgba(180,210,255,0.07); filter: blur(70px); }
+  .cloud-4 { width: 300px; height: 120px; top: 35%; left: 10%;   background: rgba(255,255,255,0.04); filter: blur(40px); }
+
+  .sun-glow {
+    position: absolute;
+    width: 500px; height: 500px;
+    top: -100px; left: 50%;
+    transform: translateX(-50%);
+    background: radial-gradient(circle, rgba(255,220,120,0.15) 0%, rgba(100,180,255,0.08) 40%, transparent 70%);
+    filter: blur(20px);
+  }
+
+  /* ── PIANO SCENE ───────────────────────────────────── */
+  .piano-scene {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(900px, 100vw);
+    height: 340px;
+  }
+
+  .piano-body {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 860px;
+    height: 220px;
+    border-radius: 18px 18px 0 0;
+    background:
+      repeating-linear-gradient(92deg, transparent 0px, rgba(0,0,0,0.04) 1px, transparent 2px, transparent 18px),
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.03) 0px, transparent 3px, transparent 30px),
+      linear-gradient(180deg, #5c3a1e 0%, #3d2510 30%, #2a1a0a 60%, #1a0f06 100%);
+    box-shadow: 0 -4px 40px rgba(0,0,0,0.7), 0 -1px 0px rgba(255,180,80,0.15), inset 0 2px 8px rgba(255,200,100,0.08);
+    overflow: hidden;
+    filter: blur(1.5px);
+  }
+
+  .piano-body::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(88deg, transparent 0px, rgba(120,70,20,0.12) 1px, transparent 4px, rgba(80,40,10,0.08) 5px, transparent 12px);
+    border-radius: inherit;
+  }
+
+  .piano-body::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    background: linear-gradient(180deg, rgba(255,200,100,0.12) 0%, transparent 100%);
+    border-radius: 18px 18px 0 0;
+  }
+
+  .keys-wrap {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 780px;
+    height: 140px;
+    border-radius: 0 0 8px 8px;
+    background: linear-gradient(180deg, #1a0f06 0%, #0d0806 100%);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.8), inset 0 2px 4px rgba(0,0,0,0.9);
+    overflow: hidden;
+    filter: blur(1px);
+  }
+
+  .keys {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 2px;
+    padding: 0 8px;
+    height: 130px;
+    align-items: flex-end;
+  }
+
+  .white-key {
+    width: 36px; height: 125px;
+    background: linear-gradient(180deg, #f8f4ec 0%, #ede8de 60%, #d8d0c0 100%);
+    border-radius: 0 0 5px 5px;
+    border: 1px solid rgba(0,0,0,0.3);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8), inset -1px 0 2px rgba(0,0,0,0.1);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .white-key::after {
+    content: '';
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 2px;
+    background: rgba(0,0,0,0.08);
+    border-radius: 1px;
+  }
+
+  .black-key {
+    width: 22px; height: 80px;
+    background: linear-gradient(180deg, #2a2520 0%, #1a1510 40%, #0d0a06 100%);
+    border-radius: 0 0 4px 4px;
+    border: 1px solid rgba(0,0,0,0.8);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 2px 0 4px rgba(0,0,0,0.4);
+    position: absolute;
+    z-index: 2;
+    bottom: 50px;
+    flex-shrink: 0;
+  }
+
+  .key-group { position: relative; display: flex; gap: 2px; flex-shrink: 0; }
+  .kg-cde .black-key:nth-child(1) { left: 25px; }
+  .kg-cde .black-key:nth-child(2) { left: 63px; }
+  .kg-fgab .black-key:nth-child(1) { left: 25px; }
+  .kg-fgab .black-key:nth-child(2) { left: 63px; }
+  .kg-fgab .black-key:nth-child(3) { left: 101px; }
+
+  .keys-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(10,6,3,0.4) 0%, transparent 30%, transparent 70%, rgba(10,6,3,0.2) 100%);
+    z-index: 3;
+  }
+
+  .scene-fog {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 120px;
+    background: linear-gradient(180deg, transparent 0%, rgba(10,20,40,0.6) 60%, rgba(8,15,30,0.9) 100%);
+    pointer-events: none;
+  }
+
+  .blur-overlay {
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    background: rgba(8,15,30,0.15);
+    pointer-events: none;
+  }
+
+  /* ── HERO CONTENT ───────────────────────────────────── */
+  .hero-content {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 0 24px;
+    margin-top: -80px;
+    animation: fadeUp 1.2s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(122,162,247,0.3);
+    padding: 5px 16px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    background: rgba(122,162,247,0.08);
+    backdrop-filter: blur(8px);
+    animation: fadeUp 1.2s ease 0.1s both;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(56px, 9vw, 100px);
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    color: var(--ivory);
+    text-shadow: 0 2px 40px rgba(0,0,0,0.5), 0 0 80px rgba(122,162,247,0.2);
+    animation: fadeUp 1.2s ease 0.2s both;
+  }
+
+  h1 em { font-style: italic; color: var(--accent); display: block; }
+
+  .tagline {
+    font-size: clamp(15px, 2vw, 18px);
+    font-weight: 300;
+    color: rgba(220,215,205,0.75);
+    margin-top: 20px;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+    animation: fadeUp 1.2s ease 0.35s both;
+  }
+
+  .hero-ctas {
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 36px;
+    animation: fadeUp 1.2s ease 0.45s both;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #0d1f3c;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 13px 28px;
+    border-radius: 40px;
+    text-decoration: none;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 24px rgba(122,162,247,0.35);
+  }
+
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(122,162,247,0.5); background: #9ab8f9; }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    padding: 13px 28px;
+    border-radius: 40px;
+    text-decoration: none;
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: all 0.25s ease;
+    backdrop-filter: blur(8px);
+  }
+
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.25); transform: translateY(-2px); }
+
+  .scroll-cue {
+    position: absolute;
+    bottom: 240px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.4;
+    animation: fadeUp 1.2s ease 1s both;
+  }
+
+  .scroll-line {
+    width: 1px; height: 40px;
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,0.5));
+    animation: scrollPulse 2s ease infinite;
+  }
+
+  @keyframes scrollPulse {
+    0%, 100% { opacity: 0.3; }
+    50%       { opacity: 0.8; }
+  }
+
+  /* ── SECTIONS ─────────────────────────────────────── */
+  section { position: relative; z-index: 5; }
+
+  .content {
+    background: linear-gradient(180deg, rgba(8,15,30,0.97) 0%, #080d18 100%);
+    padding: 100px 24px;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; }
+
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 500;
+    margin-bottom: 16px;
+    opacity: 0.8;
+  }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 400;
+    line-height: 1.2;
+    color: var(--ivory);
+    margin-bottom: 20px;
+  }
+
+  .section-title em { font-style: italic; color: var(--accent2); }
+
+  .section-body {
+    font-size: 16px;
+    font-weight: 300;
+    line-height: 1.75;
+    color: rgba(220,215,205,0.65);
+    max-width: 620px;
+  }
+
+  .divider {
+    width: 48px; height: 1px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    margin: 48px 0;
+  }
+
+  /* ── FEATURE GRID ──────────────────────────────────── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 2px;
+    margin-top: 56px;
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .feature-card {
+    padding: 32px 28px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.3s ease;
+  }
+
+  .feature-card:hover { background: rgba(122,162,247,0.05); }
+
+  .feature-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .feature-card h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--ivory);
+    margin-bottom: 10px;
+  }
+
+  .feature-card p {
+    font-size: 14px;
+    font-weight: 300;
+    line-height: 1.65;
+    color: rgba(200,195,185,0.55);
+  }
+
+  /* ── MODE TABS ────────────────────────────────────── */
+  .modes { margin-top: 80px; }
+
+  .mode-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3px;
+    margin-top: 32px;
+  }
+
+  .mode-card {
+    padding: 36px 32px;
+    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.015);
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+
+  .mode-card:first-child { border-radius: 14px 0 0 14px; }
+  .mode-card:last-child  { border-radius: 0 14px 14px 0; }
+  .mode-card:hover { background: rgba(255,255,255,0.03); }
+
+  .mode-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+  }
+
+  .mode-manual::before { background: var(--accent); }
+  .mode-scale::before  { background: var(--accent2); }
+  .mode-custom::before { background: var(--red); }
+
+  .mode-card h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    margin-bottom: 12px;
+    color: var(--ivory);
+  }
+
+  .mode-card p {
+    font-size: 14px;
+    font-weight: 300;
+    line-height: 1.7;
+    color: rgba(200,195,185,0.55);
+  }
+
+  .mode-tag {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .mode-manual .mode-tag { background: rgba(122,162,247,0.12); color: var(--accent); }
+  .mode-scale  .mode-tag { background: rgba(187,154,247,0.12); color: var(--accent2); }
+  .mode-custom .mode-tag { background: rgba(247,118,142,0.12); color: var(--red); }
+
+  /* ── SCALE TABLE ──────────────────────────────────── */
+  .scale-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 32px;
+    font-size: 14px;
+  }
+
+  .scale-table th {
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 500;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .scale-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: rgba(220,215,205,0.7);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  .scale-table tr:hover td { background: rgba(122,162,247,0.04); }
+
+  .scale-name {
+    color: var(--ivory);
+    font-weight: 400;
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+  }
+
+  .scale-tag {
+    display: inline-block;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 6px;
+    margin-left: 6px;
+    vertical-align: middle;
+    font-weight: 500;
+    background: rgba(45,195,222,0.12);
+    color: var(--teal);
+  }
+
+  /* ── HARMONY MODES ────────────────────────────────── */
+  .harmony-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin-top: 28px;
+  }
+
+  .harmony-chip {
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(224,175,104,0.15);
+    background: rgba(224,175,104,0.04);
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .harmony-chip:hover { border-color: rgba(224,175,104,0.3); background: rgba(224,175,104,0.08); }
+
+  .harmony-chip h5 {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    color: var(--yellow);
+    margin-bottom: 4px;
+  }
+
+  .harmony-chip p {
+    font-size: 11px;
+    font-weight: 300;
+    color: rgba(200,195,185,0.4);
+    line-height: 1.4;
+  }
+
+  /* ── INVERSION GRID ───────────────────────────────── */
+  .inv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .inv-card {
+    padding: 22px 20px;
+    border: 1px solid rgba(187,154,247,0.12);
+    border-radius: 12px;
+    background: rgba(187,154,247,0.04);
+    transition: all 0.25s ease;
+  }
+
+  .inv-card:hover { border-color: rgba(187,154,247,0.25); background: rgba(187,154,247,0.08); }
+
+  .inv-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    color: var(--accent2);
+    margin-bottom: 8px;
+  }
+
+  .inv-card p {
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.6;
+    color: rgba(200,195,185,0.5);
+  }
+
+  /* ── ANIMATION SECTION ────────────────────────────── */
+  .anim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .anim-card {
+    padding: 24px 20px;
+    border: 1px solid rgba(42,195,222,0.14);
+    border-radius: 12px;
+    background: rgba(42,195,222,0.03);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .anim-card:hover { border-color: rgba(42,195,222,0.28); background: rgba(42,195,222,0.07); }
+
+  .anim-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--teal), transparent);
+  }
+
+  .anim-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    color: var(--teal);
+    margin-bottom: 8px;
+  }
+
+  .anim-card p {
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.6;
+    color: rgba(200,195,185,0.5);
+  }
+
+  .anim-avail {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .anim-badge {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+
+  .anim-badge.manual { background: rgba(122,162,247,0.12); color: var(--accent); }
+  .anim-badge.scale  { background: rgba(158,206,106,0.12); color: var(--green); }
+  .anim-badge.custom { background: rgba(247,118,142,0.12); color: var(--red); }
+
+  /* ── TOOLS ROW ────────────────────────────────────── */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .tool-card {
+    padding: 24px 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.025);
+    transition: all 0.25s ease;
+  }
+
+  .tool-card:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
+
+  .tool-icon {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .tool-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    color: var(--ivory);
+    margin-bottom: 8px;
+  }
+
+  .tool-card p {
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.6;
+    color: rgba(200,195,185,0.5);
+  }
+
+  /* ── USE CASE STRIP ───────────────────────────────── */
+  .use-cases {
+    margin-top: 80px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .use-case {
+    padding: 28px 26px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.25s ease;
+  }
+
+  .use-case:hover { transform: translateY(-3px); }
+
+  .use-case-num {
+    position: absolute;
+    top: 16px; right: 20px;
+    font-family: 'Playfair Display', serif;
+    font-size: 52px;
+    font-weight: 700;
+    color: rgba(122,162,247,0.06);
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .use-case h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--ivory);
+    margin-bottom: 10px;
+  }
+
+  .use-case p {
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.7;
+    color: rgba(200,195,185,0.5);
+  }
+
+  /* ── FREE BANNER ──────────────────────────────────── */
+  .free-banner {
+    margin-top: 80px;
+    padding: 56px 48px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(122,162,247,0.1) 0%, rgba(187,154,247,0.06) 50%, rgba(122,162,247,0.04) 100%);
+    border: 1px solid rgba(122,162,247,0.2);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .free-banner::before {
+    content: '';
+    position: absolute;
+    top: -80px; left: 50%;
+    transform: translateX(-50%);
+    width: 400px; height: 200px;
+    background: radial-gradient(ellipse, rgba(122,162,247,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .free-banner h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 4vw, 44px);
+    color: var(--ivory);
+    margin-bottom: 14px;
+  }
+
+  .free-banner p {
+    font-size: 16px;
+    font-weight: 300;
+    color: rgba(220,215,205,0.6);
+    max-width: 460px;
+    margin: 0 auto 32px;
+    line-height: 1.65;
+  }
+
+  /* ── FOOTER ───────────────────────────────────────── */
+  footer {
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding: 40px 24px;
+    text-align: center;
+  }
+
+  footer p {
+    font-size: 13px;
+    font-weight: 300;
+    color: rgba(200,195,185,0.3);
+    line-height: 1.8;
+  }
+
+  footer a { color: rgba(122,162,247,0.6); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  /* ── RESPONSIVE ───────────────────────────────────── */
+  @media (max-width: 700px) {
+    .mode-row { grid-template-columns: 1fr; }
+    .mode-card:first-child { border-radius: 14px 14px 0 0; }
+    .mode-card:last-child  { border-radius: 0 0 14px 14px; }
+    .mode-card:not(:first-child):not(:last-child) { border-radius: 0; }
+    .piano-scene { width: 100vw; }
+    .piano-body  { width: 100vw; border-radius: 0; }
+    .keys-wrap   { width: 100vw; }
+    .keys { gap: 1px; }
+    .white-key { width: 26px; }
+    .free-banner { padding: 36px 24px; }
+  }
+  @media (max-width: 900px) and (min-width: 701px) {
+    .mode-row { grid-template-columns: 1fr 1fr; }
+    .mode-card:nth-child(3) { border-radius: 0 0 14px 14px; grid-column: 1 / -1; }
+    .mode-card:first-child  { border-radius: 14px 0 0 0; }
+    .mode-card:nth-child(2) { border-radius: 0 14px 0 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HERO ────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="sky"></div>
+  <div class="sun-glow"></div>
+  <div class="clouds">
+    <div class="cloud cloud-1"></div>
+    <div class="cloud cloud-2"></div>
+    <div class="cloud cloud-3"></div>
+    <div class="cloud cloud-4"></div>
+  </div>
+
+  <div class="hero-content">
+    <div class="badge">Free VST3 MIDI Plugin</div>
+    <h1>Note<em>Adder</em></h1>
+    <p class="tagline">Play a note. Hear a chord. A MIDI harmoniser that understands music theory, built for pianists, sound designers and everyone who is curious.</p>
+    <div class="hero-ctas">
+      <a href="#" class="btn-primary">↓ &nbsp;Download Free</a>
+      <a href="#features" class="btn-secondary">Learn more</a>
+    </div>
+  </div>
+
+  <div class="scroll-cue">
+    <div class="scroll-line"></div>
+  </div>
+
+  <div class="piano-scene">
+    <div class="piano-body"></div>
+    <div class="keys-wrap">
+      <div class="keys">
+        <div class="key-group kg-cde">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div>
+        </div>
+        <div class="key-group kg-fgab">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div><div class="black-key" style="left:103px"></div>
+        </div>
+        <div class="key-group kg-cde">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div>
+        </div>
+        <div class="key-group kg-fgab">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div><div class="black-key" style="left:103px"></div>
+        </div>
+        <div class="key-group kg-cde">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div>
+        </div>
+        <div class="key-group kg-fgab">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div><div class="black-key" style="left:103px"></div>
+        </div>
+        <div class="key-group kg-cde">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div>
+        </div>
+        <div class="key-group kg-fgab">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div><div class="black-key" style="left:103px"></div>
+        </div>
+        <div class="key-group kg-cde">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div>
+        </div>
+        <div class="key-group kg-fgab">
+          <div class="white-key"></div><div class="white-key"></div><div class="white-key"></div><div class="white-key"></div>
+          <div class="black-key" style="left:27px"></div><div class="black-key" style="left:65px"></div><div class="black-key" style="left:103px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-fog"></div>
+    <div class="blur-overlay"></div>
+  </div>
+</section>
+
+<!-- ── MAIN CONTENT ────────────────────────────────────── -->
+<div class="content" id="features">
+  <div class="container">
+
+    <!-- What it is -->
+    <div class="section-label">What it does</div>
+    <h2 class="section-title">One note in. <em>A chord out.</em></h2>
+    <p class="section-body">NoteAdder is a MIDI plugin that processes incoming notes and adds harmony on top of them in real time. It produces no sound itself (when the sine wave audit mode is off) — it sits in front of your synthesizer and sends it a richer set of notes than you played. Everything stays in tune because it knows your scale. Then it animates those chords, records your output, and lets you customise every detail of how it looks and feels.</p>
+
+    <div class="divider"></div>
+
+    <!-- Feature grid -->
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(122,162,247,0.1)">🎹</div>
+        <h3>7 Note Slots</h3>
+        <p>In manual mode, each slot adds a note at a chosen semitone and octave offset. Enable only the ones you need. Hit RND to randomise the whole set instantly.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(158,206,106,0.1)">🎼</div>
+        <h3>16 Scales</h3>
+        <p>From Major and Minor to Phrygian Dominant, Altered, Whole Tone, and Blues. Proper diatonic chord stacking for every scale degree, every mode.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(187,154,247,0.1)">🔄</div>
+        <h3>7 Inversion Modes</h3>
+        <p>Normal, Picker, Voice Leader, Drop 2, Cycle Up, Cycle Down, and Random Cycle. From static voicings to chords that evolve with every keypress.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(42,195,222,0.1)">✨</div>
+        <h3>4 Animation Modes</h3>
+        <p>Re-Voice, Wander, Drift, and Cloud keep held chords moving on their own. Available across all three plugin modes (Wander and Drift are Scale-only). Rate syncs to your DAW BPM or runs free at any millisecond interval you choose.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(255,158,100,0.1)">🎲</div>
+        <h3>Humanize</h3>
+        <p>Add up to 200 ms of random time offset and up to ±100 velocity spread to each added note independently. Instant feel, without a sequencer in sight.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(247,118,142,0.1)">⏺</div>
+        <h3>MIDI Recorder</h3>
+        <p>Capture the plugin's full output to a timestamped .mid file. Hit REC, play, stop — a save dialog appears ready to drop the file straight into your DAW.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(45,195,222,0.1)">🔒</div>
+        <h3>Key Lock &amp; Filter</h3>
+        <p>Three options for out-of-scale notes: pass them through unchanged, discard them entirely for a hard key lock, or silently reroute them to the nearest in-scale note so you can play freely and always stay in key.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(224,175,104,0.1)">🎯</div>
+        <h3>No Stuck Notes</h3>
+        <p>All NoteOff events are tracked and matched precisely. Changing settings mid-hold, fast playing, and DAW stop all behave cleanly.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(247,118,142,0.1)">🎛️</div>
+        <h3>Custom Chord Mapping</h3>
+        <p>In Custom mode, assign any of 14 chord presets — Maj, Maj7, Maj9, Min, Min7, Min9, 6/9, Dom7, Sus2, Sus4, Power, Aug, Dim — or enter your own semitone offsets — to each of the 12 pitch classes. Every note on the keyboard can produce a completely different chord quality. Entirely independent of scale or key.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(158,206,106,0.1)">🎨</div>
+        <h3>Per-Note Colours</h3>
+        <p>Assign a custom colour to each of the 12 pitch classes. The interactive piano roll and scale colour key update live, with a full colour picker on every chip.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(224,175,104,0.1)">↕</div>
+        <h3>Global Transpose</h3>
+        <p>Shift every note out of NoteAdder by −12 to +12 semitones, applied after all other processing. Play a piece you know and hear it in a different key without changing your fingering.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Modes -->
+    <div class="modes">
+      <div class="section-label">Three modes</div>
+      <h2 class="section-title">Choose how you want to work</h2>
+      <div class="mode-row">
+        <div class="mode-card mode-manual">
+          <div class="mode-tag">Manual</div>
+          <h3>Fixed Intervals</h3>
+          <p>Define up to seven specific note offsets. Each slot has a semitone selector (−12 to +12 with full interval names) and an octave multiplier (−7 to +7). Hit RND to randomise all slots from a musical interval pool, or SAVE / LOAD to keep your favourite configurations as .nastate preset files. A Cloud animation mode adds floating counterpoint on top of whatever you've configured.</p>
+        </div>
+        <div class="mode-card mode-scale">
+          <div class="mode-tag">Scale</div>
+          <h3>Diatonic Chords</h3>
+          <p>Choose a root, a scale, and how many notes to add (1–7). NoteAdder stacks diatonic intervals from the played note upward — tertian by default, but you can switch to secundal, quartal, quintal, sextal, or septimal harmony. Playing D in C major gives you Dm7. Playing G gives you G7. Scale mode unlocks all five animation types including Wander and Drift, and shows a live colour-coded scale key you can click to repaint.</p>
+        </div>
+        <div class="mode-card mode-custom">
+          <div class="mode-tag">Custom</div>
+          <h3>Per-Note Chord Mapping</h3>
+          <p>Assign a specific chord type to each of the 12 pitch classes independently. Choose from 14 presets — Maj, Maj7, Maj9, Min, Min7, Min9, 6/9, Dom7, Sus2, Sus4, Power, Aug, Dim — or fully Custom, where you type your own comma-separated semitone offsets (e.g. <code style="font-family:monospace;font-size:12px;color:var(--red);background:rgba(247,118,142,0.08);padding:1px 5px;border-radius:4px;">-7,-3,5</code>). You can also set any key to None to pass it through without adding anything. Every key on the keyboard can produce a completely different chord quality. Hit RND to generate a random mapping across all 12 notes, or RST to reset to clean defaults. Re-Voice and Cloud animation are both available in this mode.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Scales -->
+    <div class="section-label">Scales</div>
+    <h2 class="section-title">Sixteen scales, <em>multiple characters</em></h2>
+    <table class="scale-table">
+      <thead>
+        <tr><th>Scale</th><th>Character</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="scale-name">Major</td><td>Bright and resolved.</td></tr>
+        <tr><td class="scale-name">Natural Minor</td><td>Lush, warm and introspective.</td></tr>
+        <tr><td class="scale-name">Pentatonic Major</td><td>Open and uncluttered. Everything sounds nice.</td></tr>
+        <tr><td class="scale-name">Pentatonic Minor</td><td>Same as Penta Major but a bit deeper.</td></tr>
+        <tr><td class="scale-name">Lydian</td><td>Major with a raised fourth. Floating, cinematic, otherworldly.</td></tr>
+        <tr><td class="scale-name">Mixolydian</td><td>Major with a flat seventh. Rock, blues, and modal jazz.</td></tr>
+        <tr><td class="scale-name">Dorian</td><td>Minor with a raised sixth. Soulful and jazz-friendly.</td></tr>
+        <tr><td class="scale-name">Phrygian</td><td>Minor with a flat second. Spanish, flamenco.</td></tr>
+        <tr><td class="scale-name">Locrian</td><td>Diminished root chord. Rather unstable.</td></tr>
+        <tr><td class="scale-name">Harmonic Minor</td><td>Raised seventh creates tension. Classical, flamenco, Middle Eastern.</td></tr>
+        <tr><td class="scale-name">Melodic Minor</td><td>Smooth minor ascent. Jazz and cinematic writing.</td></tr>
+        <tr><td class="scale-name">Lydian Dominant</td><td>Raised fourth, flat seventh. Jazz fusion and film scores.</td></tr>
+        <tr><td class="scale-name">Phrygian Dominant</td><td>The flamenco scale. Intense, dramatic, unmistakable.</td></tr>
+        <tr><td class="scale-name">Altered <span class="scale-tag">Super Locrian</span></td><td>Every non-root note altered. Maximum jazz tension and release.</td></tr>
+        <tr><td class="scale-name">Whole Tone <span class="scale-tag">6-note</span></td><td>Perfectly symmetrical. Dreamlike, no tonal centre.</td></tr>
+        <tr><td class="scale-name">Blues <span class="scale-tag">6-note</span></td><td>The core of blues and rock. Expressive, immediately familiar.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="divider"></div>
+
+    <!-- Harmony modes -->
+    <div class="section-label">Harmony stacking</div>
+    <h2 class="section-title">Six ways to <em>build a chord</em></h2>
+    <p class="section-body">In Scale mode, Harmony controls the interval step used when stacking added notes above the played note. Each produces a completely different chord quality from the same key and scale. Tertian is the western default, quartal is very nice too.</p>
+
+    <div class="harmony-grid">
+      <div class="harmony-chip">
+        <h5>Tertian</h5>
+        <p>Stack in thirds — the standard. Triads, sevenths, ninths.</p>
+      </div>
+      <div class="harmony-chip">
+        <h5>Secundal</h5>
+        <p>Stack in seconds. Dense, clustered, contemporary.</p>
+      </div>
+      <div class="harmony-chip">
+        <h5>Quartal</h5>
+        <p>Stack in fourths. Open, ambient territory.</p>
+      </div>
+      <div class="harmony-chip">
+        <h5>Quintal</h5>
+        <p>Stack in fifths. Spacious and parallel - power chord logic.</p>
+      </div>
+      <div class="harmony-chip">
+        <h5>Sextal</h5>
+        <p>Stack in sixths. Warm, inverted-third character.</p>
+      </div>
+      <div class="harmony-chip">
+        <h5>Septimal</h5>
+        <p>Stack in sevenths. Wide open voicings, sparse and airy.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Inversions -->
+    <div class="section-label">Inversions</div>
+    <h2 class="section-title">Voicings that move <em>with the music</em></h2>
+    <p class="section-body">Inversion mode controls how the chord is arranged — which note sits at the bottom, how the voices are spread. Seven modes cover everything from static shapes to chords that reinvent themselves every time you touch the keyboard.</p>
+
+    <div class="inv-grid">
+      <div class="inv-card">
+        <h4>Normal</h4>
+        <p>Notes stacked upward in natural diatonic order. Clean and predictable.</p>
+      </div>
+      <div class="inv-card">
+        <h4>Inversion Picker</h4>
+        <p>Choose root position, 1st, 2nd, or 3rd inversion by hand. Options limited to what your note count actually supports.</p>
+      </div>
+      <div class="inv-card">
+        <h4>Voice Leader</h4>
+        <p>Automatically picks the inversion that moves the least distance from the last chord. Progressions become smooth without effort.</p>
+      </div>
+      <div class="inv-card">
+        <h4>Drop 2</h4>
+        <p>The second-highest note drops an octave. Classic jazz voicing — tight chords open into something richer.</p>
+      </div>
+      <div class="inv-card">
+        <h4>Cycle Up</h4>
+        <p>Each keypress steps to the next inversion in ascending sequence. Repeating a note produces natural rhythmic variation.</p>
+      </div>
+      <div class="inv-card">
+        <h4>Cycle Down</h4>
+        <p>Same as Cycle Up, descending. Pair with a riff for harmonic movement that loops back on itself.</p>
+      </div>
+      <div class="inv-card">
+        <h4>Random Cycle</h4>
+        <p>Each keypress jumps to a random inversion. Structured unpredictability — harmonically correct, never quite the same.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Animation -->
+    <div class="section-label">Animation</div>
+    <h2 class="section-title">Chords that keep <em>moving</em></h2>
+    <p class="section-body">Hold a note and let the animation engine do the rest. Each mode transforms your static chord into something alive — re-voicing, wandering up the scale, drifting, or raining down atmospheric cloud notes. Rate syncs to your DAW BPM via standard subdivisions, or runs completely free at any millisecond interval. The <em>Allow for longer notes</em> toggle turns the rate from a fixed interval into a maximum, so some ticks stretch longer for a more organic, less metronomic feel.</p>
+
+    <div class="anim-grid">
+      <div class="anim-card">
+        <h4>Re-Voice</h4>
+        <p>Cycles through every inversion of the held chord on each tick. Pads and long pads get harmonic movement without you doing a thing.</p>
+        <div class="anim-avail">
+          <span class="anim-badge scale">Scale</span>
+          <span class="anim-badge manual">Manual</span>
+          <span class="anim-badge custom">Custom</span>
+        </div>
+      </div>
+      <div class="anim-card">
+        <h4>Wander</h4>
+        <p>Each added note independently steps up or down the scale by a random amount within your set spread. The chord slowly drifts through the key.</p>
+        <div class="anim-avail">
+          <span class="anim-badge scale">Scale only</span>
+        </div>
+      </div>
+      <div class="anim-card">
+        <h4>Drift</h4>
+        <p>The entire chord root walks up the scale one degree per tick, carrying all voices with it. A slow upward harmonic journey from a single held note.</p>
+        <div class="anim-avail">
+          <span class="anim-badge scale">Scale only</span>
+        </div>
+      </div>
+      <div class="anim-card">
+        <h4>Cloud</h4>
+        <p>Fires a stream of short notes — density, octave spread, velocity range, and decay all customizable. Arpeggiated glitter, thick noise, or something in between.</p>
+        <div class="anim-avail">
+          <span class="anim-badge scale">Scale</span>
+          <span class="anim-badge manual">Manual</span>
+          <span class="anim-badge custom">Custom</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Tools -->
+    <div class="section-label">Built-in tools</div>
+    <h2 class="section-title">Tons of helpful functions, <em>right there</em></h2>
+
+    <div class="tools-grid">
+      <div class="tool-card">
+        <div class="tool-icon">🎹</div>
+        <h4>Piano Roll Visualiser</h4>
+        <p>A live strip along the left edge shows every active output note in your custom pitch-class colours. Click or drag to trigger notes directly — useful for auditioning voicings without a keyboard.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">🔊</div>
+        <h4>Audit Mode</h4>
+        <p>The AUD button activates a built-in sine-wave preview of every currently active output note. Hear exactly what the plugin is outputting without routing to an instrument.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">⏺</div>
+        <h4>MIDI Recorder</h4>
+        <p>Hit REC and play. The plugin captures all output events with precise timing against the host BPM. Stop recording and a save dialog lets you drop the .mid file straight into your project.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">💾</div>
+        <h4>Preset System</h4>
+        <p>SAVE and LOAD buttons write and read .nastate files that store all manual slots, scale settings, animation parameters, inversion mode, and custom note colours in a single portable file.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">🎨</div>
+        <h4>Colour Customiser</h4>
+        <p>Click any of the 12 pitch-class chips in the scale key to open a full colour picker. Colours flow through the piano roll and scale display. RST CLR resets to defaults; BW CLR switches to a clean black-and-white scheme.</p>
+      </div>
+      <div class="tool-card">
+        <div class="tool-icon">↔</div>
+        <h4>Resizable UI</h4>
+        <p>Drag any corner to resize the plugin window. All text, controls, and the piano roll scale proportionally — from compact to large-screen at any ratio you need. Click the NoteAdder title twice to snap back to the default size instantly.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Use cases -->
+    <div class="section-label">What you can do with it</div>
+    <h2 class="section-title">A few starting points</h2>
+    <div class="use-cases">
+      <div class="use-case">
+        <div class="use-case-num">1</div>
+        <h4>Harmonised melody</h4>
+        <p>Scale mode, Add = 1 or 2, Voice Leader on. Play a melody line and every note becomes a third or sixth, perfectly in key, moving smoothly.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">2</div>
+        <h4>Animated chord pad</h4>
+        <p>Hold a note, Wander or Re-Voice on, BPM sync to 1/4. The chord reinvents itself every beat. Layers of movement from a single finger.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">3</div>
+        <h4>Glitter arpeggios</h4>
+        <p>Cloud mode, density high, decay short, velocity ppp–mp. Every held note spawns a shower of quick soft notes — textural detail without a step sequencer.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">4</div>
+        <h4>Jazz comping</h4>
+        <p>Dorian or Mixolydian, Add = 3, Drop 2 inversion, Lock bass on. Open voiced 7th chords with the played note anchoring the bottom.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">5</div>
+        <h4>Safe improvisation</h4>
+        <p>Discard out-of-scale on, Add = 2. Play anything freely across the keyboard. Only in-key notes produce chords. No wrong notes possible.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">6</div>
+        <h4>Quartal jazz voicings</h4>
+        <p>Scale mode, Harmony = Quartal, Add = 3. Every note produces a suspended, modern stack of fourths.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">7</div>
+        <h4>Power chords / octaves</h4>
+        <p>Manual mode, +7 Perfect 5th and +1 Octave enabled. Every single note becomes a power chord, instantly, at any tempo.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">8</div>
+        <h4>Chord discovery</h4>
+        <p>Manual mode, hit RND, toggle slots on and off. An unrepeatable way to find voicings you would never have reached by intention. Save what you like.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">9</div>
+        <h4>Per-key chord changes</h4>
+        <p>Custom mode, assign Maj7 to C, Min9 to D, 6/9 to E. Each key on the keyboard triggers a completely different chord quality — no scale, no rules, total control.</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-num">10</div>
+        <h4>Experimental intervals</h4>
+        <p>Custom mode, set chord type to Custom on any pitch class, type in offsets like <code style="font-family:monospace;font-size:11px;color:var(--red);">-5,2,8,13</code>. Build clusters, quartal stacks, or intervals that have no standard name. Cloud animation on top for texture.</p>
+      </div>
+    </div>
+
+    <!-- Free banner -->
+    <div class="free-banner">
+      <h2>Free and Open Source, yours to keep forever.</h2>
+      <p>NoteAdder is freeware, released under open source terms compatible with the JUCE framework. Use it, share it, modify it, release derivative work if you like but please keep these open source too.</p>
+      <div class="hero-ctas">
+        <a href="#" class="btn-primary">↓ &nbsp;Download VST3</a>
+        <a href="#" class="btn-secondary">View source</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <p>
+    NoteAdder by <strong>aquanodemusic</strong> &nbsp;·&nbsp;
+    Built with <a href="https://juce.com">JUCE</a> &nbsp;·&nbsp;
+    Developed with assistance from <a href="https://claude.ai">Claude (Anthropic)</a><br>
+    VST3 · Windows · Free & Open Source
+  </p>
+</footer>
+
+</body>
+</html>

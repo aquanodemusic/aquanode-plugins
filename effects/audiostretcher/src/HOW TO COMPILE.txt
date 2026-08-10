@@ -1,0 +1,114 @@
+HOW TO COMPILE AUDIOSTRETCHER FROM SOURCE
+
+========================================
+PREREQUISITES
+========================================
+
+You will need:
+- JUCE Framework (version 7.0 or newer)
+  Download from: https://juce.com/get-juce/
+  
+- Projucer (included with JUCE)
+  Used to generate platform-specific project files
+  
+- A C++ compiler:
+  - Windows: Visual Studio 2019 or newer
+  - macOS: Xcode 12 or newer
+  - Linux: GCC or Clang
+
+- RubberBand Audio Time Stretcher
+  Download from: https://github.com/breakfastquay/rubberband
+  (or use the included copy bundled with source code)
+
+========================================
+SETUP INSTRUCTIONS
+========================================
+
+STEP 1: INSTALL JUCE
+- Download and install JUCE from juce.com
+- Remember the installation path (default: C:/Program Files/JUCE on Windows)
+- Launch Projucer at least once to set up global paths
+
+STEP 2: EXTRACT RUBBERBAND
+- If RubberBand is not included in the source code bundle:
+  - Download from https://github.com/breakfastquay/rubberband
+  - Extract to a location on your computer
+  - Remember this path (e.g., C:/RubberBand or ~/RubberBand)
+
+STEP 3: CONFIGURE THE PROJECT
+- Open AudioStretcher.jucer with Projucer
+- At the top of the file, find the line:
+  PATH_TO_RUBBERBAND_FOLDER = "C:/Program Files/Rubberband"
+- Change this path to where you extracted RubberBand
+- Save the file (Ctrl+S / Cmd+S)
+
+STEP 4: GENERATE PROJECT FILES
+- In Projucer, click "Save Project and Open in IDE"
+  OR
+- Click the platform-specific icon (Visual Studio/Xcode icon) in the top toolbar
+- Projucer will generate the build files in the Builds/ folder
+
+STEP 5: COMPILE
+- The IDE will open with your project loaded
+- Select build configuration:
+  - Debug: For testing and development
+  - Release: For final distribution
+- Build the project:
+  - Windows (Visual Studio): Press F7 or Build > Build Solution
+  - macOS (Xcode): Press Cmd+B or Product > Build
+  - Linux: Run 'make' in the Builds/Linux folder
+
+STEP 6: FIND YOUR PLUGIN
+After successful compilation, find your plugin:
+- Windows: Builds/VisualStudio202X/x64/Release/VST3/AudioStretcher.vst3
+- macOS: Builds/MacOSX/build/Release/AudioStretcher.vst3
+- Linux: Builds/Linux/build/AudioStretcher.vst3
+
+========================================
+INSTALLATION
+========================================
+
+Copy the compiled .vst3 file to your DAW's plugin folder:
+
+Windows:
+C:/Program Files/Common Files/VST3/
+
+macOS:
+/Library/Audio/Plug-Ins/VST3/
+or
+~/Library/Audio/Plug-Ins/VST3/
+
+Linux:
+~/.vst3/
+or
+/usr/lib/vst3/
+
+========================================
+TROUBLESHOOTING
+========================================
+
+ISSUE: "Cannot find RubberBandStretcher.h"
+SOLUTION: Check that PATH_TO_RUBBERBAND_FOLDER in AudioStretcher.jucer points to the correct location
+
+ISSUE: "USE_RUBBERBAND is not defined"
+SOLUTION: Make sure the preprocessor definitions include USE_RUBBERBAND=1 in your build configuration
+
+ISSUE: Compiler errors about min/max
+SOLUTION: Ensure NOMINMAX=1 is in the preprocessor definitions (Windows only)
+
+ISSUE: Link errors
+SOLUTION: Make sure RubberBandSingle.cpp is included in the project and set to compile
+
+========================================
+ADDITIONAL NOTES
+========================================
+
+- Build times: Building will take about 3 minutes, at least on my mid-range machine.
+- The standalone version builds alongside VST3 by default
+- For distribution, always use Release configuration for optimal performance
+- The plugin will work on computers without RubberBand installed (it's statically linked)
+
+----------------------------------------
+
+This is open source software under GPL v2.
+The program is 100% Free and Open Source.

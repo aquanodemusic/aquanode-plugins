@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lotus Pond</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #4a8a8c;
+  }
+
+  .pond {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at 60% 40%, #6db8bb 0%, #4a9a9c 30%, #2e7a7c 60%, #1e5f6a 100%);
+    overflow: hidden;
+  }
+
+  /* Water shimmer */
+  .pond::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 40% at 55% 35%, rgba(180,230,235,0.18) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 30% 20%, rgba(180,230,235,0.1) 0%, transparent 60%);
+    animation: shimmer 6s ease-in-out infinite alternate;
+  }
+
+  @keyframes shimmer {
+    0% { opacity: 0.7; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1.03); }
+  }
+
+  /* Caustic light lines */
+  .caustics {
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(
+        130deg,
+        transparent 0px,
+        transparent 60px,
+        rgba(150,220,225,0.05) 61px,
+        rgba(150,220,225,0.05) 63px
+      ),
+      repeating-linear-gradient(
+        70deg,
+        transparent 0px,
+        transparent 80px,
+        rgba(150,220,225,0.04) 81px,
+        rgba(150,220,225,0.04) 83px
+      );
+    animation: caustic-move 8s ease-in-out infinite alternate;
+  }
+  @keyframes caustic-move {
+    0% { transform: translateX(0) translateY(0); }
+    100% { transform: translateX(15px) translateY(8px); }
+  }
+
+  /* SVG lily pads + flowers */
+  .scene-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Floating petal particles */
+  .petal {
+    position: absolute;
+    border-radius: 50% 0 50% 0;
+    animation: float-petal linear infinite;
+    opacity: 0.75;
+  }
+
+  @keyframes float-petal {
+    0% { transform: translate(0, 0) rotate(0deg); opacity: 0.8; }
+    50% { opacity: 0.5; }
+    100% { transform: translate(var(--tx), var(--ty)) rotate(var(--tr)); opacity: 0; }
+  }
+
+  /* Dark foliage corners */
+  .corner-foliage {
+    position: absolute;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="pond">
+  <div class="caustics"></div>
+
+  <svg class="scene-svg" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Lily pad gradient -->
+      <radialGradient id="padGrad1" cx="45%" cy="45%" r="55%">
+        <stop offset="0%" stop-color="#7dc96a"/>
+        <stop offset="50%" stop-color="#5aab46"/>
+        <stop offset="100%" stop-color="#3d8a30"/>
+      </radialGradient>
+      <radialGradient id="padGrad2" cx="40%" cy="40%" r="55%">
+        <stop offset="0%" stop-color="#6abf56"/>
+        <stop offset="60%" stop-color="#4a9e38"/>
+        <stop offset="100%" stop-color="#2e7520"/>
+      </radialGradient>
+      <radialGradient id="padGrad3" cx="50%" cy="50%" r="55%">
+        <stop offset="0%" stop-color="#7dd46a"/>
+        <stop offset="70%" stop-color="#52b040"/>
+        <stop offset="100%" stop-color="#3a8028"/>
+      </radialGradient>
+
+      <!-- Flower pink -->
+      <radialGradient id="flowerGrad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ffdde8"/>
+        <stop offset="60%" stop-color="#f4a8c0"/>
+        <stop offset="100%" stop-color="#e07898"/>
+      </radialGradient>
+      <radialGradient id="flowerGrad2" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ffe0ea"/>
+        <stop offset="70%" stop-color="#f8b8cc"/>
+        <stop offset="100%" stop-color="#e890ac"/>
+      </radialGradient>
+
+      <!-- Water ripple filter -->
+      <filter id="ripple">
+        <feTurbulence type="turbulence" baseFrequency="0.015" numOctaves="2" result="noise">
+          <animate attributeName="baseFrequency" values="0.015;0.02;0.015" dur="8s" repeatCount="indefinite"/>
+        </feTurbulence>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+
+      <!-- Soft shadow for pads -->
+      <filter id="padShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="3" dy="4" stdDeviation="5" flood-color="rgba(20,70,70,0.35)"/>
+      </filter>
+    </defs>
+
+    <!-- Background dark foliage top-left -->
+    <g opacity="0.85">
+      <!-- Large dark leaves top-left -->
+      <ellipse cx="-10" cy="60" rx="55" ry="25" fill="#1a4a2e" transform="rotate(-30,-10,60)"/>
+      <ellipse cx="20" cy="30" rx="45" ry="20" fill="#163d26" transform="rotate(-15,20,30)"/>
+      <ellipse cx="-5" cy="80" rx="50" ry="22" fill="#1e5535" transform="rotate(-45,-5,80)"/>
+      <ellipse cx="35" cy="10" rx="40" ry="18" fill="#122e1e" transform="rotate(-20,35,10)"/>
+      <!-- Stems -->
+      <line x1="60" y1="120" x2="10" y2="30" stroke="#1a4a2e" stroke-width="3"/>
+      <line x1="70" y1="140" x2="30" y2="50" stroke="#163d26" stroke-width="2"/>
+    </g>
+
+    <!-- Bottom-left foliage -->
+    <g opacity="0.8">
+      <ellipse cx="10" cy="480" rx="50" ry="22" fill="#1a4a2e" transform="rotate(20,10,480)"/>
+      <ellipse cx="40" cy="510" rx="45" ry="20" fill="#163d26" transform="rotate(10,40,510)"/>
+      <ellipse cx="-10" cy="460" rx="40" ry="18" fill="#1e5535" transform="rotate(35,-10,460)"/>
+    </g>
+
+    <!-- Right side foliage -->
+    <g opacity="0.75">
+      <ellipse cx="810" cy="100" rx="50" ry="22" fill="#163d26" transform="rotate(150,810,100)"/>
+      <ellipse cx="800" cy="70" rx="42" ry="18" fill="#1a4a2e" transform="rotate(160,800,70)"/>
+    </g>
+
+    <!-- === LILY PADS === -->
+    <!-- Big pad bottom-left -->
+    <g filter="url(#padShadow)" transform="translate(90,390)">
+      <circle cx="0" cy="0" r="58" fill="url(#padGrad1)"/>
+      <!-- notch -->
+      <path d="M0,0 L10,-58 L-10,-58 Z" fill="#4a9a4a" opacity="0.5"/>
+      <!-- veins -->
+      <line x1="0" y1="0" x2="0" y2="-58" stroke="#3a8030" stroke-width="1.2" opacity="0.6"/>
+      <line x1="0" y1="0" x2="50" y2="-28" stroke="#3a8030" stroke-width="0.9" opacity="0.5"/>
+      <line x1="0" y1="0" x2="-50" y2="-28" stroke="#3a8030" stroke-width="0.9" opacity="0.5"/>
+      <line x1="0" y1="0" x2="55" y2="15" stroke="#3a8030" stroke-width="0.8" opacity="0.4"/>
+      <line x1="0" y1="0" x2="-55" y2="15" stroke="#3a8030" stroke-width="0.8" opacity="0.4"/>
+      <line x1="0" y1="0" x2="30" y2="50" stroke="#3a8030" stroke-width="0.8" opacity="0.4"/>
+      <line x1="0" y1="0" x2="-30" y2="50" stroke="#3a8030" stroke-width="0.8" opacity="0.4"/>
+    </g>
+
+    <!-- Medium pad bottom-left-2 -->
+    <g filter="url(#padShadow)" transform="translate(180,430)">
+      <circle cx="0" cy="0" r="42" fill="url(#padGrad2)"/>
+      <path d="M0,0 L8,-42 L-8,-42 Z" fill="#4a9a4a" opacity="0.4"/>
+      <line x1="0" y1="0" x2="0" y2="-42" stroke="#3a8030" stroke-width="1" opacity="0.6"/>
+      <line x1="0" y1="0" x2="36" y2="-22" stroke="#3a8030" stroke-width="0.8" opacity="0.5"/>
+      <line x1="0" y1="0" x2="-36" y2="-22" stroke="#3a8030" stroke-width="0.8" opacity="0.5"/>
+      <line x1="0" y1="0" x2="40" y2="12" stroke="#3a8030" stroke-width="0.7" opacity="0.4"/>
+      <line x1="0" y1="0" x2="-40" y2="12" stroke="#3a8030" stroke-width="0.7" opacity="0.4"/>
+    </g>
+
+    <!-- Small pad bottom-left-3 -->
+    <g filter="url(#padShadow)" transform="translate(130,470)">
+      <circle cx="0" cy="0" r="28" fill="url(#padGrad3)"/>
+      <path d="M0,0 L5,-28 L-5,-28 Z" fill="#4a9a4a" opacity="0.4"/>
+      <line x1="0" y1="0" x2="0" y2="-28" stroke="#3a8030" stroke-width="0.8" opacity="0.6"/>
+      <line x1="0" y1="0" x2="24" y2="-14" stroke="#3a8030" stroke-width="0.7" opacity="0.5"/>
+      <line x1="0" y1="0" x2="-24" y2="-14" stroke="#3a8030" stroke-width="0.7" opacity="0.5"/>
+    </g>
+
+    <!-- Pad bottom-center-left -->
+    <g filter="url(#padShadow)" transform="translate(270,460) rotate(20)">
+      <circle cx="0" cy="0" r="35" fill="url(#padGrad1)"/>
+      <path d="M0,0 L6,-35 L-6,-35 Z" fill="#4a9a4a" opacity="0.4"/>
+      <line x1="0" y1="0" x2="0" y2="-35" stroke="#3a8030" stroke-width="0.9" opacity="0.6"/>
+      <line x1="0" y1="0" x2="30" y2="-18" stroke="#3a8030" stroke-width="0.7" opacity="0.5"/>
+      <line x1="0" y1="0" x2="-30" y2="-18" stroke="#3a8030" stroke-width="0.7" opacity="0.5"/>
+    </g>
+
+    <!-- Pad right side top -->
+    <g filter="url(#padShadow)" transform="translate(680,80) rotate(-15)">
+      <circle cx="0" cy="0" r="45" fill="url(#padGrad2)"/>
+      <path d="M0,0 L8,-45 L-8,-45 Z" fill="#4a9a4a" opacity="0.45"/>
+      <line x1="0" y1="0" x2="0" y2="-45" stroke="#3a8030" stroke-width="1" opacity="0.6"/>
+      <line x1="0" y1="0" x2="39" y2="-22" stroke="#3a8030" stroke-width="0.8" opacity="0.5"/>
+      <line x1="0" y1="0" x2="-39" y2="-22" stroke="#3a8030" stroke-width="0.8" opacity="0.5"/>
+      <line x1="0" y1="0" x2="42" y2="14" stroke="#3a8030" stroke-width="0.7" opacity="0.4"/>
+      <line x1="0" y1="0" x2="-42" y2="14" stroke="#3a8030" stroke-width="0.7" opacity="0.4"/>
+    </g>
+
+    <!-- Pad right side - half cut -->
+    <g filter="url(#padShadow)" transform="translate(760,160) rotate(-30)">
+      <clipPath id="rightClip"><rect x="-50" y="-50" width="80" height="100"/></clipPath>
+      <circle cx="0" cy="0" r="50" fill="url(#padGrad3)" clip-path="url(#rightClip)"/>
+      <line x1="0" y1="0" x2="0" y2="-50" stroke="#3a8030" stroke-width="1" opacity="0.6"/>
+      <line x1="0" y1="0" x2="-43" y2="-25" stroke="#3a8030" stroke-width="0.8" opacity="0.5"/>
+    </g>
+
+    <!-- Pad bottom-right area -->
+    <g filter="url(#padShadow)" transform="translate(620,420) rotate(10)">
+      <circle cx="0" cy="0" r="32" fill="url(#padGrad1)"/>
+      <path d="M0,0 L6,-32 L-6,-32 Z" fill="#4a9a4a" opacity="0.4"/>
+      <line x1="0" y1="0" x2="0" y2="-32" stroke="#3a8030" stroke-width="0.9" opacity="0.6"/>
+      <line x1="0" y1="0" x2="27" y2="-16" stroke="#3a8030" stroke-width="0.7" opacity="0.5"/>
+      <line x1="0" y1="0" x2="-27" y2="-16" stroke="#3a8030" stroke-width="0.7" opacity="0.5"/>
+    </g>
+
+    <!-- === LOTUS FLOWERS === -->
+    <!-- Full open lotus top-right -->
+    <g transform="translate(720,50)">
+      <!-- Outer petals back layer -->
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(0)"/>
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(45)"/>
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(90)"/>
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(135)"/>
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(180)"/>
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(225)"/>
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(270)"/>
+      <ellipse cx="0" cy="-30" rx="14" ry="28" fill="#e08aac" opacity="0.8" transform="rotate(315)"/>
+      <!-- Inner petals -->
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(22.5)"/>
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(67.5)"/>
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(112.5)"/>
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(157.5)"/>
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(202.5)"/>
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(247.5)"/>
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(292.5)"/>
+      <ellipse cx="0" cy="-18" rx="11" ry="22" fill="url(#flowerGrad)" transform="rotate(337.5)"/>
+      <!-- Center -->
+      <circle cx="0" cy="0" r="12" fill="#fbe97a"/>
+      <circle cx="0" cy="0" r="8" fill="#f5d44a"/>
+    </g>
+
+    <!-- Lotus bud bottom-left area -->
+    <g transform="translate(60,340)">
+      <!-- stem -->
+      <line x1="0" y1="10" x2="0" y2="60" stroke="#4a8030" stroke-width="2.5"/>
+      <!-- bud petals -->
+      <ellipse cx="0" cy="-20" rx="10" ry="28" fill="#d070a0" transform="rotate(-15)"/>
+      <ellipse cx="0" cy="-20" rx="10" ry="28" fill="#e090b8" transform="rotate(0)"/>
+      <ellipse cx="0" cy="-20" rx="10" ry="28" fill="#d070a0" transform="rotate(15)"/>
+      <ellipse cx="0" cy="-20" rx="10" ry="26" fill="#f0b0cc" transform="rotate(0)"/>
+      <!-- sepals -->
+      <ellipse cx="0" cy="5" rx="7" ry="12" fill="#5aaa40"/>
+      <ellipse cx="-6" cy="5" rx="6" ry="10" fill="#4a9030" transform="rotate(-20,-6,5)"/>
+      <ellipse cx="6" cy="5" rx="6" ry="10" fill="#4a9030" transform="rotate(20,6,5)"/>
+    </g>
+
+    <!-- Small open lotus bottom-right -->
+    <g transform="translate(660,360)">
+      <ellipse cx="0" cy="-16" rx="10" ry="20" fill="#e090b8" opacity="0.85" transform="rotate(0)"/>
+      <ellipse cx="0" cy="-16" rx="10" ry="20" fill="#e090b8" opacity="0.85" transform="rotate(60)"/>
+      <ellipse cx="0" cy="-16" rx="10" ry="20" fill="#e090b8" opacity="0.85" transform="rotate(120)"/>
+      <ellipse cx="0" cy="-16" rx="10" ry="20" fill="#e090b8" opacity="0.85" transform="rotate(180)"/>
+      <ellipse cx="0" cy="-16" rx="10" ry="20" fill="#e090b8" opacity="0.85" transform="rotate(240)"/>
+      <ellipse cx="0" cy="-16" rx="10" ry="20" fill="#e090b8" opacity="0.85" transform="rotate(300)"/>
+      <!-- inner -->
+      <ellipse cx="0" cy="-10" rx="7" ry="14" fill="url(#flowerGrad2)" transform="rotate(30)"/>
+      <ellipse cx="0" cy="-10" rx="7" ry="14" fill="url(#flowerGrad2)" transform="rotate(90)"/>
+      <ellipse cx="0" cy="-10" rx="7" ry="14" fill="url(#flowerGrad2)" transform="rotate(150)"/>
+      <ellipse cx="0" cy="-10" rx="7" ry="14" fill="url(#flowerGrad2)" transform="rotate(210)"/>
+      <ellipse cx="0" cy="-10" rx="7" ry="14" fill="url(#flowerGrad2)" transform="rotate(270)"/>
+      <ellipse cx="0" cy="-10" rx="7" ry="14" fill="url(#flowerGrad2)" transform="rotate(330)"/>
+      <circle cx="0" cy="0" r="8" fill="#fbe060"/>
+      <circle cx="0" cy="0" r="5" fill="#f5cc30"/>
+    </g>
+
+    <!-- Scattered petals on water -->
+    <g opacity="0.65" filter="url(#ripple)">
+      <!-- petal shapes: small rounded diamonds -->
+      <ellipse cx="420" cy="300" rx="7" ry="4" fill="#f4b8cc" transform="rotate(30,420,300)"/>
+      <ellipse cx="460" cy="330" rx="6" ry="3.5" fill="#f0a8c0" transform="rotate(-20,460,330)"/>
+      <ellipse cx="500" cy="290" rx="8" ry="4" fill="#f8c8d8" transform="rotate(50,500,290)"/>
+      <ellipse cx="530" cy="350" rx="6" ry="3" fill="#eeA0bc" transform="rotate(10,530,350)"/>
+      <ellipse cx="480" cy="370" rx="7" ry="3.5" fill="#f4b0c8" transform="rotate(-40,480,370)"/>
+      <ellipse cx="550" cy="310" rx="5" ry="3" fill="#f8c0d0" transform="rotate(25,550,310)"/>
+      <ellipse cx="390" cy="350" rx="6" ry="3.5" fill="#f0a8bc" transform="rotate(-15,390,350)"/>
+      <ellipse cx="570" cy="270" rx="5" ry="3" fill="#f8bcc8" transform="rotate(60,570,270)"/>
+      <ellipse cx="610" cy="300" rx="7" ry="3.5" fill="#f4b4c4" transform="rotate(-30,610,300)"/>
+      <ellipse cx="440" cy="260" rx="6" ry="3" fill="#f0aab8" transform="rotate(45,440,260)"/>
+    </g>
+
+    <!-- Water reflection highlights -->
+    <g opacity="0.15">
+      <ellipse cx="300" cy="200" rx="180" ry="60" fill="white" transform="rotate(-15,300,200)"/>
+      <ellipse cx="450" cy="180" rx="100" ry="30" fill="white" transform="rotate(10,450,180)"/>
+    </g>
+  </svg>
+
+  <!-- Animated floating petals via HTML/CSS -->
+  <div class="petal" style="width:14px;height:8px;background:#f4b0c8;top:20%;left:40%;--tx:40px;--ty:80px;--tr:180deg;animation-duration:12s;animation-delay:0s;transform:rotate(20deg)"></div>
+  <div class="petal" style="width:10px;height:6px;background:#f0a0bc;top:30%;left:55%;--tx:-30px;--ty:100px;--tr:-120deg;animation-duration:15s;animation-delay:3s;transform:rotate(-30deg)"></div>
+  <div class="petal" style="width:12px;height:7px;background:#f8c0d0;top:15%;left:70%;--tx:20px;--ty:120px;--tr:200deg;animation-duration:18s;animation-delay:1s;transform:rotate(10deg)"></div>
+  <div class="petal" style="width:9px;height:5px;background:#eeaacc;top:50%;left:45%;--tx:-50px;--ty:60px;--tr:-90deg;animation-duration:14s;animation-delay:6s;transform:rotate(50deg)"></div>
+  <div class="petal" style="width:11px;height:6px;background:#f4b8d0;top:40%;left:62%;--tx:35px;--ty:90px;--tr:150deg;animation-duration:16s;animation-delay:2s;transform:rotate(-15deg)"></div>
+</div>
+</body>
+</html>

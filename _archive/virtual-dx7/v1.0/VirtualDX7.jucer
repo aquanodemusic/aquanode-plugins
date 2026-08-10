@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="4kOrDF" name="VirtualDX7" projectType="audioplug" jucerFormatVersion="1"
+              version="1.0.0" companyName="aquanodemusic" companyCopyright="GPLv3"
+              bundleIdentifier="com.virtualdx7" cppLanguageStandard="17" defines="INLINE_EGS=1"
+              displaySplashScreen="0" pluginFormats="buildVST3,buildStandalone"
+              pluginName="VirtualDX7" pluginDesc="Bit-accurate DX7 emulation synth (VDX7 engine)"
+              pluginManufacturer="aquanodemusic" pluginManufacturerCode="vdx7"
+              pluginCode="vdx7" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
+              pluginVST3Category="Instrument,Synth" pluginVSTCategory="kPlugCategSynth"
+              aaxIdentifier="com.virtualdx7" useAppConfig="1" addUsingNamespaceToJuceHeader="0"
+              companyEmail="node.aqua@gmail.com">
+  <MAINGROUP id="5hpwx0" name="VirtualDX7">
+    <GROUP id="8w5thg" name="Source">
+      <FILE id="7Hejl4" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="PluginProcessor.cpp"/>
+      <FILE id="dk7k2m" name="PluginProcessor.h" compile="0" resource="0"
+            file="PluginProcessor.h"/>
+      <FILE id="reEwfG" name="PluginEditor.cpp" compile="1" resource="0"
+            file="PluginEditor.cpp"/>
+      <FILE id="68izKd" name="PluginEditor.h" compile="0" resource="0" file="PluginEditor.h"/>
+    </GROUP>
+    <GROUP id="Fw001A" name="Firmware">
+      <FILE id="Fw0Rom" name="dx7.bin" compile="0" resource="1" file="Firmware/dx7.bin"/>
+      <FILE id="Fw0Voc" name="voices.bin" compile="0" resource="1" file="Firmware/voices.bin"/>
+      <FILE id="Fw0Ram" name="example.ram" compile="0" resource="1" file="Firmware/example.ram"/>
+    </GROUP>
+    <GROUP id="oADXWp" name="External">
+      <FILE id="4PDozg" name="EGS.h" compile="0" resource="0" file="External/EGS.h"/>
+      <FILE id="hUHzGg" name="HD44780.h" compile="0" resource="0" file="External/HD44780.h"/>
+      <FILE id="aqG1wB" name="HD6303R.cc" compile="1" resource="0" file="External/HD6303R.cc"/>
+      <FILE id="LkvZEq" name="HD6303R.h" compile="0" resource="0" file="External/HD6303R.h"/>
+      <FILE id="m1DiNB" name="HD6303R_inst.cc" compile="1" resource="0" file="External/HD6303R_inst.cc"/>
+      <FILE id="KmK0qV" name="LFQ.h" compile="0" resource="0" file="External/LFQ.h"/>
+      <FILE id="g3wGXN" name="Message.h" compile="0" resource="0" file="External/Message.h"/>
+      <FILE id="mXT3y8" name="OPS.h" compile="0" resource="0" file="External/OPS.h"/>
+      <FILE id="ijhPsE" name="Synth.cc" compile="1" resource="0" file="External/Synth.cc"/>
+      <FILE id="rZiZ4C" name="Synth.h" compile="0" resource="0" file="External/Synth.h"/>
+      <FILE id="D81L4Y" name="dx7.cc" compile="1" resource="0" file="External/dx7.cc"/>
+      <FILE id="aWIOSM" name="dx7.h" compile="0" resource="0" file="External/dx7.h"/>
+      <FILE id="TZnugr" name="filter.h" compile="0" resource="0" file="External/filter.h"/>
+      <GROUP id="q6xW7f" name="samplerate">
+        <FILE id="euiX65" name="common.h" compile="0" resource="0" file="External/samplerate/common.h"/>
+        <FILE id="o993AA" name="vdx7_sr_config.h" compile="0" resource="0"
+              file="External/samplerate/vdx7_sr_config.h"/>
+        <FILE id="iEYVGp" name="fastest_coeffs.h" compile="0" resource="0"
+              file="External/samplerate/fastest_coeffs.h"/>
+        <FILE id="sdzlIZ" name="samplerate.c" compile="1" resource="0" file="External/samplerate/samplerate.c"/>
+        <FILE id="dU0dd6" name="samplerate.h" compile="0" resource="0" file="External/samplerate/samplerate.h"/>
+        <FILE id="HAYZU8" name="src_linear.c" compile="1" resource="0" file="External/samplerate/src_linear.c"/>
+        <FILE id="MJOPX9" name="src_sinc.c" compile="1" resource="0" file="External/samplerate/src_sinc.c"/>
+        <FILE id="KUhOR9" name="src_zoh.c" compile="1" resource="0" file="External/samplerate/src_zoh.c"/>
+      </GROUP>
+    </GROUP>
+    <GROUP id="GorT3e" name="docs">
+      <FILE id="evyCCS" name="VDX7 Copyright" compile="0" resource="1" file="VDX7 Copyright"/>
+      <FILE id="ntTNG0" name="README.md" compile="0" resource="0" file="README.md"/>
+      <FILE id="7lOs1R" name="LICENSE" compile="0" resource="0" file="LICENSE"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"
+               JUCE_WEB_BROWSER="0" JUCE_USE_CURL="0" JUCE_DISPLAY_SPLASH_SCREEN="0"/>
+  <EXPORTFORMATS>
+    <VS2022 targetFolder="Builds/VisualStudio2022">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="VirtualDX7"
+                       headerPath="../.." useRuntimeLibDLL="0"/>
+        <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="VirtualDX7"
+                       headerPath="../.." useRuntimeLibDLL="0"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2022>
+    <XCODE_MAC targetFolder="Builds/MacOSX">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="VirtualDX7"
+                       headerPath="../.."/>
+        <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="VirtualDX7"
+                       headerPath="../.."/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
+      </MODULEPATHS>
+    </XCODE_MAC>
+    <LINUX_MAKE targetFolder="Builds/LinuxMakefile">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="VirtualDX7"
+                       headerPath="../.."/>
+        <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="VirtualDX7"
+                       headerPath="../.."/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
+      </MODULEPATHS>
+    </LINUX_MAKE>
+  </EXPORTFORMATS>
+</JUCERPROJECT>

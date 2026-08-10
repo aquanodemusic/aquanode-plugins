@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>3D Spring Coils Full Rotation</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: linear-gradient(180deg, white, #e0ffff);
+      cursor: grab;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/three@0.156.0/build/three.min.js"></script>
+<script>
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.z = 30;
+
+  const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const sceneGroup = new THREE.Group();
+  scene.add(sceneGroup);
+
+  // Create a coil as Object3D
+  function createCoil(xOffset = 0) {
+    const coilGroup = new THREE.Object3D();
+    const coilPoints = [];
+    const turns = 8;
+    const radius = 2;
+    const height = 10;
+    const segments = 200;
+
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const angle = t * turns * Math.PI * 2;
+      const y = t * height - height / 2;
+      const x = radius * Math.cos(angle);
+      const z = radius * Math.sin(angle);
+      coilPoints.push(new THREE.Vector3(x, y, z));
+    }
+
+    const coilGeometry = new THREE.BufferGeometry().setFromPoints(coilPoints);
+    const coilMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
+    const coilLine = new THREE.Line(coilGeometry, coilMaterial);
+
+    coilGroup.add(coilLine);
+    coilGroup.position.x = xOffset;
+    return coilGroup;
+  }
+
+  // Space coils
+  const coilSpacing = 8;
+  const coils = [
+    createCoil(-coilSpacing),
+    createCoil(0),
+    createCoil(coilSpacing)
+  ];
+  sceneGroup.add(...coils);
+
+  // Independent rotation properties for all three axes
+  const coilProperties = [
+    { cdSpeed: 0.03, propX: 0.002, propY: 0.004, propZ: 0.001 },
+    { cdSpeed: 0.025, propX: 0.0015, propY: 0.003, propZ: 0.0012 },
+    { cdSpeed: 0.028, propX: 0.0025, propY: 0.005, propZ: 0.0008 }
+  ];
+
+  // Particles
+  const particleCount = 300;
+  const particlesGeometry = new THREE.BufferGeometry();
+  const positions = [];
+  for (let i = 0; i < particleCount; i++) {
+    positions.push(
+      (Math.random() - 0.5) * 60,
+      (Math.random() - 0.5) * 40,
+      (Math.random() - 0.5) * 40
+    );
+  }
+  particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const particlesMaterial = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.2, opacity: 0.7, transparent: true });
+  const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+  scene.add(particles);
+
+  // Mouse drag
+  let isDragging = false;
+  let previousMousePosition = { x: 0, y: 0 };
+
+  renderer.domElement.addEventListener('mousedown', e => {
+    isDragging = true;
+    previousMousePosition = { x: e.clientX, y: e.clientY };
+    document.body.style.cursor = 'grabbing';
+  });
+
+  renderer.domElement.addEventListener('mouseup', () => {
+    isDragging = false;
+    document.body.style.cursor = 'grab';
+  });
+
+  renderer.domElement.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+
+    const deltaX = e.clientX - previousMousePosition.x;
+    const deltaY = e.clientY - previousMousePosition.y;
+
+    sceneGroup.rotation.y += deltaX * 0.005;
+    sceneGroup.rotation.x += deltaY * 0.005;
+
+    previousMousePosition = { x: e.clientX, y: e.clientY };
+  });
+
+  // Animate
+  function animate() {
+    requestAnimationFrame(animate);
+
+    coils.forEach((coil, idx) => {
+      const props = coilProperties[idx];
+      const line = coil.children[0];
+
+      // CD/DVD spin (vertices around Y)
+      const positions = line.geometry.attributes.position.array;
+      const speed = props.cdSpeed;
+      for (let i = 0; i < positions.length; i += 3) {
+        const x = positions[i];
+        const z = positions[i + 2];
+        positions[i] = x * Math.cos(speed) - z * Math.sin(speed);
+        positions[i + 2] = x * Math.sin(speed) + z * Math.cos(speed);
+      }
+      line.geometry.attributes.position.needsUpdate = true;
+
+      // Propeller-style rotations for all three axes
+      coil.rotation.x += props.propX;
+      coil.rotation.y += props.propY;
+      coil.rotation.z += props.propZ;
+    });
+
+    particles.rotation.y += 0.001;
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  // Responsive
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+</body>
+</html>

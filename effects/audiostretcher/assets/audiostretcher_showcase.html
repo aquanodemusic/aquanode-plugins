@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudioStretcher Showcase Background</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            background: #ffffff;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            color: #7b2cbf;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 20px rgba(123, 44, 191, 0.3);
+        }
+
+        p {
+            font-size: 1.5rem;
+            color: #9d4edd;
+            font-weight: 400;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="content">
+        <h1>AudioStretcher</h1>
+        <p>Time & Pitch Perfection</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let time = 0;
+
+        // Resize canvas to fill window
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // Grid lines configuration
+        const gridSpacing = 80;
+        const dotSpacing = 20;
+
+        // Floating circles
+        const circles = [];
+        const numCircles = 8;
+
+        class Circle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.radius = 40 + Math.random() * 80;
+                this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5;
+                this.opacity = 0.15 + Math.random() * 0.15;
+                this.hue = 270 + Math.random() * 30; // Purple range
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                // Wrap around edges
+                if (this.x < -this.radius) this.x = width + this.radius;
+                if (this.x > width + this.radius) this.x = -this.radius;
+                if (this.y < -this.radius) this.y = height + this.radius;
+                if (this.y > height + this.radius) this.y = -this.radius;
+            }
+
+            draw() {
+                const gradient = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, this.radius
+                );
+                gradient.addColorStop(0, `hsla(${this.hue}, 70%, 65%, ${this.opacity})`);
+                gradient.addColorStop(0.5, `hsla(${this.hue}, 70%, 65%, ${this.opacity * 0.5})`);
+                gradient.addColorStop(1, `hsla(${this.hue}, 70%, 65%, 0)`);
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Initialize circles
+        for (let i = 0; i < numCircles; i++) {
+            circles.push(new Circle());
+        }
+
+        // Draw grid with gentle animation
+        function drawGrid() {
+            const offset = time * 0.3;
+
+            // Draw dotted grid (small dots)
+            ctx.fillStyle = 'rgba(157, 78, 221, 0.15)'; // #9d4edd with transparency
+            for (let x = (offset % dotSpacing); x < width; x += dotSpacing) {
+                for (let y = (offset % dotSpacing); y < height; y += dotSpacing) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Draw main grid lines (animated)
+            ctx.strokeStyle = 'rgba(123, 44, 191, 0.25)'; // #7b2cbf with transparency
+            ctx.lineWidth = 1.5;
+
+            // Vertical lines
+            for (let x = (offset % gridSpacing); x < width; x += gridSpacing) {
+                const wave = Math.sin(x * 0.01 + time * 0.002) * 5;
+                ctx.beginPath();
+                ctx.moveTo(x + wave, 0);
+                ctx.lineTo(x + wave, height);
+                ctx.stroke();
+            }
+
+            // Horizontal lines
+            for (let y = (offset % gridSpacing); y < height; y += gridSpacing) {
+                const wave = Math.cos(y * 0.01 + time * 0.002) * 5;
+                ctx.beginPath();
+                ctx.moveTo(0, y + wave);
+                ctx.lineTo(width, y + wave);
+                ctx.stroke();
+            }
+        }
+
+        // Animation loop
+        function animate() {
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw grid
+            drawGrid();
+
+            // Update and draw circles
+            circles.forEach(circle => {
+                circle.update();
+                circle.draw();
+            });
+
+            time++;
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
