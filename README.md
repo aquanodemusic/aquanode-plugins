@@ -125,6 +125,7 @@ The apps should work fine, but I for example had some problems with sound output
 
 | App | Description |
 |-----|-------------|
+| ~<br />**[AudioStretcher for Android](apps/audiostretcher-for-android/)** | A port of the simple AudioStrecher using the Rubberband Library for Android. |
 | <img src="synths/aquanode-modular/assets/Icon.png" width="64" align="center" /><br />**[Aquanode Modular for Android](apps/aquanode-modular-for-android/)** | A port of Aquanode Modular for Android. Contains all the modules from the original and a MIDI keyboard in the bottom to play with your fingers. Patches are compatible with the Windows version. External MIDI Device highly recommended! |
 | <img src="synths/virtual-dx7/assets/GUI.png" width="64" align="center" /><br />**[VirtualDX7 for Android](apps/virtual-dx7-for-android/)** | An Android port of VirtualDX7. The App additionally contains an FX section that borrows modules from Aquanode Modular. The `.vst3` version does not contain the FX section directly for it to stay a close emulation, and you can always add an FX instance of Aquanode Modular for the same effects. |
 
