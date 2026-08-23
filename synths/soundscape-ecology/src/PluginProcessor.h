@@ -67,19 +67,26 @@
 
 namespace soundeco
 {
-    constexpr int   kNumSlots        = 3;
-    constexpr int   kMaxIndividuals  = 48;
-    constexpr int   kMaxModes        = 96;
-    constexpr int   kNumModelKnobs   = 8;   // physics knobs per slot
-    constexpr int   kDrawPoints      = 64;  // resolution of the draw canvases
-    constexpr float kTwoPi           = 6.28318530718f;
-    constexpr float kSpeedOfSound    = 343.0f;
-    constexpr float MathPi           = 3.14159265358979323846f;
+    constexpr int   kNumSlots = 3;
+    constexpr int   kMaxIndividuals = 48;
+    constexpr int   kMaxModes = 96;
+    constexpr int   kNumModelKnobs = 8;   // physics knobs per slot
+    constexpr int   kDrawPoints = 64;  // resolution of the draw canvases
+    constexpr float kTwoPi = 6.28318530718f;
+    constexpr float kSpeedOfSound = 343.0f;
+    constexpr float MathPi = 3.14159265358979323846f;
 
     //==========================================================================
     // Model catalogue. Each slot exposes only the models of its own class.
     //==========================================================================
-    enum class Engine { StochasticModal, NonlinearVocal, TurbulentAeolian };
+    // PortedBurst is a fourth engine, deliberately separate from the other
+    // three: it shares no code or state with the ModalBank / Resonator
+    // machinery (StochasticModal's "harp, mirror, tymbal, plate" bank). It
+    // exists for models that build their texture entirely from independent
+    // Butterworth-filtered noise layers rather than an approximation built
+    // from the plugin's general-purpose resonant body. See ButterBandpass
+    // below and the "Thunder" model in kGeophony.
+    enum class Engine { StochasticModal, NonlinearVocal, TurbulentAeolian, PortedBurst };
 
     struct ModelDesc
     {
@@ -110,11 +117,11 @@ namespace soundeco
         { "Owl",        Engine::NonlinearVocal,
           { "F0", "Tremulant", "Trem Depth", "Trem Onset",
             "2nd Harm", "Pitch Rise", "Rise Time", "Breath" } },
-        // Appended so existing model indices, and therefore every stored
-        // preset, keep pointing at the same models.
-        { "Anuran",     Engine::StochasticModal,
-          { "Fold Rate", "Pulse Rate", "Dominant", "Radiator",
-            "Fibrous Mass", "Drive", "Open Quotient", "FM Sweep" } },
+            // Appended so existing model indices, and therefore every stored
+            // preset, keep pointing at the same models.
+            { "Anuran",     Engine::StochasticModal,
+              { "Fold Rate", "Pulse Rate", "Dominant", "Radiator",
+                "Fibrous Mass", "Drive", "Open Quotient", "FM Sweep" } },
     };
 
     // ---- SLOT II : GEOPHONY -------------------------------------------------
@@ -135,22 +142,47 @@ namespace soundeco
         { "Fire",       Engine::StochasticModal,
           { "Crackle Size", "Size Spread", "Crackle Rate", "Body",
             "Rumble", "Density", "Hiss", "Spit" } },
-        // Appended deliberately: exact ports of the reference rain and surf.
-        // They go at the END so the existing model indices — and therefore
-        // every stored preset — keep pointing at the same models.
-        { "Rainfall",   Engine::StochasticModal,
-          { "Drop Size", "Size Spread", "Bubble Mix", "Click",
-            "Canopy", "Density", "Bed", "Chirp" } },
-        { "Ocean Surf", Engine::StochasticModal,
-          { "Bubble Size", "Size Spread", "Swell Rate", "Swell Depth",
-            "Roar", "Density", "Break", "Chirp" } },
-        // Rain landing on something that RINGS. Rain on a tin roof, a tent, a
-        // car bonnet, a window — each drop is a small impulse into a thin
-        // resonant panel, and it is the panel that gives the sound its
-        // character rather than the water.
-        { "Rain Surface", Engine::StochasticModal,
-          { "Drop Size", "Size Spread", "Surface Pitch", "Impact",
-            "Surface Decay", "Density", "Bed", "Inharmonic" } },
+            // Appended deliberately: exact ports of the reference rain and surf.
+            // They go at the END so the existing model indices — and therefore
+            // every stored preset — keep pointing at the same models.
+            { "Rainfall",   Engine::StochasticModal,
+              { "Drop Size", "Size Spread", "Bubble Mix", "Click",
+                "Canopy", "Density", "Bed", "Chirp" } },
+            { "Ocean Surf", Engine::StochasticModal,
+              { "Bubble Size", "Size Spread", "Swell Rate", "Swell Depth",
+                "Roar", "Density", "Break", "Chirp" } },
+                // Rain landing on something that RINGS. Rain on a tin roof, a tent, a
+                // car bonnet, a window — each drop is a small impulse into a thin
+                // resonant panel, and it is the panel that gives the sound its
+                // character rather than the water.
+                { "Rain Surface", Engine::StochasticModal,
+                  { "Drop Size", "Size Spread", "Surface Pitch", "Impact",
+                    "Surface Decay", "Density", "Bed", "Inharmonic" } },
+                    // A distant strike: a quiet pre-strike murmur whose tremolo closes in
+                    // on the strike, a crack built from low thumps plus ONE shared noise
+                    // burst duplicated through several band-pass copies (so it reads as
+                    // one textured crack rather than a pile of little claps), and a long
+                    // multi-band rumbling tail with a handful of filtered re-arrival
+                    // swells. Runs on the StochasticModal engine, routing its excitation
+                    // through the shared ModalBank/Resonator body used for insects, frogs
+                    // and struck metal. Appended at the end for the same reason as
+                    // Rainfall/Ocean Surf/Rain Surface above: existing model indices, and
+                    // therefore stored presets, keep pointing at the same models.
+                    { "Rumble",    Engine::StochasticModal,
+                      { "Strike Position", "Rumble Band", "Approach", "Punch",
+                        "Crack Spread", "Crackle Decay", "Tail Decay", "Rearrival" } },
+                        // A second, independent strike model: the same three-stage shape as
+                        // Rumble above (murmur, crack, rumbling tail with re-arrival swells),
+                        // but built entirely from independent Butterworth-filtered noise
+                        // layers instead of the shared ModalBank/Resonator body. Runs on the
+                        // PortedBurst engine (see generateSample / triggerEvent) and touches
+                        // no Resonator/ModalBank/bank/aux state. Same eight-knob layout and
+                        // labels as "Rumble" above, so it slots into the GUI with zero editor
+                        // changes. Appended at the end, per the append-only rule, so existing
+                        // presets keep pointing at the same models.
+                        { "Thunder", Engine::PortedBurst,
+                          { "Strike Position", "Rumble Band", "Approach", "Punch",
+                            "Crack Spread", "Crackle Decay", "Tail Decay", "Rearrival" } },
     };
 
     // ---- SLOT III : ANTHROPHONY --------------------------------------------
@@ -181,31 +213,39 @@ namespace soundeco
     // three biophony slots is a legitimate scene.
     enum class Phony { Biophony = 0, Geophony = 1, Anthrophony = 2 };
     constexpr int kNumPhony = 3;
-    constexpr int kMaxModelsPerClass = 8;
+    // Must be >= the largest of the three model arrays above. NOTE: this was
+    // 8 while kGeophony already held 9 entries (through "Thunder"), which
+    // silently clamped the model-index parameter's range to 0..7 and made
+    // "Rumble" unreachable from automation/host recall even though it
+    // appeared fine in the combo box locally. Raised to 10 to fit the new
+    // "Thunder" entry (index 9) as well as fix that latent bug.
+    constexpr int kMaxModelsPerClass = 10;
 
-    inline const ModelDesc* modelsForClass (int phony, int& count)
+    inline const ModelDesc* modelsForClass(int phony, int& count)
     {
         switch (phony)
         {
-            case 0:  count = (int) std::size (kBiophony);    return kBiophony;
-            case 1:  count = (int) std::size (kGeophony);    return kGeophony;
-            default: count = (int) std::size (kAnthrophony); return kAnthrophony;
+        case 0:  count = (int)std::size(kBiophony);    return kBiophony;
+        case 1:  count = (int)std::size(kGeophony);    return kGeophony;
+        default: count = (int)std::size(kAnthrophony); return kAnthrophony;
         }
     }
 
-    inline const char* phonyName (int phony)
+    inline const char* phonyName(int phony)
     {
-        switch (phony) { case 0: return "Biophony"; case 1: return "Geophony";
-                         default: return "Anthrophony"; }
+        switch (phony) {
+        case 0: return "Biophony"; case 1: return "Geophony";
+        default: return "Anthrophony";
+        }
     }
 
-    inline const char* phonyDescription (int phony)
+    inline const char* phonyDescription(int phony)
     {
         switch (phony)
         {
-            case 0:  return "sounds made by living organisms";
-            case 1:  return "non-biological natural sound";
-            default: return "human-generated sound";
+        case 0:  return "sounds made by living organisms";
+        case 1:  return "non-biological natural sound";
+        default: return "human-generated sound";
         }
     }
 
@@ -215,59 +255,59 @@ namespace soundeco
     namespace pid
     {
         // per slot, suffixed with the slot index
-        inline juce::String model      (int s) { return "s" + juce::String (s) + "_model"; }
-        inline juce::String phony      (int s) { return "s" + juce::String (s) + "_phony"; }
-        inline juce::String enabled    (int s) { return "s" + juce::String (s) + "_on"; }
-        inline juce::String level      (int s) { return "s" + juce::String (s) + "_level"; }
-        inline juce::String knob   (int s, int k) { return "s" + juce::String (s) + "_k" + juce::String (k); }
+        inline juce::String model(int s) { return "s" + juce::String(s) + "_model"; }
+        inline juce::String phony(int s) { return "s" + juce::String(s) + "_phony"; }
+        inline juce::String enabled(int s) { return "s" + juce::String(s) + "_on"; }
+        inline juce::String level(int s) { return "s" + juce::String(s) + "_level"; }
+        inline juce::String knob(int s, int k) { return "s" + juce::String(s) + "_k" + juce::String(k); }
 
         // articulation layer — the RHYTHM, independent of the physics
-        inline juce::String rate       (int s) { return "s" + juce::String (s) + "_rate"; }
-        inline juce::String phrase     (int s) { return "s" + juce::String (s) + "_phrase"; }
-        inline juce::String jitter     (int s) { return "s" + juce::String (s) + "_jitter"; }
+        inline juce::String rate(int s) { return "s" + juce::String(s) + "_rate"; }
+        inline juce::String phrase(int s) { return "s" + juce::String(s) + "_phrase"; }
+        inline juce::String jitter(int s) { return "s" + juce::String(s) + "_jitter"; }
         // Was "Swing" and never read by the DSP. Now HOLD: the fraction of an
         // event that sustains before the syllable train begins. This is what
         // minmin-zemi needs — a long held "miiin" then "min min min min".
-        inline juce::String swing      (int s) { return "s" + juce::String (s) + "_swing"; }
-        inline juce::String rhythm     (int s) { return "s" + juce::String (s) + "_rhythm"; }
-        inline juce::String attack     (int s) { return "s" + juce::String (s) + "_attack"; }
-        inline juce::String decay      (int s) { return "s" + juce::String (s) + "_decay"; }
-        inline juce::String duration   (int s) { return "s" + juce::String (s) + "_dur"; }
+        inline juce::String swing(int s) { return "s" + juce::String(s) + "_swing"; }
+        inline juce::String rhythm(int s) { return "s" + juce::String(s) + "_rhythm"; }
+        inline juce::String attack(int s) { return "s" + juce::String(s) + "_attack"; }
+        inline juce::String decay(int s) { return "s" + juce::String(s) + "_decay"; }
+        inline juce::String duration(int s) { return "s" + juce::String(s) + "_dur"; }
 
         // the Field — population and space
-        inline juce::String population (int s) { return "s" + juce::String (s) + "_pop"; }
-        inline juce::String spread     (int s) { return "s" + juce::String (s) + "_spread"; }
-        inline juce::String distance   (int s) { return "s" + juce::String (s) + "_dist"; }
-        inline juce::String diversity  (int s) { return "s" + juce::String (s) + "_div"; }
-        inline juce::String synchrony  (int s) { return "s" + juce::String (s) + "_sync"; }
-        inline juce::String parallax   (int s) { return "s" + juce::String (s) + "_para"; }
+        inline juce::String population(int s) { return "s" + juce::String(s) + "_pop"; }
+        inline juce::String spread(int s) { return "s" + juce::String(s) + "_spread"; }
+        inline juce::String distance(int s) { return "s" + juce::String(s) + "_dist"; }
+        inline juce::String diversity(int s) { return "s" + juce::String(s) + "_div"; }
+        inline juce::String synchrony(int s) { return "s" + juce::String(s) + "_sync"; }
+        inline juce::String parallax(int s) { return "s" + juce::String(s) + "_para"; }
         // Height above ground, in metres. Sets the ground-reflection comb and
         // the elevation timbre cue.
-        inline juce::String elevation  (int s) { return "s" + juce::String (s) + "_elev"; }
+        inline juce::String elevation(int s) { return "s" + juce::String(s) + "_elev"; }
 
         // draw canvases
-        inline juce::String drawPitchOn (int s) { return "s" + juce::String (s) + "_drawp"; }
-        inline juce::String drawAmpOn   (int s) { return "s" + juce::String (s) + "_drawa"; }
-        inline juce::String drawDepth   (int s) { return "s" + juce::String (s) + "_drawd"; }
+        inline juce::String drawPitchOn(int s) { return "s" + juce::String(s) + "_drawp"; }
+        inline juce::String drawAmpOn(int s) { return "s" + juce::String(s) + "_drawa"; }
+        inline juce::String drawDepth(int s) { return "s" + juce::String(s) + "_drawd"; }
 
         // global
         static const juce::String temperature = "temperature";  // deg C — Dolbear
-        static const juce::String humidity    = "humidity";     // air absorption
-        static const juce::String timeOfDay   = "timeofday";    // 0..1 preset morph
-        static const juce::String niche       = "niche";        // acoustic niche allocator
+        static const juce::String humidity = "humidity";     // air absorption
+        static const juce::String timeOfDay = "timeofday";    // 0..1 preset morph
+        static const juce::String niche = "niche";        // acoustic niche allocator
         // How strongly the weather couples to everything else.
-        static const juce::String weather     = "weather";
-        static const juce::String habSize     = "habsize";
-        static const juce::String habDamping  = "habdamping";
-        static const juce::String habMix      = "habmix";
-        static const juce::String midiMode    = "midimode";
-        static const juce::String midiAttack  = "midiattack";
+        static const juce::String weather = "weather";
+        static const juce::String habSize = "habsize";
+        static const juce::String habDamping = "habdamping";
+        static const juce::String habMix = "habmix";
+        static const juce::String midiMode = "midimode";
+        static const juce::String midiAttack = "midiattack";
         static const juce::String midiRelease = "midirelease";
         static const juce::String midiVelSens = "midivel";
-        static const juce::String midiRoot    = "midiroot";
-        static const juce::String midiPitch   = "midipitchamt";
-        static const juce::String output      = "output";
-        static const juce::String width       = "width";
+        static const juce::String midiRoot = "midiroot";
+        static const juce::String midiPitch = "midipitchamt";
+        static const juce::String output = "output";
+        static const juce::String width = "width";
     }
 
     //==========================================================================
@@ -282,19 +322,19 @@ namespace soundeco
         float z1 = 0.0f, z2 = 0.0f;
         float gain = 1.0f;
 
-        void set (float freq, float q, double sr) noexcept
+        void set(float freq, float q, double sr) noexcept
         {
-            freq = juce::jlimit (10.0f, (float) sr * 0.47f, freq);
-            q    = juce::jmax (0.5f, q);
-            const float w = kTwoPi * freq / (float) sr;
-            const float alpha = std::sin (w) / (2.0f * q);
-            const float norm  = 1.0f / (1.0f + alpha);
+            freq = juce::jlimit(10.0f, (float)sr * 0.47f, freq);
+            q = juce::jmax(0.5f, q);
+            const float w = kTwoPi * freq / (float)sr;
+            const float alpha = std::sin(w) / (2.0f * q);
+            const float norm = 1.0f / (1.0f + alpha);
             b0 = q * alpha * norm;
-            a1 = -2.0f * std::cos (w) * norm;
+            a1 = -2.0f * std::cos(w) * norm;
             a2 = (1.0f - alpha) * norm;
         }
 
-        inline float process (float x) noexcept
+        inline float process(float x) noexcept
         {
             // transposed direct form II, bandpass (b1 = 0, b2 = -b0)
             const float y = b0 * x + z1;
@@ -306,15 +346,107 @@ namespace soundeco
         void reset() noexcept { z1 = z2 = 0.0f; }
     };
 
+    //==========================================================================
+    // Butterworth filters — used ONLY by the PortedBurst engine below.
+    //
+    // These implement a real 2-pole Butterworth low-pass / high-pass
+    // (bilinear-transformed analogue prototype, maximally flat passband).
+    // This is a genuinely different filter TYPE from
+    // Resonator above — Resonator is a constant-skirt bandpass tuned for a
+    // resonant body (a harp, a mirror, a tymbal) and rings at its own Q;
+    // a Butterworth pair has a flat passband and falls off smoothly at the
+    // edges, which is what makes a band of filtered noise sound "broad and
+    // smooth" rather than "ringing". Deliberately kept separate from
+    // ModalBank/Resonator so the PortedBurst engine shares no DSP code with
+    // the modal engine.
+    //==========================================================================
+    struct Butter2LP
+    {
+        float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
+        float z1 = 0.0f, z2 = 0.0f;
+
+        void set(float fc, double sr) noexcept
+        {
+            fc = juce::jlimit(1.0f, (float)sr * 0.49f, fc);
+            const float w0 = std::tan(MathPi * fc / (float)sr);   // bilinear pre-warp
+            const float w0sq = w0 * w0;
+            const float k = 1.41421356f;                          // sqrt(2): Butterworth Q
+            const float norm = 1.0f / (1.0f + k * w0 + w0sq);
+            b0 = w0sq * norm;
+            b1 = 2.0f * b0;
+            b2 = b0;
+            a1 = 2.0f * (w0sq - 1.0f) * norm;
+            a2 = (1.0f - k * w0 + w0sq) * norm;
+        }
+
+        inline float process(float x) noexcept
+        {
+            const float y = b0 * x + z1;
+            z1 = b1 * x - a1 * y + z2;
+            z2 = b2 * x - a2 * y;
+            return y;
+        }
+
+        void reset() noexcept { z1 = z2 = 0.0f; }
+    };
+
+    struct Butter2HP
+    {
+        float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
+        float z1 = 0.0f, z2 = 0.0f;
+
+        void set(float fc, double sr) noexcept
+        {
+            fc = juce::jlimit(1.0f, (float)sr * 0.49f, fc);
+            const float w0 = std::tan(MathPi * fc / (float)sr);
+            const float w0sq = w0 * w0;
+            const float k = 1.41421356f;
+            const float norm = 1.0f / (1.0f + k * w0 + w0sq);
+            b0 = norm;
+            b1 = -2.0f * b0;
+            b2 = b0;
+            a1 = 2.0f * (w0sq - 1.0f) * norm;
+            a2 = (1.0f - k * w0 + w0sq) * norm;
+        }
+
+        inline float process(float x) noexcept
+        {
+            const float y = b0 * x + z1;
+            z1 = b1 * x - a1 * y + z2;
+            z2 = b2 * x - a2 * y;
+            return y;
+        }
+
+        void reset() noexcept { z1 = z2 = 0.0f; }
+    };
+
+    // A bandpass built from a Butterworth low-pass in series with a
+    // Butterworth high-pass. Self-contained; shares nothing with
+    // Resonator / ModalBank / bank / aux.
+    struct ButterBandpass
+    {
+        Butter2HP hp;
+        Butter2LP lp;
+
+        void set(float loHz, float hiHz, double sr) noexcept
+        {
+            hp.set(juce::jmax(1.0f, loHz), sr);
+            lp.set(juce::jmin((float)sr * 0.49f - 10.0f, hiHz), sr);
+        }
+
+        inline float process(float x) noexcept { return lp.process(hp.process(x)); }
+        void reset() noexcept { hp.reset(); lp.reset(); }
+    };
+
     struct OnePole
     {
         float a = 0.0f, z = 0.0f;
-        void setCutoff (float fc, double sr) noexcept
+        void setCutoff(float fc, double sr) noexcept
         {
-            a = std::exp (-kTwoPi * juce::jlimit (1.0f, (float) sr * 0.49f, fc) / (float) sr);
+            a = std::exp(-kTwoPi * juce::jlimit(1.0f, (float)sr * 0.49f, fc) / (float)sr);
         }
-        inline float lp (float x) noexcept { z = (1.0f - a) * x + a * z; return z; }
-        inline float hp (float x) noexcept { return x - lp (x); }
+        inline float lp(float x) noexcept { z = (1.0f - a) * x + a * z; return z; }
+        inline float hp(float x) noexcept { return x - lp(x); }
         void reset() noexcept { z = 0.0f; }
     };
 
@@ -327,11 +459,11 @@ namespace soundeco
 
         void clear() noexcept { numModes = 0; for (auto& m : modes) { m.r.reset(); m.active = false; } }
 
-        void add (float freq, float q, float gain, double sr, bool coherent = true) noexcept
+        void add(float freq, float q, float gain, double sr, bool coherent = true) noexcept
         {
             if (numModes >= kMaxModes || freq >= sr * 0.47) return;
-            auto& m = modes[(size_t) numModes++];
-            m.r.set (freq, q, sr);
+            auto& m = modes[(size_t)numModes++];
+            m.r.set(freq, q, sr);
             // A constant-skirt bandpass has PEAK GAIN EQUAL TO Q at STEADY
             // STATE — i.e. when driven continuously at its own resonance.
             // Models that repeatedly strike a mode at its own rate (crickets,
@@ -350,7 +482,7 @@ namespace soundeco
             // physically bigger, more resonant objects the quietest.
             if (coherent)
             {
-                m.gain = gain / std::sqrt (juce::jmax (0.5f, q));
+                m.gain = gain / std::sqrt(juce::jmax(0.5f, q));
             }
             else
             {
@@ -371,30 +503,30 @@ namespace soundeco
                 // above that get no boost at all, only genuinely low
                 // fundamentals are lifted, and the lift is capped so a
                 // near-DC mode cannot spike.
-                const float w0    = juce::MathConstants<float>::twoPi * freq / (float) sr;
-                const float w0Ref = juce::MathConstants<float>::twoPi * 2000.0f / (float) sr;
-                const float s     = juce::jmax (0.018f, std::sin (w0));
-                const float sRef  = std::sin (w0Ref);
-                const float boost = juce::jlimit (1.0f, 10.0f, sRef / s);
+                const float w0 = juce::MathConstants<float>::twoPi * freq / (float)sr;
+                const float w0Ref = juce::MathConstants<float>::twoPi * 2000.0f / (float)sr;
+                const float s = juce::jmax(0.018f, std::sin(w0));
+                const float sRef = std::sin(w0Ref);
+                const float boost = juce::jlimit(1.0f, 10.0f, sRef / s);
                 m.gain = gain * boost;
             }
             m.active = true;
         }
 
-        inline float process (float exc) noexcept
+        inline float process(float exc) noexcept
         {
             float out = 0.0f;
             for (int i = 0; i < numModes; ++i)
-                out += modes[(size_t) i].gain * modes[(size_t) i].r.process (exc);
+                out += modes[(size_t)i].gain * modes[(size_t)i].r.process(exc);
             return out;
         }
     };
 
     // Q from a target T60. Measured plates show per-mode T60 spanning
     // 0.03 s to 11.5 s within one object, so this is set per mode, not globally.
-    inline float qFromT60 (float freq, float t60) noexcept
+    inline float qFromT60(float freq, float t60) noexcept
     {
-        return juce::jmax (0.6f, juce::MathConstants<float>::pi * freq * t60 / 6.9078f);
+        return juce::jmax(0.6f, juce::MathConstants<float>::pi * freq * t60 / 6.9078f);
     }
 
     //==========================================================================
@@ -410,7 +542,7 @@ namespace soundeco
     // +-20 dB so no correction is large enough to be risky on its own.
     //
     // Index by [phony][model index within that class].
-    inline float modelLoudnessGain (int phony, int model) noexcept
+    inline float modelLoudnessGain(int phony, int model) noexcept
     {
         // Index 3 (legacy Frog) sits well below the others even after the
         // modal-bank fixes -- its pulse-into-formant architecture is simply
@@ -418,10 +550,15 @@ namespace soundeco
         // roughly +15 dB beyond the usual cap. Only the Frog Pond preset uses
         // this model, so the larger correction is contained.
         static const float bio[] = { 6.31f, 6.31f, 2.88f, 35.0f, 4.03f, 2.02f, 6.31f };
-        static const float geo[] = { 1.15f, 2.32f, 1.07f, 6.31f, 6.31f, 6.31f, 3.80f, 2.66f };
+        // Index 8 ("Rumble") and index 9 ("Thunder") were previously left at
+        // 1.0, unmeasured — a routing bug meant neither model was producing
+        // its intended signal, so their level had never actually been heard
+        // at full strength. With that fixed, both need the same kind of
+        // boost as the other multi-band textures above.
+        static const float geo[] = { 1.15f, 2.32f, 1.07f, 6.31f, 6.31f, 6.31f, 3.80f, 2.66f, 3.16f, 3.16f };
         static const float ant[] = { 6.31f, 5.82f, 6.31f, 0.42f, 6.31f, 6.31f };
         const float* table = (phony == 0) ? bio : (phony == 1) ? geo : ant;
-        const int n = (phony == 0) ? 7 : (phony == 1) ? 8 : 6;
+        const int n = (phony == 0) ? 7 : (phony == 1) ? 10 : 6;
         if (model < 0 || model >= n) return 1.0f;
         return table[model];
     }
@@ -445,11 +582,11 @@ namespace soundeco
         float amp = 0.0f, decayMul = 0.0f;
         bool  active = false;
 
-        inline float tick (double sr) noexcept
+        inline float tick(double sr) noexcept
         {
-            if (! active) return 0.0f;
-            const float y = std::sin (phase) * amp;
-            phase += kTwoPi * freq / (float) sr;
+            if (!active) return 0.0f;
+            const float y = std::sin(phase) * amp;
+            phase += kTwoPi * freq / (float)sr;
             if (phase > kTwoPi) phase -= kTwoPi;
             freq += chirpInc;
             amp *= decayMul;
@@ -483,43 +620,43 @@ namespace soundeco
         float panL = 0.707f, panR = 0.707f;
         bool  active = false;
 
-        void start (float f, float chirp, float bubMix, float clickLevel,
-                    float amp, double sr, juce::Random& rng, float width = 1.0f) noexcept
+        void start(float f, float chirp, float bubMix, float clickLevel,
+            float amp, double sr, juce::Random& rng, float width = 1.0f) noexcept
         {
-            const float pan = (rng.nextFloat() * 2.0f - 1.0f) * juce::jlimit (0.0f, 1.0f, width);
-            panL = std::cos ((pan + 1.0f) * MathPi * 0.25f);
-            panR = std::sin ((pan + 1.0f) * MathPi * 0.25f);
-            freq = juce::jlimit (20.0f, (float) sr * 0.45f, f);
-            const float tau = juce::jmax (1.0e-4f, 0.00042f * (12000.0f / freq));
-            bubDecay = std::exp (-1.0f / (tau * (float) sr));
-            chirpInc = freq * chirp / juce::jmax (1.0f, 5.0f * tau * (float) sr);
-            bubAmp   = bubMix;
-            phase    = 0.0f;
+            const float pan = (rng.nextFloat() * 2.0f - 1.0f) * juce::jlimit(0.0f, 1.0f, width);
+            panL = std::cos((pan + 1.0f) * MathPi * 0.25f);
+            panR = std::sin((pan + 1.0f) * MathPi * 0.25f);
+            freq = juce::jlimit(20.0f, (float)sr * 0.45f, f);
+            const float tau = juce::jmax(1.0e-4f, 0.00042f * (12000.0f / freq));
+            bubDecay = std::exp(-1.0f / (tau * (float)sr));
+            chirpInc = freq * chirp / juce::jmax(1.0f, 5.0f * tau * (float)sr);
+            bubAmp = bubMix;
+            phase = 0.0f;
             // 0.7 ms click decay, as in the reference
-            clickDecay = std::exp (-1.0f / (0.0007f * (float) sr));
-            clickAmp   = clickLevel;
-            clickHP.setCutoff (2200.0f, sr);
+            clickDecay = std::exp(-1.0f / (0.0007f * (float)sr));
+            clickAmp = clickLevel;
+            clickHP.setCutoff(2200.0f, sr);
             clickHP.reset();
             // the reference peak-normalises each drop; approximate that by
             // dividing by the sum of the two contributions
-            gain = amp / juce::jmax (0.35f, clickLevel + bubMix);
+            gain = amp / juce::jmax(0.35f, clickLevel + bubMix);
             active = true;
-            juce::ignoreUnused (rng);
+            juce::ignoreUnused(rng);
         }
 
-        inline float tick (double sr, float noise) noexcept
+        inline float tick(double sr, float noise) noexcept
         {
-            if (! active) return 0.0f;
+            if (!active) return 0.0f;
             float y = 0.0f;
             if (clickAmp > 1.0e-4f)
             {
-                y += clickHP.hp (noise) * clickAmp * 0.9f;
+                y += clickHP.hp(noise) * clickAmp * 0.9f;
                 clickAmp *= clickDecay;
             }
             if (bubAmp > 1.0e-4f)
             {
-                y += std::sin (phase) * bubAmp;
-                phase += kTwoPi * freq / (float) sr;
+                y += std::sin(phase) * bubAmp;
+                phase += kTwoPi * freq / (float)sr;
                 if (phase > kTwoPi) phase -= kTwoPi;
                 freq += chirpInc;
                 bubAmp *= bubDecay;
@@ -535,21 +672,21 @@ namespace soundeco
         std::array<DropGrain, kMaxDrops> drops;
         int next = 0;
 
-        void spawn (float freq, float chirp, float bubMix, float clickLevel,
-                    float amp, double sr, juce::Random& rng, float width = 1.0f) noexcept
+        void spawn(float freq, float chirp, float bubMix, float clickLevel,
+            float amp, double sr, juce::Random& rng, float width = 1.0f) noexcept
         {
-            drops[(size_t) next].start (freq, chirp, bubMix, clickLevel, amp, sr, rng, width);
+            drops[(size_t)next].start(freq, chirp, bubMix, clickLevel, amp, sr, rng, width);
             next = (next + 1) % kMaxDrops;
         }
 
         // Returns mid, and writes the stereo difference to `side`.
-        inline float process (double sr, juce::Random& rng, float& side) noexcept
+        inline float process(double sr, juce::Random& rng, float& side) noexcept
         {
             const float noise = rng.nextFloat() * 2.0f - 1.0f;
             float l = 0.0f, r = 0.0f;
             for (auto& d : drops)
             {
-                const float y = d.tick (sr, noise);
+                const float y = d.tick(sr, noise);
                 l += y * d.panL;
                 r += y * d.panR;
             }
@@ -573,25 +710,25 @@ namespace soundeco
         // Minnaert: f = 3.26 / r (metres). Damping measured from the reference
         // implementation is tau = 0.42 ms * (12000 / f), i.e. a constant Q of
         // about 11.5 across the whole size range.
-        void spawn (float freq, float chirp, float amp, float damping, double sr) noexcept
+        void spawn(float freq, float chirp, float amp, float damping, double sr) noexcept
         {
-            auto& g = grains[(size_t) next];
+            auto& g = grains[(size_t)next];
             next = (next + 1) % kMaxGrains;
-            g.freq = juce::jlimit (20.0f, (float) sr * 0.45f, freq);
-            const float tau = juce::jmax (1.0e-4f,
-                                  0.00042f * (12000.0f / g.freq) / juce::jmax (0.05f, damping));
-            g.decayMul = std::exp (-1.0f / (tau * (float) sr));
+            g.freq = juce::jlimit(20.0f, (float)sr * 0.45f, freq);
+            const float tau = juce::jmax(1.0e-4f,
+                0.00042f * (12000.0f / g.freq) / juce::jmax(0.05f, damping));
+            g.decayMul = std::exp(-1.0f / (tau * (float)sr));
             // sweeps upward across its lifetime, roughly 5 tau
-            g.chirpInc = g.freq * chirp / juce::jmax (1.0f, 5.0f * tau * (float) sr);
+            g.chirpInc = g.freq * chirp / juce::jmax(1.0f, 5.0f * tau * (float)sr);
             g.amp = amp;
             g.phase = 0.0f;
             g.active = true;
         }
 
-        inline float process (double sr) noexcept
+        inline float process(double sr) noexcept
         {
             float out = 0.0f;
-            for (auto& g : grains) out += g.tick (sr);
+            for (auto& g : grains) out += g.tick(sr);
             return out;
         }
 
@@ -609,16 +746,16 @@ namespace soundeco
     struct StickSlip
     {
         float load = 0.0f;
-        float muK  = 0.4f;
+        float muK = 0.4f;
         juce::Random rng;
         int  judder = 0;
         float judderAmp = 0.0f;
         int   judderCountdown = 0;
 
-        inline float process (float driveRate, float roughness) noexcept
+        inline float process(float driveRate, float roughness) noexcept
         {
             float out = 0.0f;
-            load += juce::jmax (1.0e-7f, driveRate);
+            load += juce::jmax(1.0e-7f, driveRate);
             const float thresh = 1.0f + roughness * 0.8f * (rng.nextFloat() * 2.0f - 1.0f);
             if (load >= thresh)
             {
@@ -626,16 +763,16 @@ namespace soundeco
                 load = muK * (0.7f + 0.3f * rng.nextFloat());
                 if (rng.nextFloat() < 0.30f * roughness)
                 {
-                    judder = 2 + rng.nextInt (4);
+                    judder = 2 + rng.nextInt(4);
                     judderAmp = out;
-                    judderCountdown = 20 + rng.nextInt (380);
+                    judderCountdown = 20 + rng.nextInt(380);
                 }
             }
             if (judder > 0 && --judderCountdown <= 0)
             {
                 out += judderAmp * (0.15f + 0.35f * rng.nextFloat());
                 --judder;
-                judderCountdown = 20 + rng.nextInt (380);
+                judderCountdown = 20 + rng.nextInt(380);
             }
             return out;
         }
@@ -687,8 +824,8 @@ namespace soundeco
         OnePole    groundLP;   // damping of the ground-reflected ray
         float      swellPhaseA = 0.0f, swellPhaseB = 0.0f;
         float     oscPhase = 0.0f, oscPhase2 = 0.0f;
-        float     subPhase  = 0.0f;
-        int       ribIndex  = 0;
+        float     subPhase = 0.0f;
+        int       ribIndex = 0;
         float     env = 0.0f, envInc = 0.0f;
 
         // short line for the ground-reflection comb (Distant Road) and for
@@ -705,62 +842,144 @@ namespace soundeco
         // delay, while the decorrelated width survives to the output.
         float sideOut = 0.0f;
 
-        // fractional-delay read from the comb line
-        inline float combRead (float delayInSamples) const noexcept
+        // Rumble. The crack's thumps and its band-pass crack-texture copies
+        // are struck modes and reuse the general-purpose `bank` (added in
+        // triggerEvent, driven by a shared excitation in generateSample)
+        // just like Bell/Plate/Metal Bar do. The tail needs five
+        // INDEPENDENTLY noise-driven bands, one more than aux[4] provides,
+        // so it gets its own small block of state here.
+        Resonator thunderTailBand4;                         // 5th tail band (0-3 use aux[0..3])
+        std::array<float, 5> thunderTailWalk{ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+        OnePole   thunderPreHP, thunderPreLP;                // pre-rumble 40-300 Hz band
+        float     thunderTremPhase = 0.0f;                   // pre-rumble tremolo, ramps in toward the strike
+        bool      thunderStruck = false;                     // has the crack fired yet this event?
+        int       thunderBurstSamples = 0;                   // core-burst excitation window (crack texture)
+        int       thunderThumpSamples[3]{ -1, -1, -1 };      // per-thump countdown to its own tiny delay
+        Resonator thunderReburstBand;                        // tail re-arrival swell: another filtered copy
+        bool      thunderReburstActive = false;
+        int       thunderReburstSamplesLeft = 0;
+        float     thunderReburstAmp = 0.0f;
+
+        // ---- Thunder: independent Butterworth-noise strike -----------------
+        // Runs on Engine::PortedBurst and touches none of bank/aux/Resonator
+        // above. "tv5" labels this model's own private state. Two short
+        // excitation buffers are rendered once per event: the crack's shared
+        // core burst and the tail's shared re-arrival burst. Everything
+        // downstream filters COPIES of these same buffers through
+        // independent Butterworth bandpasses, which is what gives one
+        // cohesive event texture rather than many independently-random
+        // mini-transients.
+        std::vector<float> tv5Core;              // ~0.22s shared crack excitation
+        std::vector<float> tv5Rebursts;          // ~0.35s shared tail re-arrival excitation
+
+        ButterBandpass tv5PreBand;                // pre-rumble 40-300 Hz murmur band
+        float tv5PreWalk = 0.0f;                  // causal stand-in for the offline smoothed random walk
+        float tv5TremPhase = 0.0f;                // pre-rumble tremolo, ramps in toward the strike
+
+        bool  tv5Struck = false;
+        int   tv5CrackPos = -1;                   // samples elapsed since the strike (crack core index)
+        static constexpr int kTv5CrackBands = 5;
+        ButterBandpass tv5CrackBand[kTv5CrackBands];
+        float tv5CrackStretch[kTv5CrackBands]{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };  // per-band decay jitter, drawn once per event
+
+        static constexpr int kTv5Thumps = 3;
+        int   tv5ThumpElapsed[kTv5Thumps]{ -1, -1, -1 };  // samples since each thump's own onset; -1 = not yet due
+
+        static constexpr int kTv5TailBands = 5;
+        ButterBandpass tv5TailBand[kTv5TailBands];
+        float tv5TailWalk[kTv5TailBands]{ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+        // A couple of concurrent rolling re-arrival swells (capping it at
+        // two voices lets overlapping tails not truncate one another
+        // without turning into an independent cloud).
+        struct Tv5Reburst
         {
-            const int size = (int) combLine.size();
+            bool active = false;
+            int  pos = 0;              // sample index into tv5Rebursts
+            float amp = 0.0f;
+            float etSecs = 0.0f;       // event time this reburst fired, for its own decay
+            ButterBandpass band;
+        };
+        static constexpr int kTv5RebusrtVoices = 2;
+        std::array<Tv5Reburst, kTv5RebusrtVoices> tv5ReburstVoice;
+
+        // fractional-delay read from the comb line
+        inline float combRead(float delayInSamples) const noexcept
+        {
+            const int size = (int)combLine.size();
             if (size < 4) return 0.0f;
-            const float d = juce::jlimit (1.0f, (float) size - 2.0f, delayInSamples);
-            const int i0 = (int) d;
-            const float fr = d - (float) i0;
+            const float d = juce::jlimit(1.0f, (float)size - 2.0f, delayInSamples);
+            const int i0 = (int)d;
+            const float fr = d - (float)i0;
             int r0 = combWrite - i0;      while (r0 < 0) r0 += size;
             int r1 = r0 - 1;              if (r1 < 0) r1 += size;
-            return combLine[(size_t) r0] * (1.0f - fr) + combLine[(size_t) r1] * fr;
+            return combLine[(size_t)r0] * (1.0f - fr) + combLine[(size_t)r1] * fr;
         }
 
-        inline void combWriteSample (float x) noexcept
+        inline void combWriteSample(float x) noexcept
         {
             if (combLine.empty()) return;
-            combLine[(size_t) combWrite] = x;
-            if (++combWrite >= (int) combLine.size()) combWrite = 0;
+            combLine[(size_t)combWrite] = x;
+            if (++combWrite >= (int)combLine.size()) combWrite = 0;
         }
 
-        void prepare (double sr, float maxDistance)
+        void prepare(double sr, float maxDistance)
         {
-            const int maxDelay = (int) (sr * (maxDistance / kSpeedOfSound) + 4.0);
-            delayLine.assign ((size_t) juce::jmax (8, maxDelay), 0.0f);
+            const int maxDelay = (int)(sr * (maxDistance / kSpeedOfSound) + 4.0);
+            delayLine.assign((size_t)juce::jmax(8, maxDelay), 0.0f);
             delayWrite = 0;
             // ground-reflection path differences stay under ~30 ms
-            combLine.assign ((size_t) juce::jmax (16, (int) (sr * 0.035)), 0.0f);
+            combLine.assign((size_t)juce::jmax(16, (int)(sr * 0.035)), 0.0f);
             combWrite = 0;
             rumble = rumble2 = 0.0f;
             air.reset(); tilt.reset(); tilt2.reset(); friction.reset(); bubbles.reset(); drops.reset();
-            groundLP.setCutoff (4500.0f, sr);   // the reflected ray is duller than the direct one
+            groundLP.setCutoff(4500.0f, sr);   // the reflected ray is duller than the direct one
             bedLP.reset(); bedLP2.reset(); canopyLP.reset(); groundLP.reset();
             swellPhaseA = swellPhaseB = 0.0f;
             bank.clear();
             for (auto& r : aux) r.reset();
+
+            thunderTailBand4.reset(); thunderReburstBand.reset();
+            thunderTailWalk.fill(0.0f);
+            thunderPreHP.reset(); thunderPreLP.reset();
+            thunderTremPhase = 0.0f;
+            thunderStruck = false;
+            thunderBurstSamples = 0;
+            thunderThumpSamples[0] = thunderThumpSamples[1] = thunderThumpSamples[2] = -1;
+            thunderReburstActive = false;
+            thunderReburstSamplesLeft = 0;
+            thunderReburstAmp = 0.0f;
+
+            tv5Core.clear(); tv5Rebursts.clear();
+            tv5PreBand.reset(); tv5PreWalk = 0.0f; tv5TremPhase = 0.0f;
+            tv5Struck = false; tv5CrackPos = -1;
+            for (auto& b : tv5CrackBand) b.reset();
+            for (auto& s : tv5CrackStretch) s = 1.0f;
+            for (auto& e : tv5ThumpElapsed) e = -1;
+            for (auto& b : tv5TailBand) b.reset();
+            for (auto& w : tv5TailWalk) w = 0.0f;
+            for (auto& rv : tv5ReburstVoice) { rv.active = false; rv.pos = 0; rv.amp = 0.0f; rv.etSecs = 0.0f; rv.band.reset(); }
         }
 
-        void place (float d, float az, float elevMetres, float humidity,
-                    float parallax, double sr)
+        void place(float d, float az, float elevMetres, float humidity,
+            float parallax, double sr)
         {
-            distance  = juce::jmax (0.6f, d);
-            azimuth   = juce::jlimit (-1.0f, 1.0f, az);
-            elevation = juce::jlimit (0.02f, 40.0f, elevMetres);
+            distance = juce::jmax(0.6f, d);
+            azimuth = juce::jlimit(-1.0f, 1.0f, az);
+            elevation = juce::jlimit(0.02f, 40.0f, elevMetres);
 
-            gain = 1.0f / std::pow (distance, 0.85f);
+            gain = 1.0f / std::pow(distance, 0.85f);
 
             // air absorption: HF cutoff falls with distance, faster in humid air
-            float fc = 18000.0f / (1.0f + std::pow (distance / 6.0f, 0.9f + 0.5f * humidity));
+            float fc = 18000.0f / (1.0f + std::pow(distance / 6.0f, 0.9f + 0.5f * humidity));
             // Elevated sources clear the grass, scrub and ground clutter that
             // absorb high frequencies along a low path, so they arrive
             // brighter as well as differently combed.
-            fc *= 1.0f + 0.9f * juce::jmin (1.0f, elevation / 10.0f);
-            air.setCutoff (juce::jmax (fc, 700.0f), sr);
+            fc *= 1.0f + 0.9f * juce::jmin(1.0f, elevation / 10.0f);
+            air.setCutoff(juce::jmax(fc, 700.0f), sr);
 
-            delaySamples = juce::jlimit (0, (int) delayLine.size() - 2,
-                                         (int) (sr * distance / kSpeedOfSound));
+            delaySamples = juce::jlimit(0, (int)delayLine.size() - 2,
+                (int)(sr * distance / kSpeedOfSound));
 
             // --- ground reflection -------------------------------------
             // Path difference between the direct ray and the one bouncing off
@@ -768,22 +987,22 @@ namespace soundeco
             // 3.6 kHz, right inside its own band; a bird at 8 m gets a dense
             // 57 Hz comb, which is the overhead signature. Distant low sources
             // push the comb above hearing, which is why far things sound plain.
-            const float hs = juce::jmax (0.02f, elevation);
+            const float hs = juce::jmax(0.02f, elevation);
             const float hr = 1.6f;                       // ears
-            const float horiz = juce::jmax (0.5f,
-                                    std::sqrt (juce::jmax (0.0f,
-                                        distance * distance - (hs - hr) * (hs - hr))));
-            const float direct    = std::sqrt (horiz * horiz + (hs - hr) * (hs - hr));
-            const float reflected = std::sqrt (horiz * horiz + (hs + hr) * (hs + hr));
-            groundDelay = juce::jlimit (1.0f, (float) combLine.size() - 3.0f,
-                              (reflected - direct) / kSpeedOfSound * (float) sr);
+            const float horiz = juce::jmax(0.5f,
+                std::sqrt(juce::jmax(0.0f,
+                    distance * distance - (hs - hr) * (hs - hr))));
+            const float direct = std::sqrt(horiz * horiz + (hs - hr) * (hs - hr));
+            const float reflected = std::sqrt(horiz * horiz + (hs + hr) * (hs + hr));
+            groundDelay = juce::jlimit(1.0f, (float)combLine.size() - 3.0f,
+                (reflected - direct) / kSpeedOfSound * (float)sr);
             // grass and soil absorb; the reflection is never a full mirror
-            groundGain = 0.55f / (1.0f + reflected / juce::jmax (1.0f, horiz) * 0.15f);
+            groundGain = 0.55f / (1.0f + reflected / juce::jmax(1.0f, horiz) * 0.15f);
 
-            const float width = 1.0f / (1.0f + distance / (14.0f * juce::jmax (0.05f, parallax)));
-            const float pan   = juce::jlimit (-1.0f, 1.0f, azimuth * width);
-            panL = std::cos ((pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f);
-            panR = std::sin ((pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f);
+            const float width = 1.0f / (1.0f + distance / (14.0f * juce::jmax(0.05f, parallax)));
+            const float pan = juce::jlimit(-1.0f, 1.0f, azimuth * width);
+            panL = std::cos((pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f);
+            panR = std::sin((pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f);
         }
 
         // push a mono sample through distance filtering + delay, get L/R
@@ -791,22 +1010,22 @@ namespace soundeco
         // side signal added straight to the output. Distance still collapses
         // the image because `sideOut` is scaled by the same width factor the
         // panning uses.
-        inline void spatialiseStereo (float in, float side, float& l, float& r) noexcept
+        inline void spatialiseStereo(float in, float side, float& l, float& r) noexcept
         {
             float src = in;
-            if (! ownGroundComb && ! combLine.empty())
+            if (!ownGroundComb && !combLine.empty())
             {
-                combWriteSample (src);
+                combWriteSample(src);
                 // the reflected ray arrives later, quieter, and duller
-                const float refl = combRead (groundDelay);
-                src = src - groundLP.lp (refl) * groundGain;
+                const float refl = combRead(groundDelay);
+                src = src - groundLP.lp(refl) * groundGain;
             }
-            const float filtered = air.lp (src) * gain;
-            delayLine[(size_t) delayWrite] = filtered;
+            const float filtered = air.lp(src) * gain;
+            delayLine[(size_t)delayWrite] = filtered;
             int readPos = delayWrite - delaySamples;
-            if (readPos < 0) readPos += (int) delayLine.size();
-            const float out = delayLine[(size_t) readPos];
-            if (++delayWrite >= (int) delayLine.size()) delayWrite = 0;
+            if (readPos < 0) readPos += (int)delayLine.size();
+            const float out = delayLine[(size_t)readPos];
+            if (++delayWrite >= (int)delayLine.size()) delayWrite = 0;
             // Distance collapses a POINT source toward the centre, but a
             // diffuse field (rain, surf) stays wide however far away it is —
             // you are inside it, not looking at it. Collapse the side channel
@@ -816,14 +1035,14 @@ namespace soundeco
             r += out * panR - sw;
         }
 
-        inline void spatialise (float in, float& l, float& r) noexcept
+        inline void spatialise(float in, float& l, float& r) noexcept
         {
-            const float filtered = air.lp (in) * gain;
-            delayLine[(size_t) delayWrite] = filtered;
+            const float filtered = air.lp(in) * gain;
+            delayLine[(size_t)delayWrite] = filtered;
             int readPos = delayWrite - delaySamples;
-            if (readPos < 0) readPos += (int) delayLine.size();
-            const float out = delayLine[(size_t) readPos];
-            if (++delayWrite >= (int) delayLine.size()) delayWrite = 0;
+            if (readPos < 0) readPos += (int)delayLine.size();
+            const float out = delayLine[(size_t)readPos];
+            if (++delayWrite >= (int)delayLine.size()) delayWrite = 0;
             l += out * panL;
             r += out * panR;
         }
@@ -845,13 +1064,13 @@ namespace soundeco
         float rain = 0.0f;        // how much rain is currently falling
         float target = 0.4f;
         int   countdown = 0;
-        juce::Random rng { 4242 };
+        juce::Random rng{ 4242 };
         OnePole smooth;
 
-        void prepare (double sr)
+        void prepare(double sr)
         {
             // very slow: gusts arrive over seconds, not milliseconds
-            smooth.setCutoff (0.12f, sr);
+            smooth.setCutoff(0.12f, sr);
             smooth.reset();
             gust = target = 0.4f;
             countdown = 0;
@@ -859,22 +1078,22 @@ namespace soundeco
 
         // advance once per block; the gust is a slow random walk toward
         // successive targets, which reads as weather rather than as an LFO
-        void update (int numSamples, double sr)
+        void update(int numSamples, double sr)
         {
             countdown -= numSamples;
             if (countdown <= 0)
             {
-                target = std::pow (rng.nextFloat(), 1.4f);      // calm more often than gusty
-                countdown = (int) (sr * (0.8 + 4.5 * rng.nextFloat()));
+                target = std::pow(rng.nextFloat(), 1.4f);      // calm more often than gusty
+                countdown = (int)(sr * (0.8 + 4.5 * rng.nextFloat()));
             }
-            for (int i = 0; i < numSamples; ++i) gust = smooth.lp (target);
-            gust = juce::jlimit (0.0f, 1.0f, gust);
+            for (int i = 0; i < numSamples; ++i) gust = smooth.lp(target);
+            gust = juce::jlimit(0.0f, 1.0f, gust);
         }
 
         // Combined masking pressure on calling animals.
         float quietening() const noexcept
         {
-            return juce::jlimit (0.0f, 1.0f, gust * 0.75f + rain * 0.9f);
+            return juce::jlimit(0.0f, 1.0f, gust * 0.75f + rain * 0.9f);
         }
     };
 
@@ -885,16 +1104,16 @@ namespace soundeco
     class Habitat
     {
     public:
-        void prepare (double sampleRate, int blockSize);
-        void setParams (float size, float damping, float mix);
-        void process (juce::AudioBuffer<float>& buffer);
+        void prepare(double sampleRate, int blockSize);
+        void setParams(float size, float damping, float mix);
+        void process(juce::AudioBuffer<float>& buffer);
         void reset();
 
     private:
         static constexpr int kNumLines = 8;
         std::array<std::vector<float>, kNumLines> lines;
-        std::array<int, kNumLines>   writePos  { };
-        std::array<int, kNumLines>   lengths   { };
+        std::array<int, kNumLines>   writePos{ };
+        std::array<int, kNumLines>   lengths{ };
         std::array<OnePole, kNumLines> damp;
         double sr = 44100.0;
         float  feedback = 0.6f, mixAmount = 0.2f;
@@ -928,31 +1147,31 @@ class SoundscapeEcologyAudioProcessor;
 class PresetManager
 {
 public:
-    explicit PresetManager (SoundscapeEcologyAudioProcessor& p);
+    explicit PresetManager(SoundscapeEcologyAudioProcessor& p);
 
     juce::StringArray getAllNames() const;
     int  getNumFactory() const;
-    void loadByIndex (int index);
-    void loadNext (int direction);
+    void loadByIndex(int index);
+    void loadNext(int direction);
     int  getCurrentIndex() const noexcept { return currentIndex; }
     juce::String getCurrentName() const;
 
-    void saveUserPreset (const juce::String& name);
-    void deleteUserPreset (const juce::String& name);
-    void loadFromFile (const juce::File& file);
+    void saveUserPreset(const juce::String& name);
+    void deleteUserPreset(const juce::String& name);
+    void loadFromFile(const juce::File& file);
     void refreshUserPresets();
     void installFactoryPresetsToDisk();
 
     // Time of Day morph. Applies only to parameters that differ between the
     // day and night variants of the loaded preset.
-    void applyMorph (float t);
-    bool hasMorph() const noexcept { return ! morphKeys.isEmpty(); }
+    void applyMorph(float t);
+    bool hasMorph() const noexcept { return !morphKeys.isEmpty(); }
 
     static juce::File getPresetDirectory();
 
 private:
-    void captureState (std::map<juce::String, float>& dest) const;
-    void applyValues (const std::vector<soundeco::PresetValue>& values);
+    void captureState(std::map<juce::String, float>& dest) const;
+    void applyValues(const std::vector<soundeco::PresetValue>& values);
     void resetToDefaults();
     void computeMorphKeys();
 
@@ -971,7 +1190,7 @@ namespace soundeco
     {
         int   model = 0;
         int   phony = 0;   // which class this slot holds
-        float knobs[kNumModelKnobs] { };
+        float knobs[kNumModelKnobs]{ };
         float rate = 1.0f, phrase = 1.0f, jitter = 0.2f, swing = 0.0f;
         float rhythm = 0.0f;   // 0 = shallow AM, 1 = sharp decaying syllables
         float attack = 0.1f, decay = 0.4f, duration = 0.5f;
@@ -983,37 +1202,37 @@ namespace soundeco
         bool  drawPitch = false, drawAmp = false;
         float drawDepth = 0.5f;
         const float* pitchCurve = nullptr;
-        const float* ampCurve   = nullptr;
+        const float* ampCurve = nullptr;
     };
 }
 
 //==============================================================================
-class SoundscapeEcologyAudioProcessor  : public juce::AudioProcessor,
-                                         private juce::AsyncUpdater
+class SoundscapeEcologyAudioProcessor : public juce::AudioProcessor,
+    private juce::AsyncUpdater
 {
 public:
     SoundscapeEcologyAudioProcessor();
     ~SoundscapeEcologyAudioProcessor() override;
 
-    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+    void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
+    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override                    { return true; }
-    const juce::String getName() const override        { return JucePlugin_Name; }
-    bool acceptsMidi() const override                  { return true; }
-    bool producesMidi() const override                 { return false; }
-    bool isMidiEffect() const override                 { return false; }
-    double getTailLengthSeconds() const override       { return 4.0; }
-    int getNumPrograms() override                      { return 1; }
-    int getCurrentProgram() override                   { return 0; }
-    void setCurrentProgram (int) override              { }
-    const juce::String getProgramName (int) override   { return {}; }
-    void changeProgramName (int, const juce::String&) override { }
-    void getStateInformation (juce::MemoryBlock&) override;
-    void setStateInformation (const void*, int) override;
+    bool hasEditor() const override { return true; }
+    const juce::String getName() const override { return JucePlugin_Name; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return false; }
+    bool isMidiEffect() const override { return false; }
+    double getTailLengthSeconds() const override { return 4.0; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
+    void getStateInformation(juce::MemoryBlock&) override;
+    void setStateInformation(const void*, int) override;
 
     juce::AudioProcessorValueTreeState apvts;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -1022,11 +1241,11 @@ public:
     // [slot][0] = pitch curve, [slot][1] = amplitude curve.
     std::array<std::array<float, soundeco::kDrawPoints>, soundeco::kNumSlots> pitchCurves;
     std::array<std::array<float, soundeco::kDrawPoints>, soundeco::kNumSlots> ampCurves;
-    void resetCurves (int slot);
+    void resetCurves(int slot);
 
     // metering / visualisation for the editor
-    std::atomic<float> slotActivity[soundeco::kNumSlots] { };
-    std::atomic<float> chorusOrder[soundeco::kNumSlots]  { };  // Kuramoto R
+    std::atomic<float> slotActivity[soundeco::kNumSlots]{ };
+    std::atomic<float> chorusOrder[soundeco::kNumSlots]{ };  // Kuramoto R
 
     // Ask the chorus phases to restage so sound arrives immediately. Called
     // by PresetManager on preset load, and internally on note-on.
@@ -1037,7 +1256,7 @@ public:
     // so a scene stays recognisably itself and only shifts character. The
     // model choice, class, level and population are left alone, since those
     // are structural decisions rather than shading.
-    void randomiseSlot (int slot, float amount = 0.18f);
+    void randomiseSlot(int slot, float amount = 0.18f);
 
     // Presets
     std::unique_ptr<PresetManager> presets;
@@ -1046,27 +1265,27 @@ public:
     // Dolbear's law: chirps per second from temperature in Celsius.
     // Calibrated on the snowy tree cricket; other species have their own
     // slopes, which is a feature rather than a bug.
-    static float dolbearChirpRate (float celsius) noexcept
+    static float dolbearChirpRate(float celsius) noexcept
     {
         const float f = celsius * 9.0f / 5.0f + 32.0f;
-        return juce::jmax (1.0f, f - 40.0f) / 14.0f;
+        return juce::jmax(1.0f, f - 40.0f) / 14.0f;
     }
 
 private:
     void readParameters();
-    void renderSlot (int slot, juce::AudioBuffer<float>& out, int numSamples);
-    void triggerEvent (int slot, soundeco::FieldIndividual& ind);
-    float generateSample (int slot, soundeco::FieldIndividual& ind, float t01);
-    void configureIndividual (int slot, soundeco::FieldIndividual& ind, int index);
-    void updateField (int slot);
+    void renderSlot(int slot, juce::AudioBuffer<float>& out, int numSamples);
+    void triggerEvent(int slot, soundeco::FieldIndividual& ind);
+    float generateSample(int slot, soundeco::FieldIndividual& ind, float t01);
+    void configureIndividual(int slot, soundeco::FieldIndividual& ind, int index);
+    void updateField(int slot);
     void applyNiche();
     void handleAsyncUpdate() override;
     // Called when the gate opens, so a note produces sound immediately
     // instead of waiting for the next chorus cycle.
-    void retriggerField (int slot);
+    void retriggerField(int slot);
     bool retriggerPending = false;
 
-    std::atomic<float> pendingMorph { -1.0f };
+    std::atomic<float> pendingMorph{ -1.0f };
     float lastSeenTimeOfDay = -1.0f;
 
     //--------------------------------------------------------------------
@@ -1079,25 +1298,25 @@ private:
     //--------------------------------------------------------------------
     enum class MidiMode { FreeRun = 0, Gated = 1, GatedPitch = 2 };
 
-    std::array<int, 128> noteVelocity { };
-    int   heldNotes      = 0;
+    std::array<int, 128> noteVelocity{ };
+    int   heldNotes = 0;
     int   lastNoteNumber = 60;
-    float gateEnv        = 0.0f;       // 0..1, smoothed
-    float gateTarget     = 0.0f;
-    float velocityGain   = 1.0f;
+    float gateEnv = 0.0f;       // 0..1, smoothed
+    float gateTarget = 0.0f;
+    float velocityGain = 1.0f;
     float midiPitchRatio = 1.0f;       // multiplies every carrier
     std::vector<float> gateBuffer;
 
-    void buildGateEnvelope (juce::MidiBuffer& midi, int numSamples);
-    void handleNoteOn (int note, float velocity);
-    void handleNoteOff (int note);
+    void buildGateEnvelope(juce::MidiBuffer& midi, int numSamples);
+    void handleNoteOn(int note, float velocity);
+    void handleNoteOff(int note);
 
     double currentSampleRate = 44100.0;
-    int    currentBlockSize  = 512;
+    int    currentBlockSize = 512;
 
     soundeco::SlotParams slotParams[soundeco::kNumSlots];
-    int  lastModel[soundeco::kNumSlots]      { -1, -1, -1 };
-    int  lastPopulation[soundeco::kNumSlots] { -1, -1, -1 };
+    int  lastModel[soundeco::kNumSlots]{ -1, -1, -1 };
+    int  lastPopulation[soundeco::kNumSlots]{ -1, -1, -1 };
 
     std::array<std::vector<soundeco::FieldIndividual>, soundeco::kNumSlots> field;
     soundeco::Habitat habitat;
@@ -1109,9 +1328,9 @@ private:
 
     float globalTemperature = 22.0f, globalHumidity = 0.5f;
     float nicheAmount = 0.0f;
-    float nicheShift[soundeco::kNumSlots] { 1.0f, 1.0f, 1.0f };
+    float nicheShift[soundeco::kNumSlots]{ 1.0f, 1.0f, 1.0f };
 
     juce::SmoothedValue<float> outputGain, widthAmount;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SoundscapeEcologyAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoundscapeEcologyAudioProcessor)
 };

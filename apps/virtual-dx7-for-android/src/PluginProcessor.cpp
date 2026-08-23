@@ -764,6 +764,11 @@ void VDX7AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     keyboardState.processNextMidiBuffer (midi, 0, numSamples, true);
 
+    // Chord section: expands each note-on/off already in the buffer into up
+    // to 6 extra transposed notes, in place, before anything is forwarded to
+    // the engine - so the added notes are voices the engine itself renders.
+    fx_.processMidi (midi);
+
     for (const auto meta : midi) {
         const auto msg = meta.getMessage();
         engine_.pushMidi (msg.getRawData(), msg.getRawDataSize());

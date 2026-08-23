@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="4kOrDF" name="VirtualDX7" projectType="audioplug" jucerFormatVersion="1"
-              version="2.0.0" companyName="aquanodemusic" companyCopyright="GPLv3"
+              version="2.1.0" companyName="aquanodemusic" companyCopyright="GPLv3"
               bundleIdentifier="com.virtualdx7" cppLanguageStandard="17" defines="INLINE_EGS=1"
               displaySplashScreen="0" pluginFormats="buildVST3,buildStandalone"
               pluginName="VirtualDX7" pluginDesc="Six-operator FM synth: bit-accurate DX7 emulation with a ROM-free native engine"
@@ -73,7 +73,7 @@
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"
                JUCE_WEB_BROWSER="0" JUCE_USE_CURL="0" JUCE_DISPLAY_SPLASH_SCREEN="0"/>
   <EXPORTFORMATS>
-    <VS2022 targetFolder="Builds/VisualStudio2022">
+    <VS2026 targetFolder="Builds/VisualStudio2026">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="VirtualDX7"
                        headerPath="../.." useRuntimeLibDLL="0"/>
@@ -95,7 +95,7 @@
         <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
         <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
       </MODULEPATHS>
-    </VS2022>
+    </VS2026>
     <XCODE_MAC targetFolder="Builds/MacOSX">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="VirtualDX7"
@@ -148,9 +148,9 @@
                    androidBluetoothConnectNeeded="0">
       <CONFIGURATIONS>
         <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="VirtualDX7"
-                       headerPath="../.."/>
+                       headerPath="../.." androidArchitectures="arm64-v8a"/>
         <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="VirtualDX7"
-                       headerPath="../.."/>
+                       headerPath="../.." androidArchitectures="arm64-v8a"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>

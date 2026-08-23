@@ -2,7 +2,7 @@
 
 ![Resonate banner](assets/Banner.png)
 
-**Latest version:** 2.0 — download builds from the [Releases](../../../../releases) page.
+**Latest version:** 2.1 — download builds from the [Releases](../../../../releases) page.
 
 Resonate is a 5 voice resonator. It is modelled after a famous resonator available in a certain DAW. Resonate recreates most of its controls and functionalities, but not 100% perfectly so, as the code for Resonate was completely done from scratch (in the JUCE framework) and with the help of Claude AI. However, its note range is much broader than the original, supports individual resonator panning and MIDI controllable pitch of the resonators.
 
@@ -18,5 +18,6 @@ As mentioned, the source code is completely made from scratch using the help of 
 - **1.1** — Adds a subtle chorus and a working "square" resonator mode (Mode B in the selector).
 - **1.2** — Adds a per-Resonator Decay and Color logic and adds exponential decay / DC offset to sound closer to the original.
 - **2.0** — Added per-Resonator Panning, GUI resizability, MIDI playability and performance bugfixes. If you saved presets in a previous version, they might sound wrong in version 2.0, as especially the decay knob skew changed. 
+- **2.1** — Improved GUI layout and resize ability, added two more resonators. 
 
 Thanks for downloading and have fun with it!

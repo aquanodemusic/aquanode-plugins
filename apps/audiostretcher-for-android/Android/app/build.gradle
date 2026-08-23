@@ -52,7 +52,7 @@ android {
     productFlavors {
         debug_ {
             ndk {
-                abiFilters "armeabi-v7a", "x86", "arm64-v8a", "x86_64"
+                abiFilters "arm64-v8a"
             }
             externalNativeBuild {
                 cmake {
@@ -65,6 +65,9 @@ android {
             dimension "default"
         }
         release_ {
+            ndk {
+                abiFilters "arm64-v8a"
+            }
             externalNativeBuild {
                 cmake {
                     cFlags    "-O3"

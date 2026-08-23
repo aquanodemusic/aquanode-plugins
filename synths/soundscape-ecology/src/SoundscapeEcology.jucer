@@ -2,18 +2,18 @@
 
 <JUCERPROJECT id="ptiwzP" name="SoundscapeEcology" projectType="audioplug"
               useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
-              version="1.0.0" companyName="aquanodemusic" companyCopyright="none"
+              version="1.1.0" companyName="aquanodemusic" companyCopyright="none"
               companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3"
               pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn">
   <MAINGROUP id="G37NSg" name="SoundscapeEcology">
     <GROUP id="{85F9BD0C-755F-8C30-F063-46F12CD61053}" name="Source">
-      <FILE id="YQXjwC" name="PluginProcessor.cpp" compile="1" resource="0"
-            file="Source/PluginProcessor.cpp"/>
-      <FILE id="j3V6e0" name="PluginProcessor.h" compile="0" resource="0"
-            file="Source/PluginProcessor.h"/>
-      <FILE id="I4Y5rg" name="PluginEditor.cpp" compile="1" resource="0"
+      <FILE id="m71BmG" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
-      <FILE id="jELey1" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="KLdvWF" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="io7LDw" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="GXRW29" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

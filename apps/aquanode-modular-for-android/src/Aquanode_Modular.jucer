@@ -361,8 +361,8 @@
                    androidInternetNeeded="0" androidVibratePermission="0" androidBluetoothScanNeeded="0"
                    androidBluetoothConnectNeeded="0">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="Aquanode Modular"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="Aquanode Modular"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="Aquanode Modular" androidArchitectures="arm64-v8a"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="Aquanode Modular" androidArchitectures="arm64-v8a"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_animation" path="../../../../Program Files/JUCE/modules"/>

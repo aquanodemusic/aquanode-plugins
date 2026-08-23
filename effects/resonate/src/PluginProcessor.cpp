@@ -14,9 +14,12 @@
     - Per-resonator Pan (resN_pan). Defaults reproduce the previous hard-panned
       routing bit-for-bit; each resonator still reads exactly ONE source channel
       so its delay line / LPF / DC state evolves identically to before.
-    - MIDI input: up to 5 held notes, round-robin allocated to res I..V
+    - MIDI input: up to 7 held notes, round-robin allocated to res I..VII
     - Preset save/load to standalone .xml files
     - Scratch buffers pre-allocated in prepareToPlay (no audio-thread malloc)
+    - Two more resonators: VI and VII (off by default, same as II-V used to be
+      before their own checkbox is switched on)
+    - Global 2x oversampling toggle (half-band IIR, ~0 added latency)
 
   ==============================================================================
 */
@@ -24,6 +27,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include <limits>
+#include <cstring>
 
 //==============================================================================
 // State Variable Filter
@@ -119,9 +123,9 @@ void ResonateAudioProcessor::Resonate::updateParameters(
     bool   effConst = useLocalParams ? localConst : constMode;
 
     // ── LFO for chorus/beating ────────────────────────────────────────────
-    const double rateOffsets[5] = { 0.0, 0.13, 0.27, 0.41, 0.19 };
+    const double rateOffsets[7] = { 0.0, 0.13, 0.27, 0.41, 0.19, 0.05, 0.35 };
     double baseRate = userLfoRate;
-    lfoRate = (baseRate + rateOffsets[resonatorIndex % 5] * 0.3)
+    lfoRate = (baseRate + rateOffsets[resonatorIndex % 7] * 0.3)
         * (chorusAmount / 100.0);
     lfoDepthCents = userLfoDepth * (chorusAmount / 100.0);
 
@@ -340,7 +344,7 @@ float ResonateAudioProcessor::Resonate::processB(float input, int channel)
 //     travel 0.55 - 0.85  ->  value  90 -  98
 //     travel 0.85 - 1.00  ->  value  98 - 100
 
-static const float kDecayNorms[5]  = { 0.0f, 0.30f, 0.55f, 0.85f, 1.0f };
+static const float kDecayNorms[5] = { 0.0f, 0.30f, 0.55f, 0.85f, 1.0f };
 static const float kDecayValues[5] = { 0.0f, 60.0f, 90.0f, 98.0f, 100.0f };
 
 static float decayNormToValue(float norm)
@@ -349,7 +353,7 @@ static float decayNormToValue(float norm)
     for (int i = 0; i < 4; ++i)
         if (norm <= kDecayNorms[i + 1])
             return juce::jmap(norm, kDecayNorms[i], kDecayNorms[i + 1],
-                                    kDecayValues[i], kDecayValues[i + 1]);
+                kDecayValues[i], kDecayValues[i + 1]);
     return 100.0f;
 }
 
@@ -359,7 +363,7 @@ static float decayValueToNorm(float value)
     for (int i = 0; i < 4; ++i)
         if (value <= kDecayValues[i + 1])
             return juce::jmap(value, kDecayValues[i], kDecayValues[i + 1],
-                                     kDecayNorms[i], kDecayNorms[i + 1]);
+                kDecayNorms[i], kDecayNorms[i + 1]);
     return 1.0f;
 }
 
@@ -424,6 +428,10 @@ static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     layout.add(std::make_unique<juce::AudioParameterBool>(
         "midi_enabled", "MIDI In", true));
 
+    // ── NEW: global 2x oversampling ─────────────────────────────────────────
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        "oversample_2x", "2x Oversample", false));
+
     // Smooth
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "smooth", "Smooth",
@@ -481,18 +489,21 @@ static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         "res1_pan", "Resonator 1 Pan", panRange, 0.0f));
 
-    // ── Resonators 2-5 ────────────────────────────────────────────────────
+    // ── Resonators 2-7 (2-5 existed before; 6-7 are new). Only Resonator I
+    //    is on by default -- II-VII start off, switched on via their own
+    //    checkbox at the top of the strip ─────────────────────────────────
     // Default pans reproduce the original hard-panned routing:
-    //   II -> L, III -> R, IV -> L, V -> R
-    const float defaultPan[5] = { 0.0f, -100.0f, 100.0f, -100.0f, 100.0f };
+    //   II -> L, III -> R, IV -> L, V -> R, VI -> L, VII -> R
+    const float defaultPan[ResonateAudioProcessor::MAX_RESONATORS] =
+    { 0.0f, -100.0f, 100.0f, -100.0f, 100.0f, -100.0f, 100.0f };
 
-    for (int i = 1; i < 5; ++i)
+    for (int i = 1; i < ResonateAudioProcessor::MAX_RESONATORS; ++i)
     {
         juce::String id = "res" + juce::String(i + 1);
         juce::String name = "Resonator " + juce::String(i + 1);
 
         layout.add(std::make_unique<juce::AudioParameterBool>(
-            id + "_enabled", name + " On", true));
+            id + "_enabled", name + " On", false));
         layout.add(std::make_unique<juce::AudioParameterInt>(
             id + "_pitch", name + " Pitch", -24, 24, 0));
         layout.add(std::make_unique<juce::AudioParameterFloat>(
@@ -522,7 +533,7 @@ ResonateAudioProcessor::ResonateAudioProcessor()
         .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
     parameters(*this, nullptr, "PARAMETERS", createParameterLayout())
 {
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < MAX_RESONATORS; ++i)
         midiDisplayNote[i].store(-1);
 }
 
@@ -566,25 +577,37 @@ void   ResonateAudioProcessor::changeProgramName(int, const juce::String&) {}
 void ResonateAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < MAX_RESONATORS; ++i)
     {
         resonators[i].prepare(sampleRate);
         resonators[i].reset();
     }
     inputFilter.reset();
 
-    // Pre-allocate scratch so processBlock never touches the heap.
+    // Pre-allocate scratch so processBlock never touches the heap. Sized for
+    // the worst case (2x oversampled) block length so switching the OS
+    // toggle mid-session never triggers an audio-thread allocation.
     const int blockSize = juce::jmax(1, samplesPerBlock);
-    res1Buffer   .setSize(2, blockSize, false, true, true);
-    res2to5Buffer.setSize(2, blockSize, false, true, true);
-    wetBuffer    .setSize(2, blockSize, false, true, true);
+    const int maxOsSamples = blockSize * 2;
+    res1Buffer.setSize(2, maxOsSamples, false, true, true);
+    res2to5Buffer.setSize(2, maxOsSamples, false, true, true);
+    wetBuffer.setSize(2, maxOsSamples, false, true, true);
+    osInputBuffer.setSize(2, blockSize, false, true, true);
 
-    updateResonateParameters();
+    // Half-band IIR: cheap and ~0 added latency, so the toggle can be
+    // flipped live without a host-side latency-compensation glitch.
+    oversampler = std::make_unique<juce::dsp::Oversampling<float>>(
+        2, 1, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
+    oversampler->initProcessing(static_cast<size_t>(blockSize));
+    oversampler->reset();
+    setLatencySamples(0);
+
+    updateResonateParameters(sampleRate);
 }
 
 void ResonateAudioProcessor::releaseResources()
 {
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < MAX_RESONATORS; ++i)
         resonators[i].reset();
 }
 
@@ -618,42 +641,52 @@ bool ResonateAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) 
 
 void ResonateAudioProcessor::handleMidiMessages(const juce::MidiBuffer& midiMessages)
 {
+    const int n = MAX_RESONATORS;
+
     for (const auto metadata : midiMessages)
     {
         const auto msg = metadata.getMessage();
 
         if (msg.isNoteOn())
         {
+            // Only resonators that are switched on can receive a note. If
+            // nothing is enabled there's nowhere for it to go -- drop it.
+            bool anyEnabled = false;
+            for (int i = 0; i < n; ++i)
+                if (resonators[i].enabled) { anyEnabled = true; break; }
+
+            if (!anyEnabled)
+                continue;
+
             int slot = -1;
 
-            // Walk from the round-robin pointer looking for a free slot
-            for (int k = 0; k < 5; ++k)
+            // Walk from the round-robin pointer looking for a free, enabled slot
+            for (int k = 0; k < n; ++k)
             {
-                const int idx = (rrPointer + k) % 5;
-                if (!voices[idx].active) { slot = idx; break; }
+                const int idx = (rrPointer + k) % n;
+                if (resonators[idx].enabled && !voices[idx].active) { slot = idx; break; }
             }
 
-            // All five held -> steal the oldest
+            // All enabled slots held -> steal the oldest enabled one
             if (slot < 0)
             {
                 juce::uint32 oldest = std::numeric_limits<juce::uint32>::max();
-                slot = 0;
-                for (int i = 0; i < 5; ++i)
-                    if (voices[i].order < oldest) { oldest = voices[i].order; slot = i; }
+                for (int i = 0; i < n; ++i)
+                    if (resonators[i].enabled && voices[i].order < oldest) { oldest = voices[i].order; slot = i; }
             }
 
-            voices[slot].note   = msg.getNoteNumber();
+            voices[slot].note = msg.getNoteNumber();
             voices[slot].active = true;
-            voices[slot].order  = ++voiceCounter;
+            voices[slot].order = ++voiceCounter;
 
             heldNote[slot] = msg.getNoteNumber();
             midiDisplayNote[slot].store(msg.getNoteNumber());
 
-            rrPointer = (slot + 1) % 5;
+            rrPointer = (slot + 1) % n;
         }
         else if (msg.isNoteOff())
         {
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < n; ++i)
                 if (voices[i].active && voices[i].note == msg.getNoteNumber())
                 {
                     voices[i].active = false;
@@ -662,14 +695,14 @@ void ResonateAudioProcessor::handleMidiMessages(const juce::MidiBuffer& midiMess
         }
         else if (msg.isAllNotesOff() || msg.isAllSoundOff())
         {
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < n; ++i)
                 voices[i].active = false;
         }
     }
 }
 
 //==============================================================================
-void ResonateAudioProcessor::updateResonateParameters()
+void ResonateAudioProcessor::updateResonateParameters(double processSampleRate)
 {
     globalNote = parameters.getRawParameterValue("res1_note")->load();
     globalDecay = parameters.getRawParameterValue("decay")->load();
@@ -684,6 +717,7 @@ void ResonateAudioProcessor::updateResonateParameters()
     bool   expDecayOn = parameters.getRawParameterValue("exp_decay")->load() > 0.5f;
     perResMode = parameters.getRawParameterValue("per_res_mode")->load() > 0.5f;
     midiEnabled = parameters.getRawParameterValue("midi_enabled")->load() > 0.5f;
+    oversample2x = parameters.getRawParameterValue("oversample_2x")->load() > 0.5f;
 
     double lfoRate = parameters.getRawParameterValue("lfo_rate")->load();
     double lfoDepth = parameters.getRawParameterValue("lfo_depth")->load();
@@ -694,10 +728,10 @@ void ResonateAudioProcessor::updateResonateParameters()
     int filterTypeIndex = static_cast<int>(parameters.getRawParameterValue("filter_type")->load());
     filterType = static_cast<FilterType>(filterTypeIndex);
 
-    if (filterEnabled && currentSampleRate > 0.0)
+    if (filterEnabled && processSampleRate > 0.0)
     {
         float normFreq = juce::jlimit(0.0f, 0.99f,
-            static_cast<float>(filterFrequency / (currentSampleRate * 0.5)));
+            static_cast<float>(filterFrequency / (processSampleRate * 0.5)));
         inputFilter.setFrequency(normFreq, 0.7f);
     }
 
@@ -712,7 +746,7 @@ void ResonateAudioProcessor::updateResonateParameters()
         return parameters.getRawParameterValue("res" + juce::String(idx + 1) + "_const")->load() > 0.5f;
         };
 
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < MAX_RESONATORS; ++i)
         resPan[i] = parameters.getRawParameterValue("res" + juce::String(i + 1) + "_pan")->load();
 
     // MIDI note override per resonator (-1 = follow the knobs)
@@ -723,10 +757,10 @@ void ResonateAudioProcessor::updateResonateParameters()
 
     // Keep the GUI readout honest when MIDI is switched off
     if (!midiEnabled)
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < MAX_RESONATORS; ++i)
             midiDisplayNote[i].store(-1);
     else
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < MAX_RESONATORS; ++i)
             midiDisplayNote[i].store(heldNote[i]);
 
     // Resonator 1
@@ -735,15 +769,16 @@ void ResonateAudioProcessor::updateResonateParameters()
     resonators[0].fineDetune = parameters.getRawParameterValue("res1_fine")->load();
     resonators[0].gain = parameters.getRawParameterValue("res1_gain")->load();
     resonators[0].expDecay = expDecayOn;
-    resonators[0].updateParameters(currentSampleRate, globalDecay, globalNote,
+    resonators[0].updateParameters(processSampleRate, globalDecay, globalNote,
         globalColor, processingMode, constMode,
         globalChorus, 0, lfoRate, lfoDepth,
         centerMode,
         perResMode, getLocalDecay(0), getLocalColor(0), getLocalConst(0),
         midiNoteFor(0));
 
-    // Resonators 2-5
-    for (int i = 1; i < 5; ++i)
+    // Resonators 2-7 (always kept current, whether or not Add 2 is on, so
+    // VI/VII start from a sensible state the instant the toggle is flipped)
+    for (int i = 1; i < MAX_RESONATORS; ++i)
     {
         juce::String id = "res" + juce::String(i + 1);
         resonators[i].enabled = parameters.getRawParameterValue(id + "_enabled")->load() > 0.5f;
@@ -752,7 +787,7 @@ void ResonateAudioProcessor::updateResonateParameters()
         resonators[i].fineDetune = parameters.getRawParameterValue(id + "_fine")->load();
         resonators[i].gain = parameters.getRawParameterValue(id + "_gain")->load();
         resonators[i].expDecay = expDecayOn;
-        resonators[i].updateParameters(currentSampleRate, globalDecay, globalNote,
+        resonators[i].updateParameters(processSampleRate, globalDecay, globalNote,
             globalColor, processingMode, constMode,
             globalChorus, i, lfoRate, lfoDepth,
             centerMode,
@@ -762,52 +797,17 @@ void ResonateAudioProcessor::updateResonateParameters()
 }
 
 //==============================================================================
-void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
-    juce::MidiBuffer& midiMessages)
+void ResonateAudioProcessor::renderWet(const float* const inPtr[2], int numSamples, int nIn, int nOut,
+    float smoothCoeff)
 {
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear(i, 0, buffer.getNumSamples());
-
-    handleMidiMessages(midiMessages);
-    updateResonateParameters();
-
-    float masterGain = std::pow(10.0f, parameters.getRawParameterValue("gain")->load() / 20.0f);
-    float dryWet = parameters.getRawParameterValue("drywet")->load() / 100.0f;
-    float width = parameters.getRawParameterValue("width")->load() / 100.0f;
-
-    float smoothNorm = 1.0f - static_cast<float>(globalSmooth / 100.0);
-    float smoothCoeff = 0.01f + smoothNorm * 0.4f;
-
-    const int numSamples = buffer.getNumSamples();
-    const int nIn  = juce::jmin(totalNumInputChannels,  2);
-    const int nOut = juce::jmin(totalNumOutputChannels, 2);
-
-    if (numSamples <= 0 || nIn <= 0 || nOut <= 0)
-        return;
-
-    // Grow scratch if the host hands us a bigger block than promised
-    if (res1Buffer.getNumSamples() < numSamples)
-    {
-        res1Buffer   .setSize(2, numSamples, false, true, true);
-        res2to5Buffer.setSize(2, numSamples, false, true, true);
-        wetBuffer    .setSize(2, numSamples, false, true, true);
-    }
-
-    res1Buffer.clear();
-    res2to5Buffer.clear();
-    wetBuffer.clear();
-
     // ── Pan gains ────────────────────────────────────────────────────────────
     // Resonator I is stereo: BALANCE law, unity on both sides at centre.
-    // Resonators II-V are mono sources: constant-power law that reaches
+    // Resonators II-VII are mono sources: constant-power law that reaches
     // exactly 1.0 at the extremes, so the default hard pans are bit-identical
     // to the previous fixed routing.
-    float panL[5], panR[5];
-    for (int i = 0; i < 5; ++i)
+    const int n = MAX_RESONATORS;
+    float panL[MAX_RESONATORS], panR[MAX_RESONATORS];
+    for (int i = 0; i < n; ++i)
     {
         const double p = juce::jlimit(-1.0, 1.0, resPan[i] / 100.0);
 
@@ -832,18 +832,14 @@ void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         }
     }
 
-    // Which input channel each resonator reads. UNCHANGED from the original:
-    // keeping this fixed is what makes each resonator's internal state evolve
-    // exactly as before. Pan only redistributes the result afterwards.
-    static const int sourceChannel[5] = { -1, 0, 1, 0, 1 }; // -1 = res I, both
+    // Which input channel each resonator reads. UNCHANGED from the original
+    // for I-V: keeping this fixed is what makes each resonator's internal
+    // state evolve exactly as before. VI/VII continue the same L/R alternation.
+    static const int sourceChannel[MAX_RESONATORS] = { -1, 0, 1, 0, 1, 0, 1 };
 
-    const float* inPtr[2] = { nullptr, nullptr };
-    for (int ch = 0; ch < nIn; ++ch)
-        inPtr[ch] = buffer.getReadPointer(ch);
-
-    float* res1Ptr[2]   = { res1Buffer.getWritePointer(0),
+    float* res1Ptr[2] = { res1Buffer.getWritePointer(0),
                             res1Buffer.getNumChannels() > 1 ? res1Buffer.getWritePointer(1) : nullptr };
-    float* res25Ptr[2]  = { res2to5Buffer.getWritePointer(0),
+    float* res25Ptr[2] = { res2to5Buffer.getWritePointer(0),
                             res2to5Buffer.getNumChannels() > 1 ? res2to5Buffer.getWritePointer(1) : nullptr };
 
     for (int sample = 0; sample < numSamples; ++sample)
@@ -873,12 +869,12 @@ void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             else         r1R = o * panR[0];
         }
 
-        // ── Resonators II-V (mono sources, panned) ───────────────────────────
+        // ── Resonators II-VII (mono sources, panned) ─────────────────────────
         float busL = 0.0f, busR = 0.0f;
-        for (int idx = 1; idx < 5; ++idx)
+        for (int idx = 1; idx < n; ++idx)
         {
             const int ch = sourceChannel[idx];
-            if (ch >= nIn) continue;   // mono input: III and V stay silent, as before
+            if (ch >= nIn) continue;   // mono input: odd-numbered resonators stay silent, as before
 
             const float o = (processingMode == ModeA)
                 ? resonators[idx].processA(sIn[ch], ch)
@@ -888,24 +884,24 @@ void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             busR += o * panR[idx];
         }
 
-        res1Ptr[0][sample]  = r1L;
+        res1Ptr[0][sample] = r1L;
         res25Ptr[0][sample] = busL;
-        if (nOut > 1 && res1Ptr[1] != nullptr)
+        if (nOut > 1 && res1Ptr[1] != nullptr && res25Ptr[1] != nullptr)
         {
-            res1Ptr[1][sample]  = r1R;
+            res1Ptr[1][sample] = r1R;
             res25Ptr[1][sample] = busR;
         }
     }
 
-    // Stereo width on II-V
-    if (nIn >= 2 && nOut >= 2)
+    // Stereo width on II-VII
+    if (nIn >= 2 && nOut >= 2 && res25Ptr[1] != nullptr)
     {
         for (int sample = 0; sample < numSamples; ++sample)
         {
             float left = res25Ptr[0][sample];
             float right = res25Ptr[1][sample];
             float mid = (left + right) * 0.5f;
-            float side = (left - right) * 0.5f * width;
+            float side = (left - right) * 0.5f * currentWidth;
             res25Ptr[0][sample] = mid + side;
             res25Ptr[1][sample] = mid - side;
         }
@@ -923,12 +919,122 @@ void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             wet[sample] = outputSmoothing[channel];
         }
     }
+}
 
-    // Dry / wet mix
-    for (int channel = 0; channel < juce::jmin(nOut, totalNumOutputChannels); ++channel)
+//==============================================================================
+void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
+    juce::MidiBuffer& midiMessages)
+{
+    juce::ScopedNoDenormals noDenormals;
+    auto totalNumInputChannels = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
+
+    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+        buffer.clear(i, 0, buffer.getNumSamples());
+
+    handleMidiMessages(midiMessages);
+
+    const bool osEnabled = parameters.getRawParameterValue("oversample_2x")->load() > 0.5f;
+    const double processRate = osEnabled ? currentSampleRate * 2.0 : currentSampleRate;
+    updateResonateParameters(processRate);
+
+    float masterGain = std::pow(10.0f, parameters.getRawParameterValue("gain")->load() / 20.0f);
+    float dryWet = parameters.getRawParameterValue("drywet")->load() / 100.0f;
+    currentWidth = parameters.getRawParameterValue("width")->load() / 100.0f;
+
+    float smoothNorm = 1.0f - static_cast<float>(globalSmooth / 100.0);
+    float smoothCoeff = 0.01f + smoothNorm * 0.4f;
+
+    const int numSamples = buffer.getNumSamples();
+    const int nIn = juce::jmin(totalNumInputChannels, 2);
+    const int nOut = juce::jmin(totalNumOutputChannels, 2);
+
+    if (numSamples <= 0 || nIn <= 0 || nOut <= 0)
+        return;
+
+    if (!osEnabled || oversampler == nullptr)
+    {
+        // ── Normal path: unchanged behaviour, bit-identical to before ────────
+        if (res1Buffer.getNumSamples() < numSamples)
+        {
+            res1Buffer.setSize(2, numSamples, false, true, true);
+            res2to5Buffer.setSize(2, numSamples, false, true, true);
+            wetBuffer.setSize(2, numSamples, false, true, true);
+        }
+        res1Buffer.clear();
+        res2to5Buffer.clear();
+        wetBuffer.clear();
+
+        const float* inPtr[2] = { nullptr, nullptr };
+        for (int ch = 0; ch < nIn; ++ch)
+            inPtr[ch] = buffer.getReadPointer(ch);
+
+        renderWet(inPtr, numSamples, nIn, nOut, smoothCoeff);
+
+        for (int channel = 0; channel < nOut; ++channel)
+        {
+            auto* dryData = buffer.getWritePointer(channel);
+            auto* wetData = wetBuffer.getReadPointer(channel);
+
+            for (int sample = 0; sample < numSamples; ++sample)
+            {
+                float dry = dryData[sample];
+                float wet = wetData[sample] * masterGain;
+                dryData[sample] = wetOnly
+                    ? wet * dryWet
+                    : dry * (1.0f - dryWet) + wet * dryWet;
+            }
+        }
+        return;
+    }
+
+    // ── 2x oversampled path ──────────────────────────────────────────────────
+    // `buffer` still holds the original dry signal throughout -- the
+    // oversampler works on its own internal storage, so we never touch
+    // `buffer` until the final dry/wet mix.
+    osInputBuffer.clear();
+    for (int ch = 0; ch < nIn; ++ch)
+        osInputBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
+
+    juce::dsp::AudioBlock<float> inBlock(osInputBuffer);
+    inBlock = inBlock.getSubBlock(0, static_cast<size_t>(numSamples));
+    auto upBlock = oversampler->processSamplesUp(inBlock);
+    const int osNumSamples = static_cast<int>(upBlock.getNumSamples());
+
+    if (res1Buffer.getNumSamples() < osNumSamples)
+    {
+        res1Buffer.setSize(2, osNumSamples, false, true, true);
+        res2to5Buffer.setSize(2, osNumSamples, false, true, true);
+        wetBuffer.setSize(2, osNumSamples, false, true, true);
+    }
+    res1Buffer.clear();
+    res2to5Buffer.clear();
+    wetBuffer.clear();
+
+    const float* osInPtr[2] = { upBlock.getChannelPointer(0),
+                                 upBlock.getNumChannels() > 1 ? upBlock.getChannelPointer(1) : nullptr };
+
+    renderWet(osInPtr, osNumSamples, nIn, nOut, smoothCoeff);
+
+    // Write the rendered wet signal back into the oversampler's own storage
+    // (in place) so processSamplesDown() has something to filter/decimate.
+    for (int ch = 0; ch < nOut; ++ch)
+    {
+        auto* dst = upBlock.getChannelPointer(static_cast<size_t>(ch));
+        auto* src = wetBuffer.getReadPointer(ch);
+        std::memcpy(dst, src, static_cast<size_t>(osNumSamples) * sizeof(float));
+    }
+
+    // Downsample back into res1Buffer's front (numSamples) as scratch --
+    // its oversampled contents are no longer needed at this point.
+    juce::dsp::AudioBlock<float> downBlock(res1Buffer);
+    downBlock = downBlock.getSubBlock(0, static_cast<size_t>(numSamples));
+    oversampler->processSamplesDown(downBlock);
+
+    for (int channel = 0; channel < nOut; ++channel)
     {
         auto* dryData = buffer.getWritePointer(channel);
-        auto* wetData = wetBuffer.getReadPointer(channel);
+        auto* wetData = downBlock.getChannelPointer(static_cast<size_t>(channel));
 
         for (int sample = 0; sample < numSamples; ++sample)
         {
@@ -967,8 +1073,8 @@ void ResonateAudioProcessor::setStateInformation(const void* data, int sizeInByt
 juce::File ResonateAudioProcessor::getDefaultPresetDirectory()
 {
     auto dir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-                   .getChildFile("AquaNode")
-                   .getChildFile("Resonate Presets");
+        .getChildFile("AquaNode")
+        .getChildFile("Resonate Presets");
     if (!dir.exists())
         dir.createDirectory();
     return dir;

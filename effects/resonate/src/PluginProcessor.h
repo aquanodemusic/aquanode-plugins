@@ -20,6 +20,10 @@
 class ResonateAudioProcessor : public juce::AudioProcessor
 {
 public:
+    // Resonator count: always 7 (I-VII); only Resonator I is on by default,
+    // the rest start off via their own per-resonator checkbox.
+    static constexpr int MAX_RESONATORS = 7;
+
     ResonateAudioProcessor();
     ~ResonateAudioProcessor() override;
 
@@ -67,7 +71,7 @@ public:
     // Safe to call from the message thread (atomic).
     int getMidiNoteForResonator(int index) const
     {
-        return (index >= 0 && index < 5) ? midiDisplayNote[index].load() : -1;
+        return (index >= 0 && index < MAX_RESONATORS) ? midiDisplayNote[index].load() : -1;
     }
 
 private:
@@ -143,7 +147,7 @@ private:
         }
     };
 
-    Resonate resonators[5];
+    Resonate resonators[MAX_RESONATORS];
 
     struct StateVariableFilter
     {
@@ -175,9 +179,16 @@ private:
     bool   wetOnly = false;
     bool   centerMode = true;
     bool   perResMode = false;
+    bool   oversample2x = false;  // global 2x oversampling toggle
+    float  currentWidth = 1.0f;   // stereo width, read by renderWet()
 
-    // Per-resonator pan, -100 (hard L) .. +100 (hard R)
-    double resPan[5] = { 0.0, -100.0, 100.0, -100.0, 100.0 };
+    // All 7 resonators are always "live"; whether each one actually sounds is
+    // gated by its own per-resonator On checkbox (res1_enabled..res7_enabled).
+    // Resonator I defaults on, II-VII default off (see createParameterLayout).
+
+    // Per-resonator pan, -100 (hard L) .. +100 (hard R). Index 0 (Resonator I,
+    // stereo) is unused here -- it has its own balance-law pan in processBlock.
+    double resPan[MAX_RESONATORS] = { 0.0, -100.0, 100.0, -100.0, 100.0, -100.0, 100.0 };
 
     float inputSmoothing[2] = { 0.0f, 0.0f };
     float outputSmoothing[2] = { 0.0f, 0.0f };
@@ -190,20 +201,32 @@ private:
         juce::uint32 order  = 0;     // for oldest-first voice stealing
     };
 
-    MidiVoice     voices[5];
-    int           heldNote[5]  = { -1, -1, -1, -1, -1 }; // sticky: survives note-off
+    MidiVoice     voices[MAX_RESONATORS];
+    int           heldNote[MAX_RESONATORS] = { -1, -1, -1, -1, -1, -1, -1 }; // sticky: survives note-off
     juce::uint32  voiceCounter = 0;
     int           rrPointer    = 0;
     bool          midiEnabled  = true;
 
-    std::atomic<int> midiDisplayNote[5];
+    std::atomic<int> midiDisplayNote[MAX_RESONATORS];
 
     void handleMidiMessages(const juce::MidiBuffer& midiMessages);
 
-    // Pre-allocated scratch (avoids allocating on the audio thread)
-    juce::AudioBuffer<float> res1Buffer, res2to5Buffer, wetBuffer;
+    // Pre-allocated scratch (avoids allocating on the audio thread). Sized for
+    // up to 2x-oversampled block length so the 2x OS path never reallocates.
+    juce::AudioBuffer<float> res1Buffer, res2to5Buffer, wetBuffer, osInputBuffer;
 
-    void updateResonateParameters();
+    // 2x oversampling (half-band IIR: cheap, ~0 added latency). Only engaged
+    // when the "2x OS" toggle is on; bypassed entirely otherwise so the
+    // default (off) behaviour is bit-identical to before this was added.
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
+
+    void updateResonateParameters(double processSampleRate);
+
+    // Renders the wet signal (pre master-gain / dry-wet) for `numSamples`
+    // samples of `inPtr` into wetBuffer, using res1Buffer/res2to5Buffer as
+    // scratch. Shared by the normal-rate and 2x-oversampled code paths.
+    void renderWet(const float* const inPtr[2], int numSamples, int nIn, int nOut,
+                    float smoothCoeff);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ResonateAudioProcessor)
 };
