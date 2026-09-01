@@ -8,7 +8,7 @@ FullFilter is a real-time playable filter. A bank of up to 128 bell (peaking) fi
 
 ## Manual
 
-All you need is to route MIDI into the plugin, for example using a MIDI Out Module in your DAW like FL Studio and set both plugins to the same MIDI channel.
+All you need to do to make MIDI work is to route MIDI into the plugin, for example using a MIDI Out Module in your DAW like FL Studio and set both plugins to the same MIDI channel.
 
 FullFilter has one always-on "base voice" (the root frequency you play/turn the Root knob to) when the ADSR is off, plus extra polyphonic voices that activate as soon as more than one note is held.
 
