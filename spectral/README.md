@@ -20,6 +20,20 @@ Furthermore, a spectral reassignment view is also included, offering significant
 
 A Spectral OTT-Style Compressor heavily inspired by [robbert-vdh's Spectral Compressor](https://github.com/robbert-vdh/nih-plug), with the addition that you can freely draw the **target curve** with your mouse instead of relying on a polynomial curve filter by default.
 
+### [SpectralEdit](spectraledit/)
+
+SpectralEdit is a synth plugin that loads up to 1 minute of audio (you can specify the starting time for longer files), and you can edit the spectrogram content in various ways, like spectral blurring, adding frequencies in FFT bins, rotating or flipping sound content in both time and frequency, and deleting spectral contents - all in a region you select. Different FFT settings achieve different types of sound, with lower FFT values having more artefacts, which however can also sound rich, especially when blurred. Play the result back repitched via MIDI.
+
+### [SpectralEnhance](spectralenhance/)
+
+For SpectralEnhance, the controls are exactly the same as in SpectralGate, but rather than deleting frequencies we take them towards the level of the gate line! It thus acts like a spectral brickwall compressor, either upwards or downwards at a time (but you can of course always use two instances of these plugins in your DAW to achieve both effects at the same time).
+
+### [SpectralFilter](spectralfilter/)
+
+SpectralFilter is a real-time spectral shaping processor that allows direct drawing and manipulation of the frequency spectrum. Incoming audio is analyzed and displayed visually, and you can draw custom filter curves directly onto the spectrum display to boost or attenuate specific frequency ranges from 20 Hz to 20 kHz, quantized to FFT bin resolution with up to ±24 dB of gain. It includes multiple FFT resolutions for balancing precision and latency, a random curve generator for instant experimental filtering shapes, and a fully customizable UI with editable colors for all visual elements. A selectable wet mode allows the full processed output to sound through without the dry signal.
+
+SpectralFilter also supports exporting filter shapes as impulse responses for use in convolution-based processing or compatible IR tools, though the resulting tone may differ slightly due to the conversion method. Additional capabilities include automatizable curve movement, per-bin frequency, phase and panning control, global modulation scaling for frequency, phase and amplitude, and a selectable processing frequency window.
+
 ### [SpectralGate](spectralgate/)
 
 SpectralGate is a frequency-selective gating processor that only lets through specific spectral regions based on both frequency position and amplitude.
@@ -27,20 +41,6 @@ SpectralGate is a frequency-selective gating processor that only lets through sp
 It provides two vertical frequency boundaries that define the active pass band, as well as a horizontal amplitude threshold that determines which spectral components are allowed through based on loudness. Frequencies outside the selected band or below the threshold are removed in real time, enabling spectral band carving, hard cutoff noise removal, and creative filtering effects.
 
 An invert mode allows you to reverse the behavior, removing what would normally pass and passing what would normally be removed. A tilt EQ control further shapes the behavior of the amplitude threshold, and a clear visual system shows active and suppressed spectral regions in real time.
-
-### [SpectralEnhance](spectralenhance/)
-
-For SpectralEnhance, the controls are exactly the same as in SpectralGate, but rather than deleting frequencies we take them towards the level of the gate line! It thus acts like a spectral brickwall compressor, either upwards or downwards at a time (but you can of course always use two instances of these plugins in your DAW to achieve both effects at the same time).
-
-### [SpectralEdit](spectraledit/)
-
-SpectralEdit is a synth plugin that loads up to 1 minute of audio (you can specify the starting time for longer files), and you can edit the spectrogram content in various ways, like spectral blurring, adding frequencies in FFT bins, rotating or flipping sound content in both time and frequency, and deleting spectral contents - all in a region you select. Different FFT settings achieve different types of sound, with lower FFT values having more artefacts, which however can also sound rich, especially when blurred. Play the result back repitched via MIDI.
-
-### [SpectralFilter](spectralfilter/)
-
-SpectralFilter is a real-time spectral shaping processor that allows direct drawing and manipulation of the frequency spectrum. Incoming audio is analyzed and displayed visually, and you can draw custom filter curves directly onto the spectrum display to boost or attenuate specific frequency ranges from 20 Hz to 20 kHz, quantized to FFT bin resolution with up to ±24 dB of gain. It includes multiple FFT resolutions for balancing precision and latency, a random curve generator for instant experimental filtering shapes, and a fully customizable UI with editable colors for all visual elements. A selectable wet mode allows the full processed output to sound through without the dry signal.
-
-SpectralFilter also supports exporting filter shapes as impulse responses for use in convolution-based processing or compatible IR tools, though the resulting tone may differ slightly due to the conversion method. Additional capabilities include automatizable curve movement, per-bin frequency, phase and panning control, global modulation scaling for frequency, phase and amplitude, and a selectable processing frequency window.
 
 ### [SpectralLatency](spectrallatency/)
 
@@ -71,6 +71,11 @@ tracking resynthesis.
 SpectralResolve is a high-resolution real-time spectral analysis plugin designed for detailed inspection of audio signals. It focuses on the resolution of low-frequency sounds, with many settings being able to delete higher frequency content for even better bass resolution (hence, high frequency content may appear blurred in general). SpectralResolve uses a reassignment-based spectral method combining multiple windowed transforms to achieve significantly sharper time-frequency localization than standard FFT visualization. The engine supports configurable FFT sizes from 1024 up to 16384 points, tweakable hop sizes for temporal resolution, and flexible frequency windowing for zoomed analysis of any spectral region. A decimation system enables enhanced low-frequency resolution by visually deleting high-frequency content through multi-stage filtering.
 
 It also includes a sidechain analysis path, allowing a second signal to be displayed simultaneously with an inverted color mapping for direct comparison. Temporal interpolation ensures smooth scrolling and visually stable spectrogram rendering without artifacts. A runnable Python example of the reassignment method is included in the [SpectralResolve docs](spectralresolve/docs/how_reassignment_works.py).
+
+
+### [SpectralSmoothe](spectralsmoothe/)
+
+A Spectral, or better Cepstral Freezing Plugin similar to my Grainfreeze Synthesizer, but for Live Sound Playback. Either you can completely freeze the sound, let the amplitude of the sound that still plays in the background modulate the frozen grain, or update the freeze with linear interpolation such that it feels like a very long timestretched audio, but from live input.
 
 ### [SpectralStereoize](spectralstereoize/)
 
