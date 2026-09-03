@@ -1,6 +1,6 @@
 # SpectralResolve
 
-**Latest version:** 1.1 — download builds from the [Releases](../../../../releases) page.
+**Latest version:** 1.2 — download builds from the [Releases](../../../../releases) page.
 
 ## Manual
 
@@ -21,3 +21,9 @@ Temporal interpolation: Cosine blending between consecutive spectral frames in p
 ## How Reassignment Works
 
 A commented, runnable Python example of the spectral reassignment method used by this plugin is included at [`docs/how_reassignment_works.py`](docs/how_reassignment_works.py).
+
+## Changelog
+
+v1.2 - made view more crisp again like in v1.0 with option to smooth it like in v1.1, and added mouse hover toggle to show frequency & nearest note 
+v1.1 - smoothed view
+v1.0 - initial release
