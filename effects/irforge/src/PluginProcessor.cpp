@@ -42,7 +42,7 @@ void IRBuilder::minimumPhaseFromMagnitude(const std::vector<float>& logMag,
     //
     // This is the whole CHARACTER control. Keeping few coefficients leaves the
     // smooth spectral envelope (room / system capture). Keeping all of them
-    // leaves the full magnitude including the harmonic comb (puriFIR).
+    // leaves the full magnitude including the harmonic comb.
     //
     // Doubling the positive quefrencies and zeroing the negative ones is the
     // standard construction that makes the result minimum phase: it applies
@@ -215,7 +215,7 @@ juce::AudioBuffer<float> IRBuilder::build(const juce::AudioBuffer<float>& source
             float v = 0.0f;
             if (i < usedLen)
             {
-                // Hann window over the cropped region, as puriFIR does — it
+                // Hann window over the cropped region,
                 // removes the edge discontinuity that would otherwise smear
                 // broadband junk across the whole magnitude spectrum.
                 const float w = 0.5f - 0.5f * std::cos(juce::MathConstants<float>::twoPi
@@ -237,8 +237,7 @@ juce::AudioBuffer<float> IRBuilder::build(const juce::AudioBuffer<float>& source
         //
         //   0%  -> 4 coefficients: pure spectral envelope, the old CepstralIR
         //          room-capture behaviour
-        // 100%  -> the full half-spectrum: every harmonic peak preserved,
-        //          i.e. puriFIR
+        // 100%  -> the full half-spectrum: every harmonic peak preserved
         //
         // The mapping is GEOMETRIC, not linear or power-curve. All the useful
         // action lives at small lifter values and a linear map would waste
