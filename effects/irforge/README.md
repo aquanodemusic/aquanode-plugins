@@ -1,5 +1,7 @@
 # IRForge
 
+![IRForge](assets/GUI.png)
+
 *An Impulse response foundry and convolver.*
 
 IRForge is an all-in-one Cepstral Impulse Response Generation and Application Plugin.
