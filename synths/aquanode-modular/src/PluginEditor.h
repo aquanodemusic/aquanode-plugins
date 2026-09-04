@@ -371,13 +371,30 @@ private:
     bool sidebarVisible { true };
     bool keyboardVisible { true };
 
-    // Floating zoom cluster in the bottom-right of the patch area: [-][100%][+].
-    // Kept out of the toolbar so it stays reachable by a thumb and does not
-    // squeeze the six patch buttons any further on a narrow screen. Tapping
-    // the readout resets the view to 100 % at the origin.
+    // Zoom controls. The [-][+] buttons live in the top toolbar, right next
+    // to Mutator, narrower than the other toolbar buttons since they only
+    // ever hold a single glyph. The percentage itself is not a button at
+    // all any more - a small text readout in the bottom-right of the
+    // patch area, out of the way of the mutator strip. Tapping it resets
+    // the view to 100 % at the origin.
     juce::TextButton zoomOutButton { "-" };
     juce::TextButton zoomInButton  { "+" };
-    juce::TextButton zoomResetButton { "100%" };
+
+    struct ZoomReadout : public juce::Component
+    {
+        std::function<void()> onClick;
+        juce::String text { "100%" };
+
+        void paint (juce::Graphics& g) override
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.5f));
+            g.setFont (juce::Font (juce::FontOptions (9.5f)));
+            g.drawText (text, getLocalBounds(), juce::Justification::centredRight);
+        }
+
+        void mouseUp (const juce::MouseEvent&) override { if (onClick) onClick(); }
+    };
+    ZoomReadout zoomReadout;
     void updateZoomReadout();
 
     MutatorPanel mutatorPanel;

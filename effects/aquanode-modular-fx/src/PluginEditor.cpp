@@ -1881,8 +1881,9 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
     addAndMakeVisible (keysButton);
    #endif
 
-    for (auto* b : { &zoomOutButton, &zoomResetButton, &zoomInButton })
+    for (auto* b : { &zoomOutButton, &zoomInButton })
         addAndMakeVisible (b);
+    addAndMakeVisible (zoomReadout);
 
     sidebarButton.onClick = [this]
     {
@@ -1901,7 +1902,7 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
 
     zoomInButton .onClick = [this] { canvas.zoomBy (1.25f); };
     zoomOutButton.onClick = [this] { canvas.zoomBy (1.0f / 1.25f); };
-    zoomResetButton.onClick = [this] { canvas.resetView(); };
+    zoomReadout.onClick = [this] { canvas.resetView(); };
 
     mutatorButton.setClickingTogglesState (true);
     mutatorButton.onClick = [this]
@@ -2067,7 +2068,22 @@ void AquanodeModularAudioProcessorEditor::resized()
     toolbarStrip.setBounds (strip);
 
     {
-        const auto bar = strip.reduced (gap, topY);   // editor coordinates
+        auto bar = strip.reduced (gap, topY);   // editor coordinates
+
+        // [-][+] sit at the very right of the toolbar, right next to Mutator,
+        // narrower than the other toolbar buttons since they only ever hold
+        // a single glyph. Carved off the bar first so the remaining buttons
+        // divide up whatever width is left, same as before.
+       #if JUCE_ANDROID
+        const int zw = 30;
+       #else
+        const int zw = 25;
+       #endif
+        auto zoomArea = bar.removeFromRight (zw * 2 + gap);
+        zoomInButton .setBounds (zoomArea.removeFromRight (zw));
+        zoomArea.removeFromRight (gap);
+        zoomOutButton.setBounds (zoomArea);
+        bar.removeFromRight (gap);
 
         std::vector<juce::TextButton*> buttons {
             &mutatorButton, &importButton, &exportButton,
@@ -2090,20 +2106,12 @@ void AquanodeModularAudioProcessorEditor::resized()
                                             bar.getY(), bw, bar.getHeight());
     }
 
-    // Floating zoom cluster, bottom-right of the patch area and lifted clear of
-    // the mutator strip so the two can never collide when the Mutator is open.
+    // Zoom percentage: a small text readout in the bottom-right of the patch
+    // area, lifted clear of the mutator strip so the two can never collide
+    // when the Mutator is open.
     {
-       #if JUCE_ANDROID
-        const int zw = 54, zh = 38, zgap = 6;
-       #else
-        const int zw = 38, zh = 24, zgap = 4;
-       #endif
-        const int right  = area.getRight() - zgap;
-        const int bottom = area.getBottom() - 34 - zgap;
-
-        zoomInButton   .setBounds (right - zw,                    bottom - zh, zw, zh);
-        zoomResetButton.setBounds (right - zw * 2 - zgap,         bottom - zh, zw, zh);
-        zoomOutButton  .setBounds (right - zw * 3 - zgap * 2,     bottom - zh, zw, zh);
+        const int lw = 34, lh = 16, lgap = 4;
+        zoomReadout.setBounds(area.getRight() - lw - 8, 45, lw, lh);
     }
 
     updateZoomReadout();
@@ -2112,6 +2120,9 @@ void AquanodeModularAudioProcessorEditor::resized()
 void AquanodeModularAudioProcessorEditor::updateZoomReadout()
 {
     const auto text = juce::String (juce::roundToInt (canvas.getZoom() * 100.0f)) + "%";
-    if (zoomResetButton.getButtonText() != text)
-        zoomResetButton.setButtonText (text);
+    if (zoomReadout.text != text)
+    {
+        zoomReadout.text = text;
+        zoomReadout.repaint();
+    }
 }

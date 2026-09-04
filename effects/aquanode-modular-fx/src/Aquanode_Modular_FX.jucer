@@ -3,7 +3,7 @@
 <JUCERPROJECT id="FXm4Qa" name="Aquanode Modular FX" projectType="audioplug"
               useAppConfig="0" pluginName="Aquanode Modular FX" pluginManufacturerCode="Aqnd"
               pluginCode="Aqfx" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
-              version="3.2" companyName="aquanodemusic" companyCopyright="none"
+              version="3.3" companyName="aquanodemusic" companyCopyright="none"
               companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3"
               pluginCharacteristicsValue="pluginWantsMidiIn">
   <MAINGROUP id="m2RO6u" name="Aquanode Modular FX">
@@ -201,6 +201,10 @@
             file="Source/Modules/SpecMorphModule.cpp"/>
       <FILE id="aqs05h" name="SpecMorphModule.h" compile="0" resource="0"
             file="Source/Modules/SpecMorphModule.h"/>
+      <FILE id="aqs06c" name="SpecFreezeModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpecFreezeModule.cpp"/>
+      <FILE id="aqs06h" name="SpecFreezeModule.h" compile="0" resource="0"
+            file="Source/Modules/SpecFreezeModule.h"/>
       <FILE id="aqb00c" name="BitcrushModule.cpp" compile="1" resource="0"
             file="Source/Modules/BitcrushModule.cpp"/>
       <FILE id="aqb00h" name="BitcrushModule.h" compile="0" resource="0"

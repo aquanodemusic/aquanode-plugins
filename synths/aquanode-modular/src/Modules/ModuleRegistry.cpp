@@ -62,6 +62,7 @@ extern "C" bool SpecGateModule_aqRegistered;
 extern "C" bool SpecEnhanceModule_aqRegistered;
 extern "C" bool SpecDelayModule_aqRegistered;
 extern "C" bool SpecMorphModule_aqRegistered;
+extern "C" bool SpecFreezeModule_aqRegistered;
 extern "C" bool CepstralMorphModule_aqRegistered;
 extern "C" bool BitcrushModule_aqRegistered;
 extern "C" bool SRReduceModule_aqRegistered;
@@ -163,6 +164,7 @@ int forceLinkAllModules()
     sink ^= SpecEnhanceModule_aqRegistered;
     sink ^= SpecDelayModule_aqRegistered;
     sink ^= SpecMorphModule_aqRegistered;
+    sink ^= SpecFreezeModule_aqRegistered;
     sink ^= CepstralMorphModule_aqRegistered;
     sink ^= BitcrushModule_aqRegistered;
     sink ^= SRReduceModule_aqRegistered;
