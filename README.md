@@ -41,7 +41,7 @@ Thanks to the following blogs and youtubers who have featured the plugins (and t
 
 [Rekkerd](https://rekkerd.org/aqua-node-announces-free-and-open-source-plugin-suite/) - [Bedroom Producers Blog](https://bedroomproducersblog.com/2026/02/23/aqua-node) - [Synthtopia](https://www.synthtopia.com/content/2026/02/23/free-vst-collection-for-windows) - [AudiArtist](https://www.audiartist.com/grainfreeze-vst-spectral-freeze-plugin/) - [DTM-Sale](https://dtm-sale.com/111697/) - [napskint](https://projectofnapskint.com/noteadder/)
 
-[Amner Hunter](https://www.youtube.com/watch?v=Q7LC3gFO1po) - [AnDerington](https://www.youtube.com/watch?v=0AudEeWqcZc) - [Elektronick Musick](https://www.youtube.com/watch?v=ikbNZDqRFJI) - [FreeVSTPlugins](https://www.youtube.com/watch?v=MgVobyCye6U) - [satyatunes](https://youtu.be/oBMQZzlP8Zo?si=tsx4nwl7jkHXJz2E&t=921) - [LightningPigTV](https://youtu.be/1R3FzizMVis)
+[Amner Hunter](https://www.youtube.com/watch?v=Q7LC3gFO1po) - [AnDerington](https://www.youtube.com/watch?v=0AudEeWqcZc) - [Elektronick Musick](https://www.youtube.com/watch?v=ikbNZDqRFJI) - [FreeVSTPlugins](https://www.youtube.com/watch?v=MgVobyCye6U) - [satyatunes](https://youtu.be/oBMQZzlP8Zo?si=tsx4nwl7jkHXJz2E&t=921) - [LightningPigTV](https://youtu.be/1R3FzizMVis) - [Lan](https://youtube.com/shorts/o6gmtQSibm0?si=WTNhj9BC9Yo67ghP)
 
 # List of Included Plugins / Projects
 
