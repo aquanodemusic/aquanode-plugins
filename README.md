@@ -30,7 +30,7 @@ Watch a couple of the plugins in action:
   <a href="https://www.youtube.com/watch?v=6Zfvsw8TNzE">
     <img src="Banner.png" alt="Watch the video" width="400">
   </a>
-  <a href="https://www.youtube.com/watch?v=6Zfvsw8TNzE">
+  <a href="https://youtu.be/L7f7WDHNw4s">
     <img src="Banner2.jpg" alt="Watch the video" width="400">
   </a>
 </div>
