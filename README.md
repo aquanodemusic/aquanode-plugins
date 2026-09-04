@@ -26,9 +26,13 @@ My links: 🌊 [bandcamp](https://aquanode.bandcamp.com) · [youtube](https://ww
 
 Watch a couple of the plugins in action:
 
-[![Watch the video](Banner.png)](https://www.youtube.com/watch?v=6Zfvsw8TNzE)
+<a href="https://www.youtube.com/watch?v=6Zfvsw8TNzE">
+  <img src="Banner.png" alt="Watch the video" width="800">
+</a>
 
-[![Watch the video](Banner2.jpg)](https://www.youtube.com/watch?v=6Zfvsw8TNzE)
+<a href="https://www.youtube.com/watch?v=6Zfvsw8TNzE">
+  <img src="Banner2.jpg" alt="Watch the video" width="800">
+</a>
 
 Many more videos are available on my youtube channel, for plugins such as Aquanode Modular or NoteAdder if you want to hear what they're doing before downloading them.
 
