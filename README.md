@@ -28,7 +28,7 @@ Watch a couple of the plugins in action:
 
 [![Watch the video](Banner.png)](https://www.youtube.com/watch?v=6Zfvsw8TNzE)
 
-[![Watch the video](Banner2.png)](https://www.youtube.com/watch?v=6Zfvsw8TNzE)
+[![Watch the video](Banner2.jpg)](https://www.youtube.com/watch?v=6Zfvsw8TNzE)
 
 Many more videos are available on my youtube channel, for plugins such as Aquanode Modular or NoteAdder if you want to hear what they're doing before downloading them.
 
