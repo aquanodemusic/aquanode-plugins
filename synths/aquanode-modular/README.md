@@ -95,7 +95,7 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 ## 📦 Module List
 
 <details>
-<summary><strong>Click to expand: All 83 modules by category</strong></summary>
+<summary><strong>Click to expand: All modules by category</strong></summary>
 
 | Category | Module | Description |
 | :--- | :--- | :--- |
@@ -152,6 +152,7 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Effect - Spectral** | Spectral Delay | Gives each FFT bin its own delay time drawn as a curve, so highs and lows arrive at different times. |
 | **Effect - Spectral** | Spectral Enhance | Boosts quiet bins up to a drawn target curve, or caps loud ones down to it, for spectral exciting or soft limiting. |
 | **Effect - Spectral** | Spectral Filter | A per-bin gain curve drawn freehand - notches, brick walls, or comb shapes. |
+| **Effect - Spectral** | Spectral Freeze | Holds a tiny spectrally smoothed grain of audio and smoothly repeats it, essentially freezing the sound in place. |
 | **Effect - Spectral** | Spectral Gate | Gates each bin independently against a drawn per-bin threshold, Invert turns it into a residual/noise extractor. |
 | **Effect - Spectral** | Spectral Morph | Morphs Main In's spectral envelope toward Morph In's envelope, with a drawn curve controlling how much per bin. |
 | **Utility** | ADSR | Per-voice envelope generator, patch its Mod Out into a generator's Env In for classic per-note amplitude shaping. |
