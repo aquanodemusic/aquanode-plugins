@@ -10,9 +10,9 @@ missing features or unexpected behaviour especially when you try to deep dive in
 
 # Downloads
 
-The source code and manuals (the "README" files) are available in the repository directly, of which you can download a `.zip` bundle directly here: https://github.com/aquanodemusic/aquanode-plugins/archive/refs/heads/main.zip
-
 All builds as well as Presets and Samples are on the [Releases](../../releases) page, sorted by type: One `.zip` file for `.vst3`, one for `.exe`, one for `.apk` and one for Presets and Samples each. These are named accordingly, such as `aquanode-plugins-windows-vst3.zip`.
+
+The source code and manuals (the "README" files) are available in the repository directly, of which you can download a `.zip` bundle directly here: https://github.com/aquanodemusic/aquanode-plugins/archive/refs/heads/main.zip
 
 Many of the plugins are also available for Mac here, thanks to the artist and Apple developer CutUpMusic:
 https://cutupmusic.gumroad.com/l/aquanode
