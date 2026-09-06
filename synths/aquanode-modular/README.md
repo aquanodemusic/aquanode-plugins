@@ -2,17 +2,9 @@
 
 ![Aquanode Modular banner](assets/Banner.webp)
 
-## ⚠️ Turn your output down before you play, or use the Poly Sum Module (always included in the init patch)
->
-> **Aquanode Modular is loud by default, and it will clip hard if you let it, which especially on Android may sound really harsh since an Android Device's output stage often distorts on top of clipping.**
-> This is deliberate to make more quiet patches sound loud enough by default which is how I like to use the synth myself, but
-> it means the first thing to do in a new patch is pull the **Audio Out** module's **Level** knob down especially if you want to have high polyphony.
+> Recommendation: Always use the Poly Sum Module which the default patch provides directly. The reason: Aquanode Modular is loud by default, and it will clip hard if you let it, which especially on Android may sound really harsh since an Android Device's output stage often distorts on top of clipping. This is deliberate to make more quiet patches sound loud enough by default which is how I like to use the synth myself, but it means the first thing to do in a new patch is pull the **Audio Out** module's **Level** knob down especially if you want to have high polyphony. So, **the default patch already guards against this** using the **Polyphony Sum** module that sits between the source and Audio Out, scaling by 1/sqrt(N) as voices come and go.
 
-> **The default patch already guards against this**: a **Polyphony Sum** module
-> sits between the source and Audio Out, scaling by 1/sqrt(N) as voices come and
-> go.
-
-**Latest version:** 3.2 — download builds from the [Releases](../../../../releases) page.
+**Latest version:** 3.4 — download builds from the [Releases](../../../../releases) page.
 
 ---
 
@@ -95,7 +87,7 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 ## 📦 Module List
 
 <details>
-<summary><strong>Click to expand: All modules by category</strong></summary>
+<summary><strong>Click to expand: All 85 modules by category</strong></summary>
 
 | Category | Module | Description |
 | :--- | :--- | :--- |
@@ -138,6 +130,7 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Effect** | Delay | Stereo tempo-synced delay with independent times per channel and a filtered feedback loop. |
 | **Effect** | FM | Cross-modulates two arbitrary signals via phase modulation, ring modulation or self-feedback, patch cables define the routing. |
 | **Effect** | Flanger | Short modulated delay with switchable positive/negative feedback for classic jet-swoosh effects. |
+| **Effect** | Granulator | FX Version of the Granulator Synth Engine so you can directly granulate what you produce live. |
 | **Effect** | Limiter | Fast stereo-linked peak limiter with instant attack and zero latency, for catching a patch before it clips. |
 | **Effect** | Phaser | 2 to 12-stage allpass phaser swept by an internal LFO around a centre frequency, with feedback. |
 | **Effect** | Resonator | Tuned comb resonator with two feedback modes, pitch is set directly in MIDI note numbers. |
@@ -177,6 +170,7 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Utility** | Panning | Stereo balance control with an additive bipolar modulation input. |
 | **Utility** | Polyphony Sum | Counts the voices actually sounding and scales the level to match, so a chord does not arrive several times louder than one note. Amount sets the law: 0.5 = 1/sqrt(N) for ordinary chords, 1.0 = 1/N for unison stacks, 0 = bypass. Smooth ramps the gain so voice-count steps don't click. Released voices keep counting until their tail finishes. Voices Out reports the live count as modulation. |
 | **Utility** | Quantize | Snaps a pitch-scaled modulation signal to the nearest note of a chosen scale - pair a random S&H and a Pluck with this for instant melodies. |
+| **Utility** | Record | Start and Stop to Record whatever sound this module reaches, and save it as audio file to your system. |
 | **Utility** | Ring Mod | Multiplies two audio signals together, with Depth blending from clean input A to full ring modulation. |
 | **Utility** | S&H | Clocked sample & hold, samples an internal random source when nothing is patched into Signal In, giving the classic burbling random voltage. |
 | **Utility** | Slew Limiter | Rate-limits how fast a signal can rise and fall, useful for portamento, custom AR shapes, or softening a square LFO into a trapezoid. |

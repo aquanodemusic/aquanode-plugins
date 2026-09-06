@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="GZWYPf" name="Aquanode Modular" projectType="audioplug" useAppConfig="0"
               pluginName="Aquanode Modular" pluginManufacturerCode="Aqnd" pluginCode="Aqmo"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="3.3"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="3.4"
               companyName="aquanodemusic" companyCopyright="none" companyEmail="node.aqua@gmail.com"
               pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn">
   <MAINGROUP id="m2RO6u" name="Aquanode Modular">
@@ -53,6 +53,13 @@
             file="Source/Modules/GranulateModule.cpp"/>
       <FILE id="aqn0h" name="GranulateModule.h" compile="0" resource="0"
             file="Source/Modules/GranulateModule.h"/>
+      <FILE id="aqnGfxC" name="GranulationModule.cpp" compile="1" resource="0"
+            file="Source/Modules/GranulationModule.cpp"/>
+      <FILE id="aqnGfxH" name="GranulationModule.h" compile="0" resource="0"
+            file="Source/Modules/GranulationModule.h"/>
+      <FILE id="aqnRecC" name="RecordModule.cpp" compile="1" resource="0"
+            file="Source/Modules/RecordModule.cpp"/>
+      <FILE id="aqnRecH" name="RecordModule.h" compile="0" resource="0" file="Source/Modules/RecordModule.h"/>
       <FILE id="aqn1c" name="ADelaySRModule.cpp" compile="1" resource="0"
             file="Source/Modules/ADelaySRModule.cpp"/>
       <FILE id="aqn1h" name="ADelaySRModule.h" compile="0" resource="0" file="Source/Modules/ADelaySRModule.h"/>

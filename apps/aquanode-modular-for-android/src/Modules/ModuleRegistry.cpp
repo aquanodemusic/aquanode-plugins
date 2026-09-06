@@ -26,6 +26,8 @@ extern "C" bool VolumeModule_aqRegistered;
 extern "C" bool PolySumModule_aqRegistered;
 extern "C" bool PanningModule_aqRegistered;
 extern "C" bool GranulateModule_aqRegistered;
+extern "C" bool GranulationModule_aqRegistered;
+extern "C" bool RecordModule_aqRegistered;
 extern "C" bool ADelaySRModule_aqRegistered;
 extern "C" bool AquatonReverbModule_aqRegistered;
 extern "C" bool SpringerModule_aqRegistered;
@@ -128,6 +130,8 @@ int forceLinkAllModules()
     sink ^= VolumeModule_aqRegistered;
     sink ^= PanningModule_aqRegistered;
     sink ^= GranulateModule_aqRegistered;
+    sink ^= GranulationModule_aqRegistered;
+    sink ^= RecordModule_aqRegistered;
     sink ^= ADelaySRModule_aqRegistered;
     sink ^= AquatonReverbModule_aqRegistered;
     sink ^= SpringerModule_aqRegistered;

@@ -194,7 +194,10 @@ void GranulateModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame
     const float* dataR = latchedSample->getReadPointer (numCh > 1 ? 1 : 0);
 
     const int nGrains = juce::jlimit (1, maxGrains, (int) param (pGrains));
-    const int grainLen = juce::jmax (8, (int) (param (pSize) * 0.001 * sampleRate));
+    // grain length is a percentage (0-20%) of the loaded sample's total length,
+    // rather than a fixed time in ms - so grains always scale sensibly whether
+    // the loaded file is a short one-shot or a long ambient recording.
+    const int grainLen = juce::jmax (8, (int) (param (pSize) * 0.01 * total));
 
     // ---- grain spawning: nGrains overlapping across one grain length -------
     const double invSr = 1.0 / sampleRate;
@@ -326,7 +329,7 @@ static ModuleDescriptor granulateDescriptor()
     d.params = {
         makeRotary ("volume",    "Volume",     0.0f, 1.0f, 0.8f, 0),
         makeRotary ("grains",    "Grains",     1.0f, 32.0f, 8.0f, 0, {}, false, 1.0f),
-        makeRotary ("size",      "Size",       5.0f, 500.0f, 80.0f, 0, "ms", true),
+        makeRotary ("size",      "Size",       1.0f, 20.0f, 8.0f, 0, "%", true),
         makeRotary ("position",  "Position",   0.0f, 100.0f, 0.0f, 0, "%"),
         makeRotary ("spray",     "Spray",      0.0f, 100.0f, 10.0f, 0, "%"),
         makeRotary ("pitchDisp", "Pitch Disp", 0.0f, 100.0f, 0.0f, 1, "%"),
