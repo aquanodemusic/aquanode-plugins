@@ -14,6 +14,8 @@ It is designed with bird calls, vocalisations, and ecological field recordings i
 
 EcoSee by default shows you four displays. A fifth Cepstral Analyzer can be replaced with a Vocal Signature Wheel. You can also only select one of these views or build your custom 3d viewer.
 
+**New in version 1.1:** Option to choose how many datapoints are visible at once (was 3x 32 by default, now a slider from 1 to 96) and choose whether you want to see the dot-per-dot graph or a spline-interpolated smooth curve.
+
 | Feature | Description |
 |---|---|
 | Real-time analysis | Continuous FFT-based audio analysis |
