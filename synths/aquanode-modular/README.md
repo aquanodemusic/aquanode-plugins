@@ -4,7 +4,7 @@
 
 > Recommendation: Always use the Poly Sum Module which the default patch provides directly. The reason: Aquanode Modular is loud by default, and it will clip hard if you let it, which especially on Android may sound really harsh since an Android Device's output stage often distorts on top of clipping. This is deliberate to make more quiet patches sound loud enough by default which is how I like to use the synth myself, but it means the first thing to do in a new patch is pull the **Audio Out** module's **Level** knob down especially if you want to have high polyphony. So, **the default patch already guards against this** using the **Polyphony Sum** module that sits between the source and Audio Out, scaling by 1/sqrt(N) as voices come and go.
 
-**Latest version:** 3.4 — download builds from the [Releases](../../../../releases) page.
+**Latest version:** 3.5 — download builds from the [Releases](../../../../releases) page.
 
 ---
 
