@@ -1,5 +1,7 @@
 # FlowEQ
 
+![FlowEQ banner](assets/GUI.png)
+
 A 3-band parametric EQ plugin where every filter parameter can be
 freely animated over time, inspired by morphing EQs.
 
