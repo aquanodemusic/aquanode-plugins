@@ -8,7 +8,7 @@ static aquanode::ModuleDescriptor specMorphDescriptor()
     d.displayName = "Spectral Morph";
     d.description =
         "Main In keeps its fine structure and phase while its spectral envelope is warped toward "
-        "Morph In's - vocoder-like, but envelope-based. The drawn curve makes the amount PER BIN, "
+        "Morph In's - vocoder-like, but envelope-based. The drawn curve makes the amount per bin, "
         "so you can keep the bass and morph only the highs. Main In and Morph In both want audio; "
         "Smooth sets how broadly the envelope is read (wide = formants, narrow = fine detail).";
     d.section = ModuleSection::Effect;

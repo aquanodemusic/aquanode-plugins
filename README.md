@@ -88,6 +88,7 @@ All `.vst3` plugins have been tested on Windows 11 23H2 64bit in FL Studio 2025 
 | ~<br />**[ClipPreserve](effects/clippreserve/)** | A detail-preserving clipper: it extracts the content lost to clipping via a polarity-inverted delta chain and blends it back in, so hi-hats survive on top of loud subbass. |
 | <img src="effects/eq-octave-resonator/assets/Icon.webp" width="64" align="center" /><br />**[EQ Octave Resonator](effects/eq-octave-resonator/)** | An array of parallel note-tuned bandpass filters with selectable resonating octaves and notes, per-octave volume sliders, and a wet-only mode that cancels the incoming signal. |
 | <img src="effects/ecosee/assets/GUI.png" width="64" align="center" /><br />**[EcoSee](effects/ecosee/)** | A spectral / cepstral visualizer tool especially designed for bioacoustic analysis including a "build your own 3d visualizer" tool from measurements EcoSee calculates, such as Spectral Centroids. |
+| <img src="effects/floweq/assets/GUI.png" width="64" align="center" /><br />**[FlowEQ](effects/floweq/)** | A 3-filter morphing EQ where you can record yourself drawing the evolution of the filter over time and then play it back. |
 | <img src="effects/fullfilter/assets/GUI.png" width="64" align="center" /><br />**[FullFilter](effects/fullfilter/)** | A filter bank that can be played like a synth using MIDI input. The filters can be tuned by importing wavetables that get internally analyzed. |
 | <img src="synths/granulate/assets/Icon.webp" width="64" align="center" /><br />**[Granulate FX](effects/granulate-fx/)** | An FX version of granulator that records whatever is routed into it into a sliding window, and grains play it back repeatedly. |
 | <img src="effects/irconvolve/assets/Icon.webp" width="64" align="center" /><br />**[IRConvolve](effects/irconvolve/)** | The companion convolver to CepstralIR: load impulse responses and imprint their captured character onto any signal. |
@@ -138,7 +139,7 @@ The apps should work fine, but I for example had some problems with sound output
 |-----|-------------|
 | ~<br />**[AudioStretcher for Android](apps/audiostretcher-for-android/)** | A port of the simple AudioStrecher using the Rubberband Library for Android. |
 | <img src="synths/aquanode-modular/assets/Icon.png" width="64" align="center" /><br />**[Aquanode Modular for Android](apps/aquanode-modular-for-android/)** | A port of Aquanode Modular for Android. Contains all the modules from the original and a MIDI keyboard in the bottom to play with your fingers. Patches are compatible with the Windows version. External MIDI Device highly recommended! |
-| <img src="synths/virtual-dx7/assets/GUI.png" width="64" align="center" /><br />**[VirtualDX7 for Android](apps/virtual-dx7-for-android/)** | An Android port of VirtualDX7. The App additionally contains an FX section that borrows modules from Aquanode Modular. The `.vst3` version does not contain the FX section directly for it to stay a close emulation, and you can always add an FX instance of Aquanode Modular for the same effects. |
+| <img src="synths/virtual-dx7/assets/GUI.png" width="64" align="center" /><br />**[VirtualDX7 for Android](apps/virtual-dx7-for-android/)** | An Android port of VirtualDX7 with some effects borrowed from my Aquanode Modular VST. |
 
 ## Repository Structure
 

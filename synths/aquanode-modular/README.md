@@ -87,7 +87,7 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 ## 📦 Module List
 
 <details>
-<summary><strong>Click to expand: All 85 modules by category</strong></summary>
+<summary><strong>Click to expand: All 86 modules by category</strong></summary>
 
 | Category | Module | Description |
 | :--- | :--- | :--- |
@@ -124,6 +124,7 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Effect** | Align | Sub-sample per-channel delay, volume and polarity invert, for phase alignment and Haas-style stereo tricks. |
 | **Effect** | AquaChorus | Liquid chorus/flanger using two LFO-swept delay lines with tunable L/R phase offset and feedback. |
 | **Effect** | AquaReverb | Lush 8-line feedback-delay-network reverb with a Freeze control that holds the tank indefinitely. |
+| **Effect** | BandSplitter | Splits the Audio into three frequency bands. |
 | **Effect** | Bitcrush | Bit-depth reduction for digital grit, continuously variable from subtle warmth to harsh 1-bit crush. |
 | **Effect** | Chorus | Modulated delay line per channel with an LFO phase offset between channels for stereo width. |
 | **Effect** | Compressor | Feedforward stereo-linked compressor with attack/release smoothing and makeup gain. |

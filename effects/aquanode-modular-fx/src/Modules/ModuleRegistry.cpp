@@ -22,6 +22,7 @@ extern "C" bool FlangerModule_aqRegistered;
 extern "C" bool LFOModule_aqRegistered;
 extern "C" bool ADSRModule_aqRegistered;
 extern "C" bool SplitterModule_aqRegistered;
+extern "C" bool BandSplitterModule_aqRegistered;
 extern "C" bool VolumeModule_aqRegistered;
 extern "C" bool PolySumModule_aqRegistered;
 extern "C" bool PanningModule_aqRegistered;
@@ -127,6 +128,7 @@ int forceLinkAllModules()
     sink ^= LFOModule_aqRegistered;
     sink ^= ADSRModule_aqRegistered;
     sink ^= SplitterModule_aqRegistered;
+    sink ^= BandSplitterModule_aqRegistered;
     sink ^= VolumeModule_aqRegistered;
     sink ^= PanningModule_aqRegistered;
     sink ^= GranulateModule_aqRegistered;

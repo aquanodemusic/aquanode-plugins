@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="60137121-2740-470a-968c-2fd34ff6bba6" name="Changes" comment="" />
+    <list default="true" id="6a464329-d40c-403d-b137-de2707716706" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -20,10 +20,10 @@
     </projectState>
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 1,
+  "associatedIndex": 2,
   "fromUser": false
 }]]></component>
-  <component name="ProjectId" id="3IwsITJ2hd26IcjUapcVEbO6kzz" />
+  <component name="ProjectId" id="3JCBVeSDOL3tv89nWVy6bgG6ULX" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -37,7 +37,7 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/Users/Philippe/Downloads/aquanode-modular-for-android/Builds/Android"
+    "last_opened_file_path": "C:/Users/Philippe/Downloads/Aquanode Modular Android/Builds/Android"
   }
 }]]></component>
   <component name="RunManager">
@@ -110,11 +110,11 @@
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="60137121-2740-470a-968c-2fd34ff6bba6" name="Changes" comment="" />
-      <created>1788686889457</created>
+      <changelist id="6a464329-d40c-403d-b137-de2707716706" name="Changes" comment="" />
+      <created>1789155198688</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1788686889457</updated>
+      <updated>1789155198688</updated>
     </task>
     <servers />
   </component>

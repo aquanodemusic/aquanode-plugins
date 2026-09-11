@@ -129,7 +129,7 @@ static ModuleDescriptor granulationDescriptor()
     d.description =
         "Live granular effect: continuously records the incoming audio into a rolling buffer and "
         "blends a cloud of Hann-windowed grains, read back from that buffer, in with the dry "
-        "signal. Adapted from the standalone Granulate FX plugin's live-input mode.";
+        "signal. Adapted from the Sample Granulator Module, but as a live-input mode.";
     d.section = ModuleSection::Effect;
     d.sidebarOrder = 25;
     d.sockets = {

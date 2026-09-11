@@ -3,7 +3,7 @@
 <JUCERPROJECT id="FXm4Qa" name="Aquanode Modular FX" projectType="audioplug"
               useAppConfig="0" pluginName="Aquanode Modular FX" pluginManufacturerCode="Aqnd"
               pluginCode="Aqfx" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
-              version="3.4" companyName="aquanodemusic" companyCopyright="none"
+              version="3.5" companyName="aquanodemusic" companyCopyright="none"
               companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3"
               pluginCharacteristicsValue="pluginWantsMidiIn">
   <MAINGROUP id="m2RO6u" name="Aquanode Modular FX">
@@ -130,6 +130,10 @@
             file="Source/Modules/SplitterModule.cpp"/>
       <FILE id="G2mUJ0" name="SplitterModule.h" compile="0" resource="0"
             file="Source/Modules/SplitterModule.h"/>
+      <FILE id="bq3nR5" name="BandSplitterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/BandSplitterModule.cpp"/>
+      <FILE id="bq3nR6" name="BandSplitterModule.h" compile="0" resource="0"
+            file="Source/Modules/BandSplitterModule.h"/>
       <FILE id="wZymv8" name="SVFFilterModule.cpp" compile="1" resource="0"
             file="Source/Modules/SVFFilterModule.cpp"/>
       <FILE id="mxr8Ft" name="SVFFilterModule.h" compile="0" resource="0"
