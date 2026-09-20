@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="SnVaII" name="AquaNova" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" displaySplashScreen="0" jucerFormatVersion="1"
+              companyName="aquanodemusic" pluginManufacturerCode="Aqnd" pluginCode="Aqnv"
+              pluginFormats="buildVST3,buildStandalone" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
+              pluginName="AquaNova" pluginDesc="AquaNova polysynth" pluginAUMainType="'aumu'"
+              version="1.0.0" cppLanguageStandard="17" companyCopyright="none"
+              companyEmail="node.aqua@gmail.com">
+  <MAINGROUP id="rootGrp" name="AquaNova">
+    <GROUP id="srcGrp" name="Source">
+      <FILE id="pt_h" name="ParameterTable.h" compile="0" resource="0" file="Source/ParameterTable.h"/>
+      <FILE id="pt_cpp" name="ParameterTable.cpp" compile="1" resource="0"
+            file="Source/ParameterTable.cpp"/>
+      <FILE id="pa_h" name="Parameters.h" compile="0" resource="0" file="Source/Parameters.h"/>
+      <FILE id="pa_cpp" name="Parameters.cpp" compile="1" resource="0" file="Source/Parameters.cpp"/>
+      <FILE id="vo_h" name="Voice.h" compile="0" resource="0" file="Source/Voice.h"/>
+      <FILE id="vo_cpp" name="Voice.cpp" compile="1" resource="0" file="Source/Voice.cpp"/>
+      <FILE id="se_h" name="SynthEngine.h" compile="0" resource="0" file="Source/SynthEngine.h"/>
+      <FILE id="se_cpp" name="SynthEngine.cpp" compile="1" resource="0" file="Source/SynthEngine.cpp"/>
+      <FILE id="sx_h" name="SysEx.h" compile="0" resource="0" file="Source/SysEx.h"/>
+      <FILE id="sx_cpp" name="SysEx.cpp" compile="0" resource="0" file="Source/SysEx.cpp"/>
+      <FILE id="sm_cpp" name="SysExMap.cpp" compile="0" resource="0" file="Source/SysExMap.cpp"/>
+      <FILE id="rp_h" name="RandomPreset.h" compile="0" resource="0" file="Source/RandomPreset.h"/>
+      <FILE id="rp_cpp" name="RandomPreset.cpp" compile="1" resource="0"
+            file="Source/RandomPreset.cpp"/>
+      <FILE id="lf_h" name="LookAndFeel.h" compile="0" resource="0" file="Source/LookAndFeel.h"/>
+      <FILE id="pp_h" name="PluginProcessor.h" compile="0" resource="0" file="Source/PluginProcessor.h"/>
+      <FILE id="pp_cpp" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="pe_h" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="pe_cpp" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <GROUP id="dspGrp" name="DSP">
+        <FILE id="ds_osc" name="Oscillator.h" compile="0" resource="0" file="Source/DSP/Oscillator.h"/>
+        <FILE id="ds_flt" name="Filter.h" compile="0" resource="0" file="Source/DSP/Filter.h"/>
+        <FILE id="ds_env" name="Envelope.h" compile="0" resource="0" file="Source/DSP/Envelope.h"/>
+        <FILE id="ds_lfo" name="Lfo.h" compile="0" resource="0" file="Source/DSP/Lfo.h"/>
+        <FILE id="ds_voc" name="Vocoder.h" compile="0" resource="0" file="Source/DSP/Vocoder.h"/>
+        <FILE id="ds_fx" name="Effects.h" compile="0" resource="0" file="Source/DSP/Effects.h"/>
+      </GROUP>
+    </GROUP>
+  </MAINGROUP>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"
+               JUCE_WEB_BROWSER="0" JUCE_USE_CURL="0"/>
+  <EXPORTFORMATS>
+    <VS2026 targetFolder="Builds/VisualStudio2026">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="AquaNova" useRuntimeLibDLL="0"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="AquaNova" optimisation="3"
+                       useRuntimeLibDLL="0"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics"/>
+        <MODULEPATH id="juce_audio_devices"/>
+        <MODULEPATH id="juce_audio_formats"/>
+        <MODULEPATH id="juce_audio_plugin_client"/>
+        <MODULEPATH id="juce_audio_processors"/>
+        <MODULEPATH id="juce_audio_utils"/>
+        <MODULEPATH id="juce_core"/>
+        <MODULEPATH id="juce_data_structures"/>
+        <MODULEPATH id="juce_dsp"/>
+        <MODULEPATH id="juce_events"/>
+        <MODULEPATH id="juce_graphics"/>
+        <MODULEPATH id="juce_gui_basics"/>
+        <MODULEPATH id="juce_gui_extra"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../../../Program Files/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2026>
+  </EXPORTFORMATS>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <LIVE_SETTINGS>
+    <WINDOWS/>
+  </LIVE_SETTINGS>
+</JUCERPROJECT>
