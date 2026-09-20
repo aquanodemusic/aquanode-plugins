@@ -2,7 +2,7 @@
 
 ![AquaNova](assets/GUI.png)
 
-A Supernova style polysynth in JUCE. Not a 1:1 emulation - the aim
+A Supernova style virtual analog polysynth in JUCE. Not a 1:1 emulation - the aim
 is the same possibility space and the same character, with every control in
 one scrollable window and every knob range matching the hardware.
 
