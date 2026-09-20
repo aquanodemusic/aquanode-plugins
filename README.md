@@ -2,6 +2,7 @@
 
 Aquanode Plugins is a large collection of VST3 audio plugins written in JUCE / C++ with the help of Claude AI.
 Every plugin is free and open source, and compiled as both VST3 and sometimes as standalone app for Windows, as well as a few ports for Android.
+Synths inspired by hardware modules do not contain any proprietary code or other material, everything is done from scratch or credited open source material.
 Scroll down for a list of included plugins, separated by synth (sound generation) and effect plugin types.
 Next to Windows, the plugins should also compile for Mac and Linux. I only provide Windows builds here, since I only have a Windows machine.
 
