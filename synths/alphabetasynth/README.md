@@ -49,6 +49,7 @@ Knob labels sit directly under the knobs; each oscillator's two wave choosers (A
 
 ## Thanks
 
+Claude Sonnet provided the initial version of the synth, refinements using Claude Opus 5.5.
 I provided a few simple presets in the download as well, though these were made for older versions of the synth.
 
 Thanks for checking it out!
