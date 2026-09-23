@@ -17,6 +17,35 @@ namespace col
     const juce::Colour purple{ 0xffa855f7 };
 }
 
+bool PercentStepSlider::keyPressed(const juce::KeyPress& key)
+{
+    // Leave text editing and host shortcuts to JUCE/the host.
+    if (! hasKeyboardFocus(false))
+        return false;
+
+    const auto mods = key.getModifiers();
+    if (mods.isCtrlDown() || mods.isAltDown() || mods.isCommandDown())
+        return juce::Slider::keyPressed(key);
+
+    const int code = key.getKeyCode();
+    const int direction = (code == juce::KeyPress::upKey
+                        || code == juce::KeyPress::rightKey) ? 1
+                        : (code == juce::KeyPress::downKey
+                        || code == juce::KeyPress::leftKey) ? -1 : 0;
+    if (direction == 0)
+        return juce::Slider::keyPressed(key);
+
+    // Percentage controls use displayed percentage points; other controls
+    // use a percentage of their full range. Shift gives one tenth of the step.
+    const double unit = percentageValue ? 1.0 : getRange().getLength();
+    const double percent = mods.isShiftDown() ? 0.001 : 0.01;
+    const double step = juce::jmax(getInterval(), unit * percent);
+    juce::Slider::ScopedDragNotification drag(*this);
+    setValue(juce::jlimit(getMinimum(), getMaximum(), getValue() + direction * step),
+             juce::sendNotificationSync);
+    return true;
+}
+
 //==============================================================================
 MorphLookAndFeel::MorphLookAndFeel()
 {
@@ -33,7 +62,7 @@ MorphLookAndFeel::MorphLookAndFeel()
 
 void MorphLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h,
     float pos, float startAngle, float endAngle,
-    juce::Slider&)
+    juce::Slider& slider)
 {
     const auto bounds = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(4.0f);
     const float radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) * 0.5f;
@@ -60,6 +89,12 @@ void MorphLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, 
     g.setColour(col::text);
     g.drawLine(cx + r0 * std::cos(a), cy + r0 * std::sin(a),
         cx + r1 * std::cos(a), cy + r1 * std::sin(a), 2.0f);
+
+    if (slider.hasKeyboardFocus(true))
+    {
+        g.setColour(col::green);
+        g.drawRoundedRectangle(bounds.expanded(2.0f), 5.0f, 2.0f);
+    }
 }
 
 void MorphLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& b,
@@ -76,6 +111,12 @@ void MorphLookAndFeel::drawToggleButton(juce::Graphics& g, juce::ToggleButton& b
     g.setColour(on ? juce::Colours::white : col::dim);
     g.setFont(juce::Font(juce::FontOptions(12.5f)));
     g.drawText(b.getButtonText(), r, juce::Justification::centred);
+
+    if (b.hasKeyboardFocus(true))
+    {
+        g.setColour(col::green);
+        g.drawRoundedRectangle(r.reduced(1.0f), 5.0f, 2.0f);
+    }
 }
 
 //==============================================================================
@@ -83,22 +124,43 @@ SpectralMorphAudioProcessorEditor::SpectralMorphAudioProcessorEditor(SpectralMor
     : AudioProcessorEditor(&p), proc(p), spectrogram(p.engine)
 {
     setLookAndFeel(&lnf);
-    addAndMakeVisible(spectrogram);
+    setTitle("SpectralMorph controls");
+    addAndMakeVisible(visualGroup);
+    addAndMakeVisible(controlsGroup);
+    visualGroup.addAndMakeVisible(spectrogram);
+    controlsGroup.addAndMakeVisible(analysisGroup);
+    controlsGroup.addAndMakeVisible(routingGroup);
+    controlsGroup.addAndMakeVisible(parametersGroup);
+    parametersGroup.addAndMakeVisible(modeInfoLabel);
+    parametersGroup.addAndMakeVisible(commonGroup);
+    parametersGroup.addAndMakeVisible(algorithmGroup);
 
     // ---- FFT size / overlap -------------------------------------------------
     fftBox.addItemList({ "512", "1024", "2048", "4096", "8192", "16384", "32768" }, 1);
-    addAndMakeVisible(fftBox);
+    fftBox.setTitle("FFT size");
+    fftBox.setDescription("Analysis window size in samples. Larger sizes improve frequency resolution but increase latency.");
+    fftBox.setWantsKeyboardFocus(true);
+    fftBox.setExplicitFocusOrder(2);
+    analysisGroup.addAndMakeVisible(fftBox);
     fftAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         proc.apvts, "fftSize", fftBox);
 
     overlapBox.addItemList({ "2x", "4x", "8x" }, 1);
-    addAndMakeVisible(overlapBox);
+    overlapBox.setTitle("Overlap");
+    overlapBox.setDescription("Analysis overlap. Higher values sound smoother and use more CPU.");
+    overlapBox.setWantsKeyboardFocus(true);
+    overlapBox.setExplicitFocusOrder(3);
+    analysisGroup.addAndMakeVisible(overlapBox);
     overlapAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         proc.apvts, "overlap", overlapBox);
 
     // ---- morph mode ---------------------------------------------------------
     morphModeBox.addItemList({ "Cepstral", "Spectral", "Vocoder", "Inject", "Partials" }, 1);
-    addAndMakeVisible(morphModeBox);
+    morphModeBox.setTitle("Morph mode");
+    morphModeBox.setDescription("Selects the morph algorithm and the controls shown below.");
+    morphModeBox.setWantsKeyboardFocus(true);
+    morphModeBox.setExplicitFocusOrder(4);
+    analysisGroup.addAndMakeVisible(morphModeBox);
     morphModeAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         proc.apvts, "morphMode", morphModeBox);
     morphModeBox.onChange = [this] { updateModeUI(); };
@@ -109,48 +171,58 @@ SpectralMorphAudioProcessorEditor::SpectralMorphAudioProcessorEditor(SpectralMor
             l.setJustificationType(juce::Justification::centred);
             l.setFont(juce::Font(juce::FontOptions(11.0f)));
             l.setColour(juce::Label::textColourId, col::dim);
-            addAndMakeVisible(l);
+            l.setAccessible(false); // The adjacent control supplies its own name.
+            analysisGroup.addAndMakeVisible(l);
         };
     setupCaption(fftLabel, "FFT SIZE");
     setupCaption(overlapLabel, "OVERLAP");
     setupCaption(morphModeLabel, "MORPH MODE");
 
     // ---- knobs --------------------------------------------------------------
-    addKnob(morph, "morph", "MORPH");
-    addKnob(clarity, "clarity", "CLARITY");
-    addKnob(smooth, "smooth", "SMOOTH");
-    addKnob(maxBoost, "maxBoost", "BOOST");
-    addKnob(dynamics, "dynamics", "DYNAMICS");
-    addKnob(mix, "mix", "MIX");
-    addKnob(outGain, "outGain", "OUTPUT");
+    addKnob(morph, "morph", "MORPH", "Amount of sidechain timbre transferred to the carrier.");
+    addKnob(clarity, "clarity", "CLARITY", "Envelope resolution. Higher values follow finer spectral detail.");
+    addKnob(smooth, "smooth", "SMOOTH", "Smoothing between spectral frames.");
+    addKnob(maxBoost, "maxBoost", "BOOST", "Maximum gain applied to a frequency bin, in decibels.");
+    addKnob(dynamics, "dynamics", "DYNAMICS", "Amount of sidechain loudness contour transferred to the output.");
+    addKnob(mix, "mix", "MIX", "Wet and dry mix.");
+    addKnob(outGain, "outGain", "OUTPUT", "Final output gain in decibels.");
 
-    addKnob(attack, "attack", "ATTACK");
-    addKnob(release, "release", "RELEASE");
-    addKnob(flatten, "flatten", "FLATTEN");
-    addKnob(sibilance, "sibilance", "SIBILANCE");
-    addKnob(fill, "fill", "FILL");
-    addKnob(fold, "fold", "FOLD");
-    addKnob(glide, "glide", "GLIDE");
-    addKnob(lock, "lock", "LOCK");
-    addKnob(peakFloor, "peakFloor", "PEAKS");
+    addKnob(attack, "attack", "ATTACK", "Envelope rise time in milliseconds.");
+    addKnob(release, "release", "RELEASE", "Envelope fall time in milliseconds.");
+    addKnob(flatten, "flatten", "FLATTEN", "Amount of carrier spectral whitening.");
+    addKnob(sibilance, "sibilance", "SIBILANCE", "Amount of sidechain noise character preserved.");
+    addKnob(fill, "fill", "FILL", "Amount of missing spectral energy synthesized.");
+    addKnob(fold, "fold", "FOLD", "Blend synthesized fill from noise to octave-folded carrier.");
+    addKnob(glide, "glide", "GLIDE", "Distance carrier partials move toward matching sidechain partials.");
+    addKnob(lock, "lock", "LOCK", "Phase lock amount for moved partials.");
+    addKnob(peakFloor, "peakFloor", "PEAKS", "Partial detection threshold below the frame peak, in decibels.");
 
     // ---- toggles ------------------------------------------------------------
-    addToggle(flipButton, flipAtt, "flip", "FLIP");
-    addToggle(freezeButton, freezeAtt, "freezeSide", "FREEZE SIDE");
-    addToggle(bypassButton, bypassAtt, "bypass", "BYPASS");
+    addToggle(flipButton, flipAtt, "flip", "FLIP", "Swap the carrier and sidechain roles.");
+    addToggle(freezeButton, freezeAtt, "freezeSide", "FREEZE SIDE", "Hold the current sidechain envelope.");
+    addToggle(bypassButton, bypassAtt, "bypass", "BYPASS", "Pass audio through without processing.");
+    flipButton.setExplicitFocusOrder(5);
+    freezeButton.setExplicitFocusOrder(6);
+    bypassButton.setExplicitFocusOrder(7);
 
     // spectrogram on/off - not an APVTS parameter, just a display convenience
     spectrogramButton.setButtonText("SPECTROGRAM");
+    spectrogramButton.setTitle("Spectrogram");
+    spectrogramButton.setDescription("Show the visual spectrogram. This does not change the sound.");
+    spectrogramButton.setExplicitFocusOrder(8);
     spectrogramButton.setToggleState(true, juce::dontSendNotification);
     spectrogramButton.onClick = [this]
         {
             spectrogram.setActive(spectrogramButton.getToggleState());
         };
-    addAndMakeVisible(spectrogramButton);
+    routingGroup.addAndMakeVisible(spectrogramButton);
 
     // HD Visuals on/off - defaults to on. Reflects whatever state the engine
     // is already in (it survives editor open/close since it lives on proc.engine).
     hdVisualsButton.setButtonText("HD VISUALS");
+    hdVisualsButton.setTitle("HD visuals");
+    hdVisualsButton.setDescription("Use a sharper spectrogram display. This does not change the sound.");
+    hdVisualsButton.setExplicitFocusOrder(1);
     hdVisualsButton.setToggleState(proc.engine.isHDVisualsEnabled(), juce::dontSendNotification);
     hdVisualsButton.onClick = [this]
         {
@@ -158,7 +230,7 @@ SpectralMorphAudioProcessorEditor::SpectralMorphAudioProcessorEditor(SpectralMor
             proc.engine.setHDVisualsEnabled(on);
             spectrogram.setHDVisuals(on);
         };
-    addAndMakeVisible(hdVisualsButton);
+    visualGroup.addAndMakeVisible(hdVisualsButton);
     spectrogram.setHDVisuals(hdVisualsButton.getToggleState());
 
     flipButton.onStateChange = [this]
@@ -171,14 +243,12 @@ SpectralMorphAudioProcessorEditor::SpectralMorphAudioProcessorEditor(SpectralMor
     routingLabel.setJustificationType(juce::Justification::centred);
     routingLabel.setFont(juce::Font(juce::FontOptions(11.5f)));
     routingLabel.setColour(juce::Label::textColourId, col::dim);
-    addAndMakeVisible(routingLabel);
+    routingGroup.addAndMakeVisible(routingLabel);
     flipButton.onStateChange();
 
     modeInfoLabel.setJustificationType(juce::Justification::centredLeft);
     modeInfoLabel.setFont(juce::Font(juce::FontOptions(11.5f)));
     modeInfoLabel.setColour(juce::Label::textColourId, col::dim);
-    addAndMakeVisible(modeInfoLabel);
-
     updateModeUI();
 
     setSize(980, 700);
@@ -191,6 +261,7 @@ SpectralMorphAudioProcessorEditor::SpectralMorphAudioProcessorEditor(SpectralMor
 void SpectralMorphAudioProcessorEditor::updateModeUI()
 {
     const int mode = juce::jmax(0, morphModeBox.getSelectedItemIndex());
+    bool focusedKnobWillHide = false;
 
     activeKnobs.clear();
 
@@ -224,13 +295,39 @@ void SpectralMorphAudioProcessorEditor::updateModeUI()
     for (auto* k : all)
     {
         const bool on = std::find(activeKnobs.begin(), activeKnobs.end(), k) != activeKnobs.end();
+        if (! on && k->slider.hasKeyboardFocus(true))
+            focusedKnobWillHide = true;
         k->slider.setVisible(on);
         k->label.setVisible(on);
     }
 
+    Knob* common[] = { &morph, &clarity, &maxBoost, &dynamics, &mix, &outGain };
+    for (size_t i = 0; i < std::size(common); ++i)
+        common[i]->slider.setExplicitFocusOrder(10 + (int) i);
+
+    algorithmKnobs.clear();
+    for (auto* k : activeKnobs)
+        if (std::find(std::begin(common), std::end(common), k) == std::end(common))
+            algorithmKnobs.push_back(k);
+
+    for (size_t i = 0; i < algorithmKnobs.size(); ++i)
+        algorithmKnobs[i]->slider.setExplicitFocusOrder(20 + (int) i);
+
+    static const char* modeNames[] = { "Cepstral", "Spectral", "Vocoder", "Inject", "Partials" };
+    algorithmGroup.setTitle(juce::String(modeNames[juce::jlimit(0, 4, mode)]) + " parameters");
+
+    // A host can automate the mode while a knob has focus. Keep keyboard users
+    // on a visible control instead of leaving focus inside a hidden slider.
+    if (focusedKnobWillHide)
+        morphModeBox.grabKeyboardFocus();
+
     // Clarity drives a different underlying quantity in the Spectral mode
     // (box-average width rather than cepstral lifter cutoff), so relabel it.
     clarity.label.setText(mode == 1 ? "DETAIL" : "CLARITY", juce::dontSendNotification);
+    clarity.slider.setTitle(mode == 1 ? "Detail" : "Clarity");
+    clarity.slider.setDescription(mode == 1
+        ? "Width of the spectral envelope average. Higher values preserve finer detail."
+        : "Envelope resolution. Higher values follow finer spectral detail.");
 
     static const char* info[] =
     {
@@ -245,6 +342,9 @@ void SpectralMorphAudioProcessorEditor::updateModeUI()
     };
     modeInfoLabel.setText(info[juce::jlimit(0, 4, mode)], juce::dontSendNotification);
 
+    if (auto* handler = getAccessibilityHandler())
+        handler->notifyAccessibilityEvent(juce::AccessibilityEvent::structureChanged);
+
     resized();
 }
 
@@ -254,19 +354,32 @@ SpectralMorphAudioProcessorEditor::~SpectralMorphAudioProcessorEditor()
 }
 
 void SpectralMorphAudioProcessorEditor::addKnob(Knob& k, const juce::String& id,
-    const juce::String& text)
+    const juce::String& text, const juce::String& help)
 {
     k.slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    k.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 66, 16);
+    k.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 16);
+    k.slider.setPercentageValue(id == "morph" || id == "clarity" || id == "smooth"
+                             || id == "dynamics" || id == "mix" || id == "flatten"
+                             || id == "sibilance" || id == "fill" || id == "fold"
+                             || id == "glide" || id == "lock");
+    k.slider.setTitle(proc.apvts.getParameter(id)->getName(100));
+    k.slider.setDescription(help);
+    k.slider.setTooltip("Arrow keys adjust by one percent step. Shift and an arrow key use a tenth of that step. The text box accepts precise values.");
+    k.slider.setWantsKeyboardFocus(true);
     k.slider.setColour(juce::Slider::textBoxTextColourId, col::text);
     k.slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    addAndMakeVisible(k.slider);
+    const bool isCommon = id == "morph" || id == "clarity" || id == "maxBoost"
+                       || id == "dynamics" || id == "mix" || id == "outGain";
+    auto& group = isCommon ? static_cast<juce::Component&>(commonGroup)
+                           : static_cast<juce::Component&>(algorithmGroup);
+    group.addAndMakeVisible(k.slider);
 
     k.label.setText(text, juce::dontSendNotification);
     k.label.setJustificationType(juce::Justification::centred);
     k.label.setFont(juce::Font(juce::FontOptions(11.0f)));
     k.label.setColour(juce::Label::textColourId, col::dim);
-    addAndMakeVisible(k.label);
+    k.label.setAccessible(false);
+    group.addAndMakeVisible(k.label);
 
     k.att = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         proc.apvts, id, k.slider);
@@ -275,10 +388,13 @@ void SpectralMorphAudioProcessorEditor::addKnob(Knob& k, const juce::String& id,
 void SpectralMorphAudioProcessorEditor::addToggle(
     juce::ToggleButton& b,
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>& att,
-    const juce::String& id, const juce::String& text)
+    const juce::String& id, const juce::String& text, const juce::String& help)
 {
     b.setButtonText(text);
-    addAndMakeVisible(b);
+    b.setTitle(proc.apvts.getParameter(id)->getName(100));
+    b.setDescription(help);
+    b.setWantsKeyboardFocus(true);
+    routingGroup.addAndMakeVisible(b);
     att = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         proc.apvts, id, b);
 }
@@ -319,34 +435,41 @@ void SpectralMorphAudioProcessorEditor::paint(juce::Graphics& g)
 void SpectralMorphAudioProcessorEditor::resized()
 {
     auto r = getLocalBounds();
-    auto header = r.removeFromTop(layout::header);
+    visualGroup.setBounds(r.removeFromTop(layout::header + layout::scope));
+    auto header = visualGroup.getLocalBounds().removeFromTop(layout::header);
     hdVisualsButton.setBounds(header.removeFromRight(150).reduced(6, 3));
 
-    spectrogram.setBounds(r.removeFromTop(layout::scope).reduced(8, 4));
+    spectrogram.setBounds(visualGroup.getLocalBounds()
+                              .withTrimmedTop(layout::header).reduced(8, 4));
 
-    auto panel = r.reduced(8, 4).reduced(12, 10);
+    controlsGroup.setBounds(r);
+    auto panel = controlsGroup.getLocalBounds().reduced(8, 4).reduced(12, 10);
 
     // --- top row of the panel: selectors + routing readout -------------------
     auto top = panel.removeFromTop(46);
+    analysisGroup.setBounds(top.removeFromLeft(320));
+    top.removeFromLeft(16);
+    routingGroup.setBounds(top);
 
-    auto fftArea = top.removeFromLeft(110);
+    auto selectors = analysisGroup.getLocalBounds();
+    auto fftArea = selectors.removeFromLeft(110);
     fftLabel.setBounds(fftArea.removeFromTop(14));
     fftBox.setBounds(fftArea.reduced(0, 2));
 
-    top.removeFromLeft(10);
-    auto ovArea = top.removeFromLeft(90);
+    selectors.removeFromLeft(10);
+    auto ovArea = selectors.removeFromLeft(90);
     overlapLabel.setBounds(ovArea.removeFromTop(14));
     overlapBox.setBounds(ovArea.reduced(0, 2));
 
-    top.removeFromLeft(10);
-    auto morphModeArea = top.removeFromLeft(100);
+    selectors.removeFromLeft(10);
+    auto morphModeArea = selectors.removeFromLeft(100);
     morphModeLabel.setBounds(morphModeArea.removeFromTop(14));
     morphModeBox.setBounds(morphModeArea.reduced(0, 2));
 
-    top.removeFromLeft(16);
-    routingLabel.setBounds(top.removeFromLeft(200).withSizeKeepingCentre(200, 20));
+    auto routing = routingGroup.getLocalBounds();
+    routingLabel.setBounds(routing.removeFromLeft(200).withSizeKeepingCentre(200, 20));
 
-    auto toggles = top.reduced(0, 8);
+    auto toggles = routing.reduced(0, 8);
     const int tw = juce::jmax(62, (toggles.getWidth() - 18) / 4);
     flipButton.setBounds(toggles.removeFromLeft(tw).reduced(3, 0));
     freezeButton.setBounds(toggles.removeFromLeft(tw).reduced(3, 0));
@@ -354,35 +477,34 @@ void SpectralMorphAudioProcessorEditor::resized()
     spectrogramButton.setBounds(toggles.removeFromLeft(tw).reduced(3, 0));
 
     panel.removeFromTop(4);
-    modeInfoLabel.setBounds(panel.removeFromTop(16));
-    panel.removeFromTop(6);
+    parametersGroup.setBounds(panel);
+    auto parameters = parametersGroup.getLocalBounds();
+    modeInfoLabel.setBounds(parameters.removeFromTop(16));
+    parameters.removeFromTop(6);
 
-    // --- knob rows -----------------------------------------------------------
-    // Up to six per row; more than that wraps, and a short final row is centred
-    // under the one above it rather than stretched to fill.
-    const int n = (int)activeKnobs.size();
-    if (n == 0) return;
+    // One visual and accessible group per row keeps the layout and reading
+    // order consistent, including when the mode exposes different controls.
+    const int rowH = juce::jmin(150, parameters.getHeight() / 2);
+    auto block = parameters.withSizeKeepingCentre(parameters.getWidth(), rowH * 2);
+    commonGroup.setBounds(block.removeFromTop(rowH));
+    algorithmGroup.setBounds(block.removeFromTop(rowH));
 
-    const int rows   = (n + 5) / 6;
-    const int perRow = (n + rows - 1) / rows;
-    const int rowH   = juce::jmin(150, panel.getHeight() / rows);
-
-    auto block = panel.withSizeKeepingCentre(panel.getWidth(), rowH * rows);
-    const int kw = block.getWidth() / perRow;
-
-    int idx = 0;
-    for (int row = 0; row < rows; ++row)
+    auto layoutRow = [](juce::Component& group, const std::vector<Knob*>& knobs)
     {
-        const int count = juce::jmin(perRow, n - idx);
-        auto strip = block.removeFromTop(rowH)
-                          .withSizeKeepingCentre(kw * count, rowH);
+        if (knobs.empty())
+            return;
 
-        for (int i = 0; i < count; ++i)
+        const int kw = group.getWidth() / (int) knobs.size();
+        auto strip = group.getLocalBounds().withSizeKeepingCentre(kw * (int) knobs.size(),
+                                                                  group.getHeight());
+        for (auto* k : knobs)
         {
             auto cell = strip.removeFromLeft(kw);
-            auto* k = activeKnobs[(size_t)idx++];
             k->label.setBounds(cell.removeFromTop(14));
             k->slider.setBounds(cell.reduced(6, 0));
         }
-    }
+    };
+
+    layoutRow(commonGroup, { &morph, &clarity, &maxBoost, &dynamics, &mix, &outGain });
+    layoutRow(algorithmGroup, algorithmKnobs);
 }

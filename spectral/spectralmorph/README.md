@@ -2,6 +2,32 @@
 
 ![spectralmorph banner](assets/GUI.png)
 
+## macOS build
+
+The CMake build uses JUCE 9.0.2 and produces AU and VST3 plug-ins. With a local
+JUCE checkout and CMake installed:
+
+```sh
+cmake -S . -B build -DJUCE_SOURCE_DIR=/path/to/JUCE -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+```
+
+If `JUCE_SOURCE_DIR` is omitted, CMake downloads the pinned JUCE revision.
+The built bundles are in `build/SpectralMorph_artefacts/Release/AU` and
+`build/SpectralMorph_artefacts/Release/VST3`.
+
+## Keyboard and screen reader access
+
+Tab and Shift-Tab move through the visible controls. Arrow keys change sliders
+by one displayed percentage point for percentage controls, or 1% of the range
+for dB and time controls. Shift with an arrow key uses a tenth of that step.
+Use the slider text boxes for precise values, arrow keys for combo boxes, and
+Space for toggles. Screen readers see nested groups for visualization, analysis,
+routing, common parameters, and the selected mode's parameters. The morph mode
+only exposes the knobs it uses. If host automation changes the mode while focus
+is on a knob that disappears, focus moves to Morph Mode. The spectrogram is
+described as a visual image and can be hidden with its toggle.
+
 A spectral morphing (cross-synthesis / vocoder) plugin. It takes two signals — **Main**
 (the carrier, what you actually hear) and **Sidechain** (the modulator, what
 donates its timbre) — and morphs the carrier's spectral envelope toward the

@@ -17,6 +17,32 @@ public:
                            bool highlighted, bool down) override;
 };
 
+// JUCE's default arrow step follows the parameter interval, which is much
+// smaller than a useful keyboard adjustment for most of these controls.
+class PercentStepSlider : public juce::Slider
+{
+public:
+    void setPercentageValue (bool isPercentage) { percentageValue = isPercentage; }
+    bool keyPressed (const juce::KeyPress&) override;
+
+private:
+    bool percentageValue = false;
+};
+
+// GroupComponent supplies the native accessibility group role. The existing
+// panel drawing remains responsible for the visible presentation.
+class AccessibleControlGroup : public juce::GroupComponent
+{
+public:
+    explicit AccessibleControlGroup (const juce::String& title)
+    {
+        setTitle (title);
+        setFocusContainerType (juce::Component::FocusContainerType::focusContainer);
+    }
+
+    void paint (juce::Graphics&) override {}
+};
+
 //==============================================================================
 class SpectralMorphAudioProcessorEditor : public juce::AudioProcessorEditor
 {
@@ -30,18 +56,28 @@ public:
 private:
     struct Knob
     {
-        juce::Slider slider;
+        PercentStepSlider slider;
         juce::Label  label;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
     };
 
-    void addKnob (Knob&, const juce::String& paramID, const juce::String& text);
+    void addKnob (Knob&, const juce::String& paramID, const juce::String& text,
+                  const juce::String& help);
     void addToggle (juce::ToggleButton&,
                     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>&,
-                    const juce::String& paramID, const juce::String& text);
+                    const juce::String& paramID, const juce::String& text,
+                    const juce::String& help);
 
     SpectralMorphAudioProcessor& proc;
     MorphLookAndFeel lnf;
+
+    AccessibleControlGroup visualGroup { "Visualization" };
+    AccessibleControlGroup controlsGroup { "Processing controls" };
+    AccessibleControlGroup analysisGroup { "Analysis and morph mode" };
+    AccessibleControlGroup routingGroup { "Signal routing" };
+    AccessibleControlGroup parametersGroup { "Morph parameters" };
+    AccessibleControlGroup commonGroup { "Common parameters" };
+    AccessibleControlGroup algorithmGroup { "Cepstral parameters" };
 
     SpectrogramComponent spectrogram;
 
@@ -54,6 +90,7 @@ private:
 
     // knobs shown for the currently selected morph mode, in display order
     std::vector<Knob*> activeKnobs;
+    std::vector<Knob*> algorithmKnobs;
     juce::Label modeInfoLabel;
 
     void updateModeUI();

@@ -24,22 +24,21 @@ SpectralMorphAudioProcessor::createParameterLayout()
 {
     using namespace juce;
     std::vector<std::unique_ptr<RangedAudioParameter>> p;
+    const auto pct = AudioParameterFloatAttributes()
+        .withStringFromValueFunction([](float v, int) { return String(v * 100.0f, 1) + " %"; })
+        .withValueFromStringFunction([](const String& text) { return text.getFloatValue() / 100.0f; });
 
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "morph", 1 }, "Morph",
-        NormalisableRange<float>(0.0f, 1.5f, 0.001f), 1.0f,
-        AudioParameterFloatAttributes().withStringFromValueFunction(
-            [](float v, int) { return String(v * 100.0f, 0) + " %"; })));
+        NormalisableRange<float>(0.0f, 1.5f, 0.001f), 1.0f, pct));
 
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "clarity", 1 }, "Clarity",
-        NormalisableRange<float>(0.0f, 2.0f, 0.001f), 1.0f,
-        AudioParameterFloatAttributes().withStringFromValueFunction(
-            [](float v, int) { return String(v * 100.0f, 0) + " %"; })));
+        NormalisableRange<float>(0.0f, 2.0f, 0.001f), 1.0f, pct));
 
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "smooth", 1 }, "Smooth",
-        NormalisableRange<float>(0.0f, 0.95f, 0.001f), 0.0f));
+        NormalisableRange<float>(0.0f, 0.95f, 0.001f), 0.0f, pct));
 
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "maxBoost", 1 }, "Max Boost",
@@ -48,9 +47,7 @@ SpectralMorphAudioProcessor::createParameterLayout()
 
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "mix", 1 }, "Mix",
-        NormalisableRange<float>(0.0f, 1.0f, 0.001f), 1.0f,
-        AudioParameterFloatAttributes().withStringFromValueFunction(
-            [](float v, int) { return String(v * 100.0f, 0) + " %"; })));
+        NormalisableRange<float>(0.0f, 1.0f, 0.001f), 1.0f, pct));
 
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "outGain", 1 }, "Output",
@@ -72,9 +69,7 @@ SpectralMorphAudioProcessor::createParameterLayout()
     // loudness contour passes through untouched (old OFF).
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "dynamics", 1 }, "Dynamics",
-        NormalisableRange<float>(0.0f, 1.0f, 0.001f), 1.0f,
-        AudioParameterFloatAttributes().withStringFromValueFunction(
-            [](float v, int) { return String(v * 100.0f, 0) + " %"; })));
+        NormalisableRange<float>(0.0f, 1.0f, 0.001f), 1.0f, pct));
 
     p.push_back(std::make_unique<AudioParameterBool>(ParameterID{ "freezeSide", 1 }, "Freeze Side", false));
     p.push_back(std::make_unique<AudioParameterBool>(ParameterID{ "bypass", 1 }, "Bypass", false));
@@ -88,9 +83,6 @@ SpectralMorphAudioProcessor::createParameterLayout()
     //--------------------------------------------------------------------------
     //  Vocoder / Inject / Partials
     //--------------------------------------------------------------------------
-    auto pct = AudioParameterFloatAttributes().withStringFromValueFunction(
-        [](float v, int) { return String(v * 100.0f, 0) + " %"; });
-
     // Real time constants, unlike the legacy Smooth knob whose meaning drifted
     // with FFT size. Fast attack is what keeps consonant onsets intact.
     p.push_back(std::make_unique<AudioParameterFloat>(
@@ -119,7 +111,8 @@ SpectralMorphAudioProcessor::createParameterLayout()
         ParameterID{ "fold", 1 }, "Fold",
         NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.0f,
         AudioParameterFloatAttributes().withStringFromValueFunction(
-            [](float v, int) { return String(v * 100.0f, 0) + " % oct"; })));
+            [](float v, int) { return String(v * 100.0f, 1) + " % oct"; })
+            .withValueFromStringFunction([](const String& text) { return text.getFloatValue() / 100.0f; })));
 
     p.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "glide", 1 }, "Glide",
