@@ -14,6 +14,8 @@ public:
     explicit SpectrogramComponent (MorphEngine& e) : engine (e)
     {
         setOpaque (true);
+        setTitle ("Rolling spectrogram");
+        setDescription ("Visual frequency history. Main input is green, sidechain is purple, and overlap is white. It does not control audio.");
         mainDb.resize (MorphEngine::kDisplayBands, -120.0f);
         sideDb.resize (MorphEngine::kDisplayBands, -120.0f);
         startTimerHz (60);
@@ -87,6 +89,11 @@ public:
     }
 
 private:
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override
+    {
+        return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::image);
+    }
+
     void timerCallback() override
     {
         if (! image.isValid())
