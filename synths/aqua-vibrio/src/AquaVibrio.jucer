@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="AqVb01" name="AquaVibrio" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" displaySplashScreen="0" jucerFormatVersion="1"
+              companyName="aquanodemusic" companyCopyright="none" version="1.0.0"
+              pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
+              pluginName="Aqua Vibrio" pluginDesc="Virus-architecture synthesiser on Aquanode DSP"
+              pluginManufacturer="Aquanode" pluginManufacturerCode="Aqnd" pluginCode="AqVb"
+              pluginVST3Category="Instrument,Synth" pluginAUMainType="'aumu'"
+              cppLanguageStandard="17" defines="JUCE_WEB_BROWSER=0&#10;JUCE_USE_CURL=0&#10;JUCE_DISPLAY_SPLASH_SCREEN=0"
+              companyEmail="node.aqua@gmail.com">
+  <MAINGROUP id="AqVbMain" name="AquaVibrio">
+    <FILE id="ChqrHr" name="AquaVibrioEngine.cpp" compile="1" resource="0"
+          file="Source/AquaVibrioEngine.cpp"/>
+    <FILE id="TaC9NZ" name="AquaVibrioEngine.h" compile="0" resource="0"
+          file="Source/AquaVibrioEngine.h"/>
+    <FILE id="XVzCJz" name="AquaVibrioExtras.h" compile="0" resource="0"
+          file="Source/AquaVibrioExtras.h"/>
+    <FILE id="sssZ1M" name="AquaVibrioFactory.h" compile="0" resource="0"
+          file="Source/AquaVibrioFactory.h"/>
+    <FILE id="Kz7Wpk" name="AquaVibrioLookAndFeel.h" compile="0" resource="0"
+          file="Source/AquaVibrioLookAndFeel.h"/>
+    <FILE id="il6tsd" name="AquaVibrioPanelLayout.h" compile="0" resource="0"
+          file="Source/AquaVibrioPanelLayout.h"/>
+    <FILE id="lNjaYd" name="AquaVibrioParameters.h" compile="0" resource="0"
+          file="Source/AquaVibrioParameters.h"/>
+    <FILE id="gi5RQV" name="AquaVibrioPatch.h" compile="0" resource="0"
+          file="Source/AquaVibrioPatch.h"/>
+    <FILE id="txstIZ" name="AquaVibrioRelevance.h" compile="0" resource="0"
+          file="Source/AquaVibrioRelevance.h"/>
+    <FILE id="avrnd1" name="AquaVibrioRandom.h" compile="0" resource="0"
+          file="Source/AquaVibrioRandom.h"/>
+    <FILE id="avrnd2" name="AquaVibrioRandom.cpp" compile="1" resource="0"
+          file="Source/AquaVibrioRandom.cpp"/>
+    <FILE id="cgBx8b" name="AquaVibrioScaling.h" compile="0" resource="0"
+          file="Source/AquaVibrioScaling.h"/>
+    <FILE id="mzuTe2" name="PluginEditor.cpp" compile="1" resource="0"
+          file="Source/PluginEditor.cpp"/>
+    <FILE id="eTFO0P" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+    <FILE id="pWOOHF" name="PluginProcessor.cpp" compile="1" resource="0"
+          file="Source/PluginProcessor.cpp"/>
+    <FILE id="DmMNKu" name="PluginProcessor.h" compile="0" resource="0"
+          file="Source/PluginProcessor.h"/>
+    <GROUP id="{E62B0800-A011-BB1E-213F-E40A7D6423D7}" name="Aquanode">
+      <FILE id="dhnpqo" name="ADelaySRModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/ADelaySRModule.cpp"/>
+      <FILE id="Rtax0E" name="ADelaySRModule.h" compile="0" resource="0"
+            file="Source/Aquanode/ADelaySRModule.h"/>
+      <FILE id="vv5SXF" name="ADSRModule.cpp" compile="1" resource="0" file="Source/Aquanode/ADSRModule.cpp"/>
+      <FILE id="Zm9lFf" name="ADSRModule.h" compile="0" resource="0" file="Source/Aquanode/ADSRModule.h"/>
+      <FILE id="etzx4S" name="AnalogDriftModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/AnalogDriftModule.cpp"/>
+      <FILE id="WAcXBl" name="AnalogDriftModule.h" compile="0" resource="0"
+            file="Source/Aquanode/AnalogDriftModule.h"/>
+      <FILE id="CUUbpS" name="AquaFilterModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/AquaFilterModule.cpp"/>
+      <FILE id="k7IQRn" name="AquaFilterModule.h" compile="0" resource="0"
+            file="Source/Aquanode/AquaFilterModule.h"/>
+      <FILE id="u3Cn62" name="ArpModule.cpp" compile="1" resource="0" file="Source/Aquanode/ArpModule.cpp"/>
+      <FILE id="dlGGbm" name="ArpModule.h" compile="0" resource="0" file="Source/Aquanode/ArpModule.h"/>
+      <FILE id="QmY4b9" name="BellEQModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/BellEQModule.cpp"/>
+      <FILE id="YfqQjd" name="BellEQModule.h" compile="0" resource="0" file="Source/Aquanode/BellEQModule.h"/>
+      <FILE id="t3QKVp" name="ChorusModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/ChorusModule.cpp"/>
+      <FILE id="JsBzwR" name="ChorusModule.h" compile="0" resource="0" file="Source/Aquanode/ChorusModule.h"/>
+      <FILE id="cCDnFl" name="CombFilterModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/CombFilterModule.cpp"/>
+      <FILE id="Z6RcnN" name="CombFilterModule.h" compile="0" resource="0"
+            file="Source/Aquanode/CombFilterModule.h"/>
+      <FILE id="rD3528" name="DelayModule.cpp" compile="1" resource="0" file="Source/Aquanode/DelayModule.cpp"/>
+      <FILE id="nwFDjf" name="DelayModule.h" compile="0" resource="0" file="Source/Aquanode/DelayModule.h"/>
+      <FILE id="P0Ovik" name="EnvFollowModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/EnvFollowModule.cpp"/>
+      <FILE id="FhSyqU" name="EnvFollowModule.h" compile="0" resource="0"
+            file="Source/Aquanode/EnvFollowModule.h"/>
+      <FILE id="vSYfv3" name="FormantFilterModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/FormantFilterModule.cpp"/>
+      <FILE id="E7M2ir" name="FormantFilterModule.h" compile="0" resource="0"
+            file="Source/Aquanode/FormantFilterModule.h"/>
+      <FILE id="Px8DXc" name="LFOModule.cpp" compile="1" resource="0" file="Source/Aquanode/LFOModule.cpp"/>
+      <FILE id="Faqu4K" name="LFOModule.h" compile="0" resource="0" file="Source/Aquanode/LFOModule.h"/>
+      <FILE id="RXEqVe" name="ModuleCore.cpp" compile="1" resource="0" file="Source/Aquanode/ModuleCore.cpp"/>
+      <FILE id="M54Bty" name="ModuleCore.h" compile="0" resource="0" file="Source/Aquanode/ModuleCore.h"/>
+      <FILE id="aUIqjo" name="ModuleRegistry.cpp" compile="1" resource="0"
+            file="Source/Aquanode/ModuleRegistry.cpp"/>
+      <FILE id="xXE2v3" name="ModuleRegistry.h" compile="0" resource="0"
+            file="Source/Aquanode/ModuleRegistry.h"/>
+      <FILE id="BBK2y8" name="NoiseModule.cpp" compile="1" resource="0" file="Source/Aquanode/NoiseModule.cpp"/>
+      <FILE id="gbKYKF" name="NoiseModule.h" compile="0" resource="0" file="Source/Aquanode/NoiseModule.h"/>
+      <FILE id="xNjLDI" name="OscillatorModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/OscillatorModule.cpp"/>
+      <FILE id="cPL5BO" name="OscillatorModule.h" compile="0" resource="0"
+            file="Source/Aquanode/OscillatorModule.h"/>
+      <FILE id="P6DnSN" name="PhaserModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/PhaserModule.cpp"/>
+      <FILE id="AH0mvY" name="PhaserModule.h" compile="0" resource="0" file="Source/Aquanode/PhaserModule.h"/>
+      <FILE id="utUvrw" name="ReverbModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/ReverbModule.cpp"/>
+      <FILE id="T7UL18" name="ReverbModule.h" compile="0" resource="0" file="Source/Aquanode/ReverbModule.h"/>
+      <FILE id="eWKlip" name="RingModModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/RingModModule.cpp"/>
+      <FILE id="j5zAkR" name="RingModModule.h" compile="0" resource="0" file="Source/Aquanode/RingModModule.h"/>
+      <FILE id="Ibfbje" name="StereoWidthModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/StereoWidthModule.cpp"/>
+      <FILE id="FVvVC6" name="StereoWidthModule.h" compile="0" resource="0"
+            file="Source/Aquanode/StereoWidthModule.h"/>
+      <FILE id="kiz9OH" name="SVFFilterModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/SVFFilterModule.cpp"/>
+      <FILE id="l1NMPN" name="SVFFilterModule.h" compile="0" resource="0"
+            file="Source/Aquanode/SVFFilterModule.h"/>
+      <FILE id="c6Rv8C" name="TapeWobbleModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/TapeWobbleModule.cpp"/>
+      <FILE id="AxPHfe" name="TapeWobbleModule.h" compile="0" resource="0"
+            file="Source/Aquanode/TapeWobbleModule.h"/>
+      <FILE id="SE0kuq" name="VocoderModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/VocoderModule.cpp"/>
+      <FILE id="avgrn1" name="GranulationModule.h" compile="0" resource="0"
+            file="Source/Aquanode/GranulationModule.h"/>
+      <FILE id="avgrn2" name="GranulationModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/GranulationModule.cpp"/>
+      <FILE id="YY5n6h" name="VocoderModule.h" compile="0" resource="0" file="Source/Aquanode/VocoderModule.h"/>
+      <FILE id="hCvays" name="WaveshaperModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/WaveshaperModule.cpp"/>
+      <FILE id="XcH62b" name="WaveshaperModule.h" compile="0" resource="0"
+            file="Source/Aquanode/WaveshaperModule.h"/>
+      <FILE id="XNC6h7" name="WavetableModule.cpp" compile="1" resource="0"
+            file="Source/Aquanode/WavetableModule.cpp"/>
+      <FILE id="n35cK7" name="WavetableModule.h" compile="0" resource="0"
+            file="Source/Aquanode/WavetableModule.h"/>
+    </GROUP>
+    <GROUP id="{E967BD6C-C915-6200-3329-39103340DD4C}" name="Modules">
+      <FILE id="h50rLZ" name="VirusDistortionModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VirusDistortionModule.cpp"/>
+      <FILE id="dQrSv2" name="VirusDistortionModule.h" compile="0" resource="0"
+            file="Source/Modules/VirusDistortionModule.h"/>
+      <FILE id="DSENSx" name="VirusEnvModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VirusEnvModule.cpp"/>
+      <FILE id="FkDqaL" name="VirusEnvModule.h" compile="0" resource="0"
+            file="Source/Modules/VirusEnvModule.h"/>
+      <FILE id="AwHVPp" name="VirusLfoModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VirusLfoModule.cpp"/>
+      <FILE id="UGSxGm" name="VirusLfoModule.h" compile="0" resource="0"
+            file="Source/Modules/VirusLfoModule.h"/>
+      <FILE id="w3GmJS" name="VirusOscModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VirusOscModule.cpp"/>
+      <FILE id="Tk7xGX" name="VirusOscModule.h" compile="0" resource="0"
+            file="Source/Modules/VirusOscModule.h"/>
+    </GROUP>
+    <FILE id="raJOtS" name="AquaVibrioDisplay.h" compile="0" resource="0"
+          file="Source/AquaVibrioDisplay.h"/>
+  </MAINGROUP>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <EXPORTFORMATS>
+    <VS2026 targetFolder="Builds/VisualStudio2026">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" winArchitecture="x64" targetName="AquaVibrio"
+                       useRuntimeLibDLL="0"/>
+        <CONFIGURATION isDebug="0" name="Release" winArchitecture="x64" targetName="AquaVibrio"
+                       optimisation="3" useRuntimeLibDLL="0"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_dsp" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../../../Program Files/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2026>
+  </EXPORTFORMATS>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+</JUCERPROJECT>
