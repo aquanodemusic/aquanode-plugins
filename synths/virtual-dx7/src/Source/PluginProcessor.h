@@ -168,6 +168,10 @@ Bank        factoryBank (const RomStore& roms, int bank);
 const char* factoryBankName (const RomStore& roms, int bank);
 bool        usingStarterBank (const RomStore& roms);   // true when no voice ROM is loaded
 static constexpr int kNumFactoryBanks = 8;
+// The bundled starter bank's own index. Without a voice ROM it is also what
+// banks 0..7 fall back to (and the selector lists it as the only bank); with a
+// voice ROM loaded it stays reachable here, listed after ROM1A..ROM4B.
+static constexpr int kStarterBankIndex = kNumFactoryBanks;
 
 // The bundled starter bank on its own, with no RomStore involved. Used for
 // the APVTS's static default parameter values (created before any instance,
@@ -179,6 +183,58 @@ const Bank& starterBank();
 // 4096 packed voice bytes into `out`.  Returns true on success.  Shared by the
 // bank-import and save-into-bank code paths.
 bool findBankInSysex (const uint8_t* data, size_t len, Bank& out);
+
+// ============================================================================
+//  FUNCTION parameters
+// ============================================================================
+// The DX7's FUNCTION page: settings that belong to the instrument rather than
+// to a voice, so they never travel with a patch. Values are in the panel's own
+// units, exactly what the firmware's function-parameter SysEx (group 2,
+// parameters 64..77) takes, so the emulator gets them verbatim and the native
+// engine converts them (see DX7Engine::setFunctions).
+struct FunctionSettings
+{
+    int  masterTune = 0;     // -256..+255 hardware steps of 1200/4096 cent (+-75 cents)
+    bool mono       = false; // POLY / MONO
+    int  portaMode  = 0;     // 0 = RETAIN (poly) / FINGERED (mono), 1 = FOLLOW / FULL TIME
+    int  portaTime  = 0;     // 0..99
+    int  pbRange    = 2;     // 0..12 semitones
+
+    // Controller range 0..99 and assign bits: 1 = PITCH, 2 = AMP, 4 = EG BIAS.
+    struct Controller { int range = 99; int assign = 0; };
+    Controller modWheel { 99, 1 }, foot, breath, aftertouch;
+
+    bool memoryProtect = false;
+};
+
+// APVTS IDs of the FUNCTION page (and of the native engine's DC blocker, which
+// lives with them in the header). All start with "fn", outside both the
+// "p<offset>" VCED namespace and the "fx" effects, so they are saved and
+// restored as their own group and never mistaken for a patch byte.
+namespace fnid
+{
+    inline constexpr const char* masterTune   = "fnMasterTune";
+    inline constexpr const char* polyMono     = "fnPolyMono";
+    inline constexpr const char* portaMode    = "fnPortaMode";
+    inline constexpr const char* portaTime    = "fnPortaTime";
+    inline constexpr const char* pbRange      = "fnPbRange";
+    inline constexpr const char* midiChannel  = "fnMidiChannel";   // 0 = omni, 1..16
+    inline constexpr const char* memProtect   = "fnMemProtect";
+    inline constexpr const char* dcBlock      = "fnDcBlock";       // Hz, 0 = off
+
+    // Per controller: "<prefix>Range", "<prefix>Pitch", "<prefix>Amp", "<prefix>EgBias".
+    inline constexpr const char* controllers[4]      = { "fnMw", "fnFc", "fnBc", "fnAt" };
+    inline constexpr const char* controllerNames[4]  = { "Mod Wheel", "Foot Controller",
+                                                         "Breath Controller", "Aftertouch" };
+    inline juce::String range  (int c) { return juce::String (controllers[c]) + "Range"; }
+    inline juce::String pitch  (int c) { return juce::String (controllers[c]) + "Pitch"; }
+    inline juce::String amp    (int c) { return juce::String (controllers[c]) + "Amp"; }
+    inline juce::String egBias (int c) { return juce::String (controllers[c]) + "EgBias"; }
+}
+
+// One function master-tune step, in cents. Measured on the emulated firmware:
+// +-256 steps land on +-74.8 cents.
+static constexpr float kMasterTuneCentsPerStep = 1200.0f / 4096.0f;
 
 // ============================================================================
 //  Real-time engine wrapper
@@ -259,6 +315,12 @@ public:
     void setInternalProtect(bool on);
     void sendParamChange   (int vcedOffset, int value); // live single-parameter edit
 
+    // FUNCTION settings and the native engine's DC blocker. Audio thread, once
+    // per block: only what changed is forwarded, and everything is sent again
+    // whenever the emulator takes over from the native engine.
+    void setFunctions   (const FunctionSettings& f);
+    void setDcBlockHz   (float hz) { native_.setDcBlockHz (hz); }
+
     // Display readback (audio thread writes, any thread reads).
     void getLcd (char line1[17], char line2[17]) const;
     int  led1() const { return led1_.load (std::memory_order_relaxed); }
@@ -281,9 +343,15 @@ private:
     struct SchedBtn { int chunksLeft; int ctrlId; bool down; };
     std::deque<SchedBtn> sched_;
     void scheduleSelect (int prog);
+    void schedulePress  (int ctrlId);   // appended after whatever is already queued
     void pumpSchedule();
 
+    void sendFunctionsToEmulator (bool all);   // audio thread, emulator live
+    FunctionSettings fnWanted_;                // audio thread
+    FunctionSettings fnSent_;                  // what the emulator has had
+
     void bootThreadFn (double fs);
+    void primeEmulator();          // audio thread: hand the current voice + rate to the emulator
     void updateDisplaySnapshot();
     void updateNativeDisplay();
 
@@ -303,6 +371,8 @@ private:
     DX7Synth*    synth_   = nullptr;
 
     std::atomic<bool> ready_{false};
+    bool   emuLive_ = false;       // audio thread: did the emulator render the previous block?
+    double emuRate_ = 0.0;         // sample rate the emulator was last told (boot thread, then audio thread)
     std::atomic<bool> bootStarted_{false};
     std::thread bootThread_;
     double sampleRate_ = 48000.0;
@@ -395,6 +465,10 @@ class VDX7AudioProcessor : public juce::AudioProcessor,
     int        currentProg() const { return prog_; }
 
     juce::MidiKeyboardState keyboardState;   // on-screen keyboard
+    // Every note the engine is actually playing - the keys pressed plus any
+    // notes the Chord section adds (and notes its Sustain holds). Display only:
+    // the on-screen keyboard tints the keys that sound without being held.
+    juce::MidiKeyboardState soundingNotes;
 
     bool engineReady() const { return engine_.isReady(); }
 
@@ -406,6 +480,8 @@ class VDX7AudioProcessor : public juce::AudioProcessor,
     bool loadFactoryVoices (const void* data, size_t size,
                             const juce::String& source, juce::String& errorOut);
     void forgetRoms();
+    void unloadFirmware();        // back to the native engine; voices stay loaded
+    void unloadFactoryVoices();   // back to the starter bank; firmware stays loaded
 
     bool usingEmulator() const
         { return engine_.backend() == vdx7::DX7Engine::Backend::Emulator; }
@@ -427,6 +503,11 @@ private:
     void pushVoiceToApvts (const vdx7::Voice& v);  // reflect a loaded patch in the APVTS
     void loadVoiceIntoModel (const vdx7::Voice& v, bool broadcast = true);
     void restoreFxState (const juce::ValueTree& vt);   // reads the "FX" child of a saved state
+    void restoreFnState (const juce::ValueTree& vt);   // reads the "FN" child (FUNCTION page)
+    static void addFunctionParameters (juce::AudioProcessorValueTreeState::ParameterLayout&);
+    void bindFunctionParameters();
+    vdx7::FunctionSettings readFunctionParameters() const;   // audio thread
+    void filterMidiChannel (juce::MidiBuffer& midi);          // audio thread
     void afterRomChange();                             // re-boot, re-send the patch, tell the UI
 
     // Where the ROMs came from, carried in the plugin state so a reopened
@@ -465,6 +546,24 @@ private:
     // namespace, so they are automatable without ever being mistaken for a
     // patch byte by the autoParams_ diff above.
     vdx7fx::FxChain fx_;
+
+    // FUNCTION page parameters (raw APVTS values, read once per block).
+    struct FnRaw
+    {
+        std::atomic<float>* masterTune = nullptr;
+        std::atomic<float>* polyMono   = nullptr;
+        std::atomic<float>* portaMode  = nullptr;
+        std::atomic<float>* portaTime  = nullptr;
+        std::atomic<float>* pbRange    = nullptr;
+        std::atomic<float>* midiCh     = nullptr;
+        std::atomic<float>* protect    = nullptr;
+        std::atomic<float>* dcBlock    = nullptr;
+        std::atomic<float>* range[4]  {};
+        std::atomic<float>* pitch[4]  {};
+        std::atomic<float>* amp[4]    {};
+        std::atomic<float>* egBias[4] {};
+    } fnRaw_;
+    juce::MidiBuffer channelScratch_;   // filterMidiChannel's working buffer
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VDX7AudioProcessor)
 };

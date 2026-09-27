@@ -3,7 +3,7 @@
 ![VirtualDX7](assets/GUI.png)
 
 This is the **Android Port** of the VirtualDX7 synthesizer plugin.
-It is the same codebase as the version from the `synths` folder with the addition of the Android folder, except for the MTS-ESP microtuning which is currently not available for Android.
+It is the same codebase as the version from the `synths` folder with the addition of the Android folder, except for the MTS-ESP microtuning which is currently not available for Android, and the native engine's polyphony, which is 32 voices here instead of 64 to stay within a phone's CPU budget.
 VirtualDX7, also the Android App, can load the original DX7 rom,
 which however is not included due to copyright reasons. Nevertheless, it includes its own native
 recreation of the DX7's engine, similar to other projects such as dexed, which captures the DX7's sound.
@@ -24,9 +24,37 @@ Furthermore:
 * Original 6-operator editor: every voice parameter (per-operator envelopes,
   frequency, keyboard scaling, plus global algorithm / feedback / LFO / pitch
   envelope) is editable with rotary controls.
+* **OPERATORS | VOLUME** card: pick the operator to edit, with every operator's
+  output level on a small knob right beside its button.
+* **Envelope Generator** scope: all six operator envelopes on one green display,
+  the selected one glowing. Drag sideways to move in time, drag up/down to zoom
+  from millisecond attacks to long bell tails, tap twice to see it all. Tap a
+  curve to select its operator.
+* **Real-unit readouts** under each operator: frequency ratio / pitch / detune in
+  cents, a keyboard-scaling graph, and each envelope segment's time.
+* **GLOBAL | ALGORITHM** card: Algorithm and Feedback knobs, the Key Sync switch, and a
+  diagram with the true routing and feedback loop of all 32 algorithms.
+* **LFO** and **Pitch EG** scopes on the LFO | PITCH EG card, showing the vibrato's shape,
+  rate, depth and delay, and the pitch envelope in semitones.
+* **Chord** section on the FX page, its added notes shown on the keyboard.
+* A **scope in every FX unit**: the chorus's delay sweep and detune, the delay's
+  echoes, the phaser's frequency response and notch sweep, the reverb's tail
+  spectrogram (a noise burst rendered on the fly, with its RT60), and the chord on
+  a small keyboard. FX knob values are rounded for reading.
+* **Chorus Unison** (1–6 voices) and the delay's **Allow Self-Feedback** switch
+  (off by default: Feedback then stops at 1.00).
+* The DX7's **FUNCTION page** in the header's second row: master tune, poly/mono,
+  portamento mode and time, pitch bend range, mod wheel / foot / breath /
+  aftertouch range and assignment, MIDI channel and memory protect - followed by
+  both engines - plus a **DC** blocker knob for the native engine.
 * Live emulated **LCD** and **voice-number LED** read straight from the running
   firmware.
-* Factory ROM browser (ROM1A … ROM4B, 256 voices) plus an INIT voice.
+* 32 original starter patches, plus the factory ROM browser (ROM1A … ROM4B, 256
+  voices) once you load a voice ROM - the starter bank stays in the list - and an
+  INIT voice.
+
+The full description of every control is in the `synths` folder's README
+(*The panel*).
 * **FILE menu** (SysEx import/export):
   * *Import bank* - load any standard 32-voice `.syx` bank (4104-byte bulk dump);
     its 32 voices appear as a **USER** bank in the browser.

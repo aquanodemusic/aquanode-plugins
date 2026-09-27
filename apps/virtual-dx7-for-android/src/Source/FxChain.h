@@ -119,6 +119,15 @@ namespace vdx7fx {
     // ============================================================================
     //  Chorus  -  modulated delay line per channel; the LFO phase offset between
     //  the channels is the stereo spread.  (Aquanode ChorusModule)
+    //
+    //  Unison reads each line at 1..6 taps instead of one, their LFO phases
+    //  spread evenly round the cycle, so at any moment the voices sit at
+    //  different delays and detunes - the thick, ensemble-like chorus. The sum
+    //  is scaled by 1/sqrt(voices), which keeps a bright, broadband sound at
+    //  the same level (within about 1 dB). Pure low tones behave like a comb
+    //  filter instead: deep bass, where the taps stay in phase, adds up (up to
+    //  +7 dB with six voices), and a note whose period is close to the spread
+    //  of the voices' delays partly cancels - less Depth or Delay evens it out.
     // ============================================================================
     class Chorus : public FxBase
     {
@@ -143,6 +152,9 @@ namespace vdx7fx {
         void setDepth(float percent) { depth = percent * 0.01f; }
         void setBaseDelay(float ms) { baseMs = ms; }
         void setSpread(float percent) { spread = percent * 0.01f; }
+        void setVoices(int n) { voices = juce::jlimit(1, maxVoices, n); }
+
+        static constexpr int maxVoices = 6;
 
     private:
         void processInternal(float* left, float* right, int numSamples) override
@@ -150,6 +162,9 @@ namespace vdx7fx {
             const int size = (int)line[0].size();
             if (size < 4)
                 return;
+
+            const int nv = voices;
+            const float voiceGain = 1.0f / std::sqrt((float)nv);
 
             for (int n = 0; n < numSamples; ++n)
             {
@@ -161,21 +176,27 @@ namespace vdx7fx {
 
                 for (int c = 0; c < 2; ++c)
                 {
-                    const double ph = lfoPhase + (c == 1 ? spread * 0.5 : 0.0);   // up to 180 deg
-                    const float lfo = (float)std::sin(ph * juce::MathConstants<double>::twoPi);
+                    float sum = 0.0f;
+                    for (int v = 0; v < nv; ++v)
+                    {
+                        const double ph = lfoPhase + (c == 1 ? spread * 0.5 : 0.0)   // up to 180 deg
+                                        + (double)v / (double)nv;                      // unison voices spread round the cycle
+                        const float lfo = (float)std::sin(ph * juce::MathConstants<double>::twoPi);
 
-                    // sweep around the base delay; never below 0.5 ms
-                    const float delayMs = juce::jmax(0.5f, baseMs * (1.0f + 0.9f * depth * lfo));
-                    const double delaySamples =
-                        juce::jlimit(1.0, (double)size - 2.0, delayMs * 0.001 * sampleRate);
+                        // sweep around the base delay; never below 0.5 ms
+                        const float delayMs = juce::jmax(0.5f, baseMs * (1.0f + 0.9f * depth * lfo));
+                        const double delaySamples =
+                            juce::jlimit(1.0, (double)size - 2.0, delayMs * 0.001 * sampleRate);
 
-                    double readPos = (double)writePos - delaySamples;
-                    while (readPos < 0.0) readPos += size;
-                    const int i0 = (int)readPos;
-                    const int i1 = (i0 + 1) % size;
-                    const float frac = (float)(readPos - i0);
-                    wet[c] = line[c][(size_t)i0]
-                        + (line[c][(size_t)i1] - line[c][(size_t)i0]) * frac;
+                        double readPos = (double)writePos - delaySamples;
+                        while (readPos < 0.0) readPos += size;
+                        const int i0 = (int)readPos;
+                        const int i1 = (i0 + 1) % size;
+                        const float frac = (float)(readPos - i0);
+                        sum += line[c][(size_t)i0]
+                            + (line[c][(size_t)i1] - line[c][(size_t)i0]) * frac;
+                    }
+                    wet[c] = sum * voiceGain;
 
                     line[c][(size_t)writePos] = (c == 0 ? dryL : dryR);
                 }
@@ -189,6 +210,7 @@ namespace vdx7fx {
         int    writePos{ 0 };
         double lfoPhase{ 0.0 };
         float  rate{ 0.5f }, depth{ 0.5f }, baseMs{ 7.0f }, spread{ 0.5f };
+        int    voices{ 1 };
     };
 
     // ============================================================================
@@ -733,6 +755,7 @@ namespace vdx7fx {
         static constexpr const char* chorusDelay = "fxChorusDelay";
         static constexpr const char* chorusSpread = "fxChorusSpread";
         static constexpr const char* chorusMix = "fxChorusMix";
+        static constexpr const char* chorusVoices = "fxChorusVoices";
         // Delay
         static constexpr const char* delayOn = "fxDelayOn";
         static constexpr const char* delayTimeL = "fxDelayTimeL";
@@ -740,6 +763,7 @@ namespace vdx7fx {
         static constexpr const char* delayFb = "fxDelayFeedback";
         static constexpr const char* delayHp = "fxDelayHighPass";
         static constexpr const char* delayMix = "fxDelayMix";
+        static constexpr const char* delaySelfFb = "fxDelaySelfFeedback";
         // Phaser
         static constexpr const char* phaserOn = "fxPhaserOn";
         static constexpr const char* phaserRate = "fxPhaserRate";
@@ -800,6 +824,10 @@ namespace vdx7fx {
             addFloat(chorusDelay, "Chorus Delay", { 1.0f, 20.0f, 0.1f }, 7.0f, "ms");
             addFloat(chorusSpread, "Chorus Spread", percent, 50.0f, "%");
             addFloat(chorusMix, "Chorus Mix", percent, 50.0f, "%");
+            layout.add(std::make_unique<juce::AudioParameterInt>(
+                juce::ParameterID{ chorusVoices, 1 }, "Chorus Unison", 1, Chorus::maxVoices, 1,
+                juce::AudioParameterIntAttributes().withStringFromValueFunction(
+                    [](int v, int) { return v == 1 ? juce::String("1 voice") : juce::String(v) + " voices"; })));
 
             // ---- Delay ----------------------------------------------------------
             addBool(delayOn, "Delay On", false);
@@ -808,6 +836,11 @@ namespace vdx7fx {
             addFloat(delayFb, "Delay Feedback", { 0.0f, 1.2f, 0.001f }, 0.3f, "");
             addFloat(delayHp, "Delay High-Pass", logRange(20.0f, 2000.0f), 100.0f, "Hz");
             addFloat(delayMix, "Delay Mix", percent, 35.0f, "%");
+            // Off by default: Feedback then stops at 1.00 however far the knob
+            // turns, so the echoes can hold but never grow. On, the knob's
+            // range above 1.00 is live and the delay can run away into the
+            // line's clamp - self-oscillation, on purpose.
+            addBool(delaySelfFb, "Delay Self-Feedback", false);
 
             // ---- Phaser ---------------------------------------------------------
             addBool(phaserOn, "Phaser On", false);
@@ -881,10 +914,12 @@ namespace vdx7fx {
             pChorusOn = get(chorusOn); pChorusRate = get(chorusRate);
             pChorusDepth = get(chorusDepth); pChorusDelay = get(chorusDelay);
             pChorusSpread = get(chorusSpread); pChorusMix = get(chorusMix);
+            pChorusVoices = get(chorusVoices);
 
             pDelayOn = get(delayOn); pDelayTimeL = get(delayTimeL);
             pDelayTimeR = get(delayTimeR); pDelayFb = get(delayFb);
             pDelayHp = get(delayHp); pDelayMix = get(delayMix);
+            pDelaySelfFb = get(delaySelfFb);
 
             pPhaserOn = get(phaserOn); pPhaserRate = get(phaserRate);
             pPhaserDepth = get(phaserDepth); pPhaserCentre = get(phaserCentre);
@@ -964,12 +999,13 @@ namespace vdx7fx {
             chorus.setDepth(v(pChorusDepth));
             chorus.setBaseDelay(v(pChorusDelay));
             chorus.setSpread(v(pChorusSpread));
+            chorus.setVoices(juce::roundToInt(v(pChorusVoices)));
             chorus.setDryWet(v(pChorusMix));
 
             delay.setEnabled(on(pDelayOn));
             delay.setTimeL(v(pDelayTimeL));
             delay.setTimeR(v(pDelayTimeR));
-            delay.setFeedback(v(pDelayFb));
+            delay.setFeedback(on(pDelaySelfFb) ? v(pDelayFb) : juce::jmin(1.0f, v(pDelayFb)));
             delay.setHighPass(v(pDelayHp));
             delay.setDryWet(v(pDelayMix));
 
@@ -1012,9 +1048,11 @@ namespace vdx7fx {
         SustainHold sustain;
 
         std::atomic<float>* pChorusOn{ nullptr }, * pChorusRate{ nullptr }, * pChorusDepth{ nullptr },
-            * pChorusDelay{ nullptr }, * pChorusSpread{ nullptr }, * pChorusMix{ nullptr };
+            * pChorusDelay{ nullptr }, * pChorusSpread{ nullptr }, * pChorusMix{ nullptr },
+            * pChorusVoices{ nullptr };
         std::atomic<float>* pDelayOn{ nullptr }, * pDelayTimeL{ nullptr }, * pDelayTimeR{ nullptr },
-            * pDelayFb{ nullptr }, * pDelayHp{ nullptr }, * pDelayMix{ nullptr };
+            * pDelayFb{ nullptr }, * pDelayHp{ nullptr }, * pDelayMix{ nullptr },
+            * pDelaySelfFb{ nullptr };
         std::atomic<float>* pPhaserOn{ nullptr }, * pPhaserRate{ nullptr }, * pPhaserDepth{ nullptr },
             * pPhaserCentre{ nullptr }, * pPhaserFb{ nullptr }, * pPhaserStages{ nullptr },
             * pPhaserMix{ nullptr };

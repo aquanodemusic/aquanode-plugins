@@ -53,7 +53,15 @@ namespace vdx7native {
 // ============================================================================
 
 static constexpr int kNumOps      = 6;
-static constexpr int kMaxNotes    = 16;   // the DX7's polyphony
+// Polyphony. The DX7 itself has 16 voices, and the emulated engine keeps that
+// limit because it is the real hardware. The native engine has no such
+// constraint, and the Chord section can turn one key into seven notes, so it
+// gets a larger pool. Idle slots cost nothing (only sounding notes are
+// rendered); when all are busy the oldest released note is reused first.
+// 32 rather than the desktop build's 64: every sounding note is six operators
+// of per-sample work, and on a phone's CPU budget stealing an old release tail
+// is kinder than an audio dropout.
+static constexpr int kMaxNotes    = 32;
 static constexpr int kVcedSize    = 155;
 
 // Full attenuation range of the operator envelope, in decibels. The hardware
@@ -402,6 +410,20 @@ public:
         provider_ = std::move (fn);
     }
 
+    // A tuning master may publish a keyboard map with unmapped keys on it. This
+    // hook lets it say "there is no note here", so the key falls silent instead
+    // of sounding at whatever the fallback table happens to hold. Audio thread,
+    // called once per note-on; passing an empty function detaches it.
+    void setNoteFilter (std::function<bool (int)> fn)
+    {
+        filter_ = std::move (fn);
+    }
+
+    bool shouldFilterNote (int note) const
+    {
+        return filter_ && filter_ (note);
+    }
+
     float noteToHz (int note) const
     {
         note = std::clamp (note, 0, 127);
@@ -541,6 +563,7 @@ private:
     float hz_[128];
     bool  active_ { false };
     std::function<double (int)> provider_;
+    std::function<bool (int)>   filter_;
 };
 
 // ============================================================================
@@ -935,10 +958,26 @@ inline void PatchCache::build (const uint8_t v[kVcedSize])
 struct Functions
 {
     bool  mono           { false };
-    float portamentoSecs { 0.0f };   // time to glide one octave
-    bool  portaFollow    { true };   // true = follow (glissando off, legato glide)
+
+    // Portamento. The DX7 glide is not a constant rate: after a brief hold the
+    // pitch closes in on the new key exponentially, so a wide leap and a small
+    // step arrive in about the same time. portamentoTau is that curve's time
+    // constant and portamentoDelay the hold, both in seconds (tau 0 = no
+    // glide); portamentoTimeToGlide() turns the panel's 0..99 PORTAMENTO TIME
+    // into them.
+    float portamentoTau   { 0.0f };
+    float portamentoDelay { 0.0f };
+
+    // PORTAMENTO MODE. In POLY: false = RETAIN (notes held by the sustain
+    // pedal keep their pitch), true = FOLLOW (they glide to each new key too).
+    // In MONO: false = FINGERED (glide only on legato playing), true = FULL
+    // TIME (every note glides from the last one).
+    bool  portaFollow    { false };
 
     float bendRange      { 2.0f };   // semitones at full wheel deflection
+
+    // MASTER TUNE, in cents, applied to every note on top of the tuning table.
+    float masterTuneCents{ 0.0f };
 
     // Each controller has a range (0..1) and a set of destinations, matching
     // the DX7's PITCH / AMPLITUDE / EG BIAS assign switches.
@@ -955,6 +994,38 @@ struct Functions
     Assign breath    { 1.0f, false, false, false };
     Assign aftertouch{ 1.0f, false, false, false };
 };
+
+// PORTAMENTO TIME (0..99) -> how the glide moves. Measured on the emulated DX7
+// (firmware ROM, MONO, legato leaps of one and two octaves) and fitted with an
+// exponential that sets off after a short hold: the pitch stays put for
+// `delay` seconds, then closes in on the new key with time constant `tau`.
+// One entry per third step, interpolated in the log domain in between; the
+// emulator's own few milliseconds of key latency are left out of the delay.
+// 0 is no glide at all. The top end rises very steeply on the real thing too:
+// 90 settles in about two seconds, 99 in ten.
+inline void portamentoTimeToGlide (int time, float& tau, float& delay)
+{
+    static constexpr float kTau[34] = {
+        0.0005f, 0.0130f, 0.0167f, 0.0192f, 0.0217f, 0.0241f, 0.0279f, 0.0327f,
+        0.0368f, 0.0406f, 0.0476f, 0.0502f, 0.0565f, 0.0621f, 0.0675f, 0.0770f,
+        0.0864f, 0.0958f, 0.1081f, 0.1221f, 0.1421f, 0.1598f, 0.1830f, 0.2049f,
+        0.2319f, 0.2640f, 0.3077f, 0.3367f, 0.4120f, 0.4649f, 0.6207f, 0.7443f,
+        1.2434f, 3.7914f };   // time = 0, 3, 6, ... 99
+    static constexpr float kDelay[34] = {
+        0.0000f, 0.0011f, 0.0015f, 0.0019f, 0.0019f, 0.0019f, 0.0019f, 0.0019f,
+        0.0019f, 0.0028f, 0.0028f, 0.0042f, 0.0042f, 0.0057f, 0.0057f, 0.0057f,
+        0.0063f, 0.0082f, 0.0090f, 0.0102f, 0.0114f, 0.0144f, 0.0178f, 0.0204f,
+        0.0207f, 0.0237f, 0.0297f, 0.0334f, 0.0401f, 0.0443f, 0.0565f, 0.0675f,
+        0.1170f, 0.3235f };
+
+    time = std::clamp (time, 0, 99);
+    if (time == 0) { tau = 0.0f; delay = 0.0f; return; }
+    const float x = (float) time / 3.0f;
+    const int   i = std::min ((int) x, 32);
+    const float t = x - (float) i;
+    tau   = std::exp (std::log (kTau[i]) + (std::log (kTau[i + 1]) - std::log (kTau[i])) * t);
+    delay = kDelay[i] + (kDelay[i + 1] - kDelay[i]) * t;
+}
 
 // Everything that varies per control block but is shared by all sounding notes.
 struct ModContext
@@ -991,6 +1062,7 @@ public:
         sustained_ = false;
 
         glideNote_ = (glideFromNote >= 0.0f) ? glideFromNote : (float) midiNote;
+        glideHold_ = -1.0f;   // armed on the first block, from the live settings
 
         for (int i = 0; i < kNumOps; ++i)
         {
@@ -1046,6 +1118,11 @@ public:
 
     void releaseIfSustained() { if (sustained_) release(); }
 
+    // PORTAMENTO MODE = FOLLOW (poly): a note that only the sustain pedal is
+    // still holding glides on to the newest key instead of keeping its pitch.
+    bool heldBySustain() const { return active_ && ! released_ && sustained_; }
+    void followTo (int midiNote) { note_ = midiNote; glideHold_ = -1.0f; }
+
     void kill() { active_ = false; }
 
     // Diagnostic only: the operator's current amplitude in dB, comparable to
@@ -1075,13 +1152,25 @@ public:
         pitchEnv_.configure (p.pitchRates, p.pitchLevels);
         const float pitchEg = pitchEnv_.tick (mc.dt);
 
-        // Portamento: glide the sounding pitch towards the key that was struck.
-        if (fn.portamentoSecs > 0.0001f && glideNote_ != (float) note_)
+        // Portamento: glide the sounding pitch towards the key that was struck -
+        // hold briefly, then close in exponentially, as the DX7 does (see
+        // portamentoTimeToGlide).
+        if (fn.portamentoTau > 0.0f && glideNote_ != (float) note_)
         {
-            const float semisPerSec = 12.0f / fn.portamentoSecs;
-            const float step = semisPerSec * mc.dt;
-            if (glideNote_ < (float) note_) glideNote_ = std::min ((float) note_, glideNote_ + step);
-            else                            glideNote_ = std::max ((float) note_, glideNote_ - step);
+            if (glideHold_ < 0.0f)
+                glideHold_ = fn.portamentoDelay;   // a new glide starts with its hold
+
+            if (glideHold_ > 0.0f)
+            {
+                glideHold_ = std::max (0.0f, glideHold_ - mc.dt);   // 0 = held long enough
+            }
+            else
+            {
+                const float k = 1.0f - std::exp (-mc.dt / fn.portamentoTau);
+                glideNote_ += ((float) note_ - glideNote_) * k;
+                if (std::abs ((float) note_ - glideNote_) < 0.001f)
+                    glideNote_ = (float) note_;
+            }
         }
         else
         {
@@ -1105,7 +1194,7 @@ public:
                                ? mc.tuning->noteToHz (tunedNote)
                                : 440.0f * std::exp2 ((tunedNote - 69.0f) / 12.0f);
 
-        const float baseHz = rootHz * std::exp2 (continuous / 12.0f);
+        const float baseHz = rootHz * std::exp2 (continuous / 12.0f + fn.masterTuneCents / 1200.0f);
 
         // The LFO's amplitude modulation is a *reduction* in level, scaled per
         // operator by that operator's AMS setting. A controller assigned to
@@ -1234,6 +1323,7 @@ private:
     int      note_ { 60 };
     int      velocity_ { 0 };
     float    glideNote_ { 60.0f };
+    float    glideHold_ { -1.0f };   // portamento hold left, s (-1 = not yet armed)
     float    pitchNow_  { 60.0f };
     uint32_t age_ { 0 };
     bool     active_ { false };
@@ -1263,6 +1353,15 @@ public:
 
     void setFunctions (const Functions& f) { fn_ = f; }
     const Functions& functions() const { return fn_; }
+
+    // MEMORY PROTECT: incoming voice dumps are refused while it is on.
+    void setMemoryProtect (bool on) { memoryProtect_ = on; }
+
+    // DC blocker on the engine's output: a leaky integrator follows the signal's
+    // DC offset and is subtracted from it, i.e. a one-pole high-pass whose
+    // corner is `hz` (0 = off, which is the default and passes the signal
+    // untouched). Audio thread.
+    void setDcBlockHz (float hz) { dcHz_ = std::clamp (hz, 0.0f, 20.0f); }
 
     // ---- tuning -----------------------------------------------------------
     Tuning&       tuning()       { return tuning_; }
@@ -1342,6 +1441,7 @@ public:
         {
             heldCount_ = 0;
             sustain_ = false;
+            filtered_.fill (false);
         }
     }
 
@@ -1357,6 +1457,8 @@ public:
             renderControlBlock (out + done, n);
             done += n;
         }
+
+        applyDcBlock (out, numSamples);
     }
 
     // The panel display. The native engine has no HD44780 to read back, so it
@@ -1438,8 +1540,33 @@ private:
     // ---- note handling ----------------------------------------------------
     void noteOn (int note, int velocity)
     {
+        // A key the tuning master has left unmapped sounds nothing at all. The
+        // note is remembered so that its note-off can be swallowed too -
+        // otherwise heldCount_ would go one light per filtered key and the
+        // sustain/mono logic would drift.
+        if (tuning_.shouldFilterNote (note))
+        {
+            filtered_[(size_t) (note & 0x7F)] = true;
+            return;
+        }
+        filtered_[(size_t) (note & 0x7F)] = false;
+
         ++stamp_;
+
+        // The LFO. Its delay (hold, then fade in) counts from the first key of
+        // a phrase: a key pressed while no other key is held restarts it, a key
+        // added to a held chord does not. With LFO Key Sync on, every key also
+        // restarts the wave from the top of its cycle, so each note gets the
+        // same vibrato. (Both used to be read from the patch but never applied,
+        // leaving the LFO Delay and LFO Key Sync knobs with no effect here.)
+        if (heldCount_ == 0)
+            lfoAge_ = 0.0f;
+        if (patch_.lfoKeySync)
+            lfoPhase_ = 0.0f;
+
         ++heldCount_;
+
+        const bool glide = fn_.portamentoTau > 0.0f;
 
         if (fn_.mono)
         {
@@ -1454,22 +1581,38 @@ private:
                     return;
                 }
             }
+            // Not legato: FINGERED portamento only glides between held keys,
+            // FULL TIME glides from the last note whatever happened between.
             auto& v = notes_[0];
             v.start (patch_, note, velocity, stamp_,
-                     fn_.portamentoSecs > 0.0f ? lastNote_ : -1.0f);
+                     (glide && fn_.portaFollow) ? lastNote_ : -1.0f);
             lastNote_ = (float) note;
             return;
         }
 
+        // FOLLOW: notes the sustain pedal is holding glide to the new key.
+        if (glide && fn_.portaFollow)
+            for (auto& v : notes_)
+                if (v.heldBySustain())
+                    v.followTo (note);
+
         NoteState* slot = allocate();
         if (slot == nullptr) return;
         slot->start (patch_, note, velocity, stamp_,
-                     fn_.portamentoSecs > 0.0f ? lastNote_ : -1.0f);
+                     glide ? lastNote_ : -1.0f);
         lastNote_ = (float) note;
     }
 
     void noteOff (int note)
     {
+        // The note-off half of a filtered note-on: nothing was ever started,
+        // so nothing should be counted down either.
+        if (filtered_[(size_t) (note & 0x7F)])
+        {
+            filtered_[(size_t) (note & 0x7F)] = false;
+            return;
+        }
+
         if (heldCount_ > 0) --heldCount_;
         for (auto& v : notes_)
             if (v.active() && ! v.released() && v.note() == note)
@@ -1519,6 +1662,9 @@ private:
 
         if (sub == 0x10 && len >= 7)             // parameter change
         {
+            // Only group 0 (voice) is ours. Group 2 is the FUNCTION page, whose
+            // parameter numbers 64..77 would otherwise land on voice bytes.
+            if (((d[3] >> 2) & 0x1F) != 0) return;
             const int param = ((int) (d[3] & 0x03) << 7) | (int) (d[4] & 0x7F);
             if (param < kVcedSize)
                 setParam (param, d[5] & 0x7F);
@@ -1527,6 +1673,10 @@ private:
 
         if (sub == 0x00 && len >= 163 && d[3] == 0x00)   // single voice dump
         {
+            // MEMORY PROTECT on: a DX7 answers a voice dump with "MEMORY
+            // PROTECTED" and keeps what it has, and so does this engine.
+            if (memoryProtect_) return;
+
             uint8_t v[kVcedSize];
             std::memcpy (v, d + 6, kVcedSize);
             setVoice (v);
@@ -1633,6 +1783,33 @@ private:
                 v.renderBlock (out, numSamples, patch_, fn_, mc);
     }
 
+    // The leaky integrator behind setDcBlockHz(). dc_ tracks the offset with a
+    // one-pole smoother and is taken off the output. With the knob at 0 the
+    // estimate is not frozen but let go over ~10 ms, so turning the blocker off
+    // never leaves a step behind; once it has faded the path is bypassed.
+    void applyDcBlock (float* out, int numSamples)
+    {
+        if (dcHz_ > 0.0f)
+        {
+            const float a = 1.0f - std::exp (-kTwoPi * dcHz_ / sampleRate_);
+            for (int i = 0; i < numSamples; ++i)
+            {
+                dc_ += a * (out[i] - dc_);
+                out[i] -= dc_;
+            }
+        }
+        else if (dc_ != 0.0f)
+        {
+            const float decay = std::exp (-1.0f / (0.010f * sampleRate_));
+            for (int i = 0; i < numSamples; ++i)
+            {
+                dc_ *= decay;
+                out[i] -= dc_;
+            }
+            if (std::abs (dc_) < 1.0e-9f) dc_ = 0.0f;
+        }
+    }
+
     static void writePadded (char dst[17], const char* src)
     {
         int i = 0;
@@ -1653,6 +1830,9 @@ private:
     NoteState  notes_[kMaxNotes];
     uint32_t   stamp_ { 0 };
     int        heldCount_ { 0 };
+
+    // Keys whose note-on was filtered out by the tuning master's keyboard map.
+    std::array<bool, 128> filtered_ {};
     float      lastNote_ { 60.0f };
 
     float sampleRate_ { 48000.0f };
@@ -1666,6 +1846,10 @@ private:
     float bend_ { 0.0f }, modWheel_ { 0.0f }, breath_ { 0.0f };
     float foot_ { 0.0f }, aftertouch_ { 0.0f };
     bool  sustain_ { false };
+
+    bool  memoryProtect_ { false };
+    float dcHz_ { 0.0f };   // DC blocker corner, 0 = off
+    float dc_   { 0.0f };   // its running DC estimate
 
     char lcd1_[24] { "VDX7 NATIVE FM" };
     char lcd2_[24] { "NO ROM LOADED" };

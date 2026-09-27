@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="4kOrDF" name="VirtualDX7" projectType="audioplug" jucerFormatVersion="1"
-              version="4.1" companyName="aquanodemusic" companyCopyright="GPLv3"
+              version="5.0.0" companyName="aquanodemusic" companyCopyright="GPLv3"
               bundleIdentifier="com.virtualdx7" cppLanguageStandard="17" defines="INLINE_EGS=1;VDX7_USE_MTS_ESP=1"
               displaySplashScreen="0" pluginFormats="buildVST3,buildStandalone"
-              pluginName="VirtualDX7" pluginDesc="Six-operator FM synth: bit-accurate DX7 emulation with a ROM-free native engine"
+              pluginName="VirtualDX7" pluginDesc="6-OP FM Synth: Bit-accurate DX7 emulation with a ROM-free native engine"
               pluginManufacturer="aquanodemusic" pluginManufacturerCode="vdx7"
               pluginCode="vdx7" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
               pluginVST3Category="Instrument,Synth" pluginVSTCategory="kPlugCategSynth"

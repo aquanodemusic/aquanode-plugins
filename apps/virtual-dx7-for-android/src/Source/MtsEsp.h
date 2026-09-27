@@ -18,31 +18,48 @@
     ----------------------------------------------------------------------------
     Enabling it
     ----------------------------------------------------------------------------
-    The client library is ODDSound's and is not bundled here. To switch it on:
+    The client library is ODDSound's and is not bundled with the Android port
+    (MTS-ESP masters are desktop plugins). To switch it on anyway:
 
       1. Get libMTSClient.h and libMTSClient.cpp from
          https://github.com/ODDSound/MTS-ESP
-      2. Drop both into this folder and add the .cpp to the Projucer project.
+      2. Put both into Source/External/MTS-ESP and add the .cpp to the
+         Projucer project.
       3. Define VDX7_USE_MTS_ESP=1 in the project's preprocessor definitions.
 
-    With the macro undefined this header compiles to nothing at all and the
-    plugin behaves exactly as before, so it is safe to leave off.
+    With the macro undefined (or 0) this header compiles to nothing at all and
+    the plugin behaves exactly as before, so it is safe to leave off.
 
     GPLv3.
 */
 #pragma once
 
+#include <atomic>
 #include <functional>
+#include <string>
+
+#ifndef VDX7_USE_MTS_ESP
+ #define VDX7_USE_MTS_ESP 0
+#endif
 
 #if VDX7_USE_MTS_ESP
- #include "libMTSClient.h"
+ #include "External/MTS-ESP/libMTSClient.h"
 #endif
 
 namespace vdx7 {
 
 // Registers with an MTS-ESP master if one is present in the session, and hands
-// the native engine a frequency lookup. With no master (or no library) it
-// reports itself inactive and the engine keeps whatever tuning it already has.
+// the native engine a frequency lookup plus a note filter. With no master (or
+// no library) it reports itself inactive and the engine keeps whatever tuning
+// it already has.
+//
+// setEnabled(false) shuts the whole thing off at the source: both callbacks
+// start answering "no opinion" and hasMaster() starts returning false. That is
+// how a loaded firmware ROM disables microtuning. The emulated engine never
+// consults Tuning at all, so this is belt and braces - but the native engine is
+// still fed MIDI while the emulator is driving the audio (so that switching
+// backends mid-note does not strand a key down), and this keeps that shadow
+// engine in the same tuning the audible one is in.
 class MtsEspClient
 {
 public:
@@ -63,15 +80,36 @@ public:
     MtsEspClient (const MtsEspClient&) = delete;
     MtsEspClient& operator= (const MtsEspClient&) = delete;
 
-    // True only when the library is compiled in AND a master is actually
-    // running, so the UI can say something honest.
+    // Message thread; read from the audio thread via the callbacks below.
+    void setEnabled (bool shouldBeEnabled)
+    {
+        enabled_.store (shouldBeEnabled, std::memory_order_release);
+    }
+
+    bool isEnabled() const { return enabled_.load (std::memory_order_acquire); }
+
+    // True only when the library is compiled in, a master is actually running,
+    // AND we have not been switched off by a firmware ROM - so the UI can say
+    // something honest.
     bool hasMaster() const
     {
        #if VDX7_USE_MTS_ESP
-        return client_ != nullptr && MTS_HasMaster (client_);
+        return isEnabled() && client_ != nullptr && MTS_HasMaster (client_);
        #else
         return false;
        #endif
+    }
+
+    // Name of the scale the master is broadcasting; empty when there is none.
+    // Message thread only - the returned pointer is owned by the client lib.
+    std::string scaleName() const
+    {
+       #if VDX7_USE_MTS_ESP
+        if (hasMaster())
+            if (const char* n = MTS_GetScaleName (client_))
+                return std::string (n);
+       #endif
+        return {};
     }
 
     static bool isCompiledIn()
@@ -85,17 +123,41 @@ public:
 
     // The callback handed to Tuning::setFrequencyProvider. Returning 0 means
     // "no opinion", which leaves the engine on its own table - that is what
-    // happens when the library is absent or no master has appeared yet.
+    // happens when the library is absent, when no master has appeared yet, or
+    // when a firmware ROM has switched us off.
     //
     // Safe to call from the audio thread: the lookup is an array read.
     std::function<double (int)> provider()
     {
        #if VDX7_USE_MTS_ESP
-        auto* c = client_;
-        return [c](int note) -> double
+        auto* self = this;
+        return [self](int note) -> double
         {
-            if (c == nullptr || ! MTS_HasMaster (c)) return 0.0;
-            return MTS_NoteToFrequency (c, (char) note, -1);
+            if (self->client_ == nullptr)        return 0.0;
+            if (! self->isEnabled())             return 0.0;
+            if (! MTS_HasMaster (self->client_)) return 0.0;
+            return MTS_NoteToFrequency (self->client_, (char) note, -1);
+        };
+       #else
+        return {};
+       #endif
+    }
+
+    // The callback handed to Tuning::setNoteFilter. A master may define a
+    // keyboard map with unmapped keys; ODDSound's guidance is that a client
+    // should drop those note-ons rather than sound them at some fallback pitch.
+    // Answering false is the safe default, and is what happens whenever we are
+    // switched off or no master is present.
+    std::function<bool (int)> noteFilter()
+    {
+       #if VDX7_USE_MTS_ESP
+        auto* self = this;
+        return [self](int note) -> bool
+        {
+            if (self->client_ == nullptr)        return false;
+            if (! self->isEnabled())             return false;
+            if (! MTS_HasMaster (self->client_)) return false;
+            return MTS_ShouldFilterNote (self->client_, (char) note, -1);
         };
        #else
         return {};
@@ -106,6 +168,7 @@ private:
    #if VDX7_USE_MTS_ESP
     MTSClient* client_ = nullptr;
    #endif
+    std::atomic<bool> enabled_ { true };
 };
 
 } // namespace vdx7
