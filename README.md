@@ -20,7 +20,7 @@ https://cutupmusic.gumroad.com/l/aquanode
 
 # Support 
 
-Feel free to make your own forks of this repository! That said, I prefer to keep this repo limited to things I've created or generated myself, since I also use it as a personal backup, and therefore disabled issues and pulls. I'm always happy to hear feedback and ideas especially in comments and youtube or so, but I'd rather not have an open list of tasks and things waiting for me to respond to in what is a collection of products I made in my free time. Thanks for understanding!
+Feel free to make your own forks of this repository! That said, I prefer to keep this repo limited to things I've created or generated myself, since I also use it as a personal backup, and therefore disabled issues and pulls. I'm always happy to hear feedback and ideas especially in comments on youtube or so, but I'd rather not have an open list of tasks and things waiting for me to respond to in what is a collection of products I made in my free time. Thanks for understanding!
 
 If you want to support me, which I'd highly appreciate but you don't have to, then feel free to leave me a tip for my music on [bandcamp](https://aquanode.bandcamp.com), my songs are all free too!
 
