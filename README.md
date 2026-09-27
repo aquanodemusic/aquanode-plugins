@@ -19,6 +19,9 @@ Many of the plugins are also available for Mac here, thanks to the artist and Ap
 https://cutupmusic.gumroad.com/l/aquanode
 
 # Support 
+
+Feel free to make your own forks of this repository! That said, I prefer to keep this repo limited to things I've created or generated myself, since I also use it as a personal backup, and therefore disabled issues and pulls. I'm always happy to hear feedback and ideas especially in comments and youtube or so, but I'd rather not have an open list of tasks and things waiting for me to respond to in what is a collection of products I made in my free time. Thanks for understanding!
+
 If you want to support me, which I'd highly appreciate but you don't have to, then feel free to leave me a tip for my music on [bandcamp](https://aquanode.bandcamp.com), my songs are all free too!
 
 My links: 🌊 [bandcamp](https://aquanode.bandcamp.com) · [youtube](https://www.youtube.com/@aquanodemusic)
@@ -77,6 +80,7 @@ All `.vst3` plugins have been tested on Windows 11 23H2 64bit in FL Studio 2025 
 
 | Plugin | Description |
 |--------|-------------|
+| <br />**[83ChorusVerb](effects/83chorusverb/)** | The FX section from my VirtualDX7 synth (a recreation of the Yamaha DX7 originally released in 1983, hence the name) as an effect plugin. A lush Chorus, Delay, Phaser and Reverb. |
 | <img src="effects/adelaysr/assets/Icon.webp" width="64" align="center" /><br />**[ADelaySR](effects/adelaysr/)** | A tempo-syncable stereo delay where every tap is shaped by a fade-in (Attack) and fade-out (Release) envelope - instead of abrupt echoes, each repeat blooms in and dissolves out for a washed-out delay character. |
 | <img src="effects/alphabetafx/assets/Icon.webp" width="64" align="center" /><br />**[AlphaBetaFX](effects/alphabetafx/)** | The filter and chorus section of AlphaBetaSynth as an effect: run any signal through the liquid, smooth sweeping Alpha 3–style filter sound. |
 | <img src="effects/anyfm/assets/Icon.webp" width="64" align="center" /><br />**[anyFM](effects/anyfm/)** | FM-modulates a sidechained signal onto a carrier signal - any sound can FM (or ring-modulate) any other sound directly in your mixer. |
