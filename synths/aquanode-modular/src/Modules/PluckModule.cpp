@@ -87,13 +87,14 @@ static ModuleDescriptor pluckDescriptor()
         "Karplus-Strong plucked string: A noise burst exciting a tuned feedback delay line with "
         "damping in the loop. Played from the keyboard it is fully polyphonic; Trig In takes a "
         "Clock, Euclid or Step Seq gate, and Pitch In takes a Step Seq's Pitch Out or KeyTrack "
-        "directly (both use the same semitones/60 scaling).";
+        "directly (both use the same semitones/60 scaling). Midi In plays it from notes (Keyboard Midi, Piano Roll...): each note plucks at that pitch, alongside Trig In.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 6;
     d.sockets = {
         modIn    ("trigIn",   "Trig In"),
         modIn    ("pitchIn",  "Pitch In"),
-        audioOut ("audioOut", "Audio Out")
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
     };
     d.params = {
         makeSteppedList ("note", "Note", midiNoteNameChoices(), 60, 0),

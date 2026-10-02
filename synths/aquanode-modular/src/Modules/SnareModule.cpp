@@ -74,12 +74,13 @@ static ModuleDescriptor snareDescriptor()
     d.description =
         "Two detuned sine shells for the drum's pitch plus a band-passed noise burst for the "
         "wires, each with its own decay. Trig In takes a Clock, Euclid or Step Seq gate; it also "
-        "fires on MIDI note-on.";
+        "fires on MIDI note-on. Midi In plays it from notes instead (Keyboard Midi, Piano Roll, Arp...): every note is a hit, alongside Trig In.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 8;
     d.sockets = {
         modIn    ("trigIn",   "Trig In"),
-        audioOut ("audioOut", "Audio Out")
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
     };
     d.params = {
         makeRotary ("tune",       "Tune",       80.0f, 400.0f, 180.0f, 0, "Hz", true),

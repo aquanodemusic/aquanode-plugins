@@ -134,11 +134,12 @@ static ModuleDescriptor discardMidiDescriptor()
         "Twelve boxes, one per note class - every one switched on is discarded, in any octave, so "
         "selected notes simply never play. Its Midi Out goes into a generator's Add Midi In, and "
         "like Always Midi it REPLACES the played keys for that generator, so a filtered voice and "
-        "an unfiltered one can run off the same keys. The boxes take mod cables too: an LFO on a "
+        "an unfiltered one can run off the same keys. Midi In filters another stream instead of the keys (a Piano Roll, an Arp...). The boxes take mod cables too: an LFO on a "
         "box gates that note class in and out while you play.";
     d.section = ModuleSection::Utility;
     d.sidebarOrder = 24;
     d.sockets = {
+        midiIn  ("midiIn",  "Midi In"),
         midiOut ("midiOut", "Midi Out")
     };
 

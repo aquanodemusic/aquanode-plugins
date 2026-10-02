@@ -11,23 +11,33 @@ void SVFFilterModule::processVoiceSample (int v, const StereoFrame* inputs, Ster
     const float cutoff = juce::jlimit (20.0f, 20000.0f,
         param (pCutoff) * std::pow (2.0f, depth * modIn * 5.0f));
 
-    const float f = juce::jmin (1.4f, 2.0f * std::sin (juce::MathConstants<float>::pi
-                    * juce::jmin (cutoff, (float) (sampleRate * 0.45)) / (float) sampleRate));
-    const float q = 1.0f - param (pResonance) * 0.98f;
+    // TPT ("topology-preserving") state-variable filter: unconditionally
+    // stable at every cutoff and resonance. The previous Chamberlin form went
+    // unstable above roughly a quarter of the sample rate (~12 kHz at 48 kHz),
+    // so a fully opened or upward-swept filter turned into a full-scale
+    // oscillation. Same response shape everywhere below that.
+    const float fc = juce::jmin (cutoff, (float) (sampleRate * 0.49));
+    const float g = std::tan (juce::MathConstants<float>::pi * fc / (float) sampleRate);
+    const float k = 1.0f - param (pResonance) * 0.98f;     // damping (1/Q), as before
+    const float a1 = 1.0f / (1.0f + g * (g + k));
+    const float a2 = g * a1;
+    const float a3 = g * a2;
     const int mode = (int) param (pMode);   // 0 LP, 1 BP, 2 HP
 
     for (int c = 0; c < 2; ++c)
     {
         const float in = inputs[0][(size_t) c];
-        low[v][c]  += f * band[v][c];
-        const float high = in - low[v][c] - q * band[v][c];
-        band[v][c] += f * high;
+        float& ic1 = band[v][c];   // integrator states
+        float& ic2 = low[v][c];
 
-        // very light stabilisation
-        low[v][c]  = juce::jlimit (-4.0f, 4.0f, low[v][c]);
-        band[v][c] = juce::jlimit (-4.0f, 4.0f, band[v][c]);
+        const float v3 = in - ic2;
+        const float v1 = a1 * ic1 + a2 * v3;      // band
+        const float v2 = ic2 + a2 * ic1 + a3 * v3; // low
+        ic1 = juce::jlimit (-4.0f, 4.0f, 2.0f * v1 - ic1);   // same gentle ceiling as before
+        ic2 = juce::jlimit (-4.0f, 4.0f, 2.0f * v2 - ic2);
+        const float high = in - k * v1 - v2;
 
-        outputs[0][(size_t) c] = mode == 0 ? low[v][c] : (mode == 1 ? band[v][c] : high);
+        outputs[0][(size_t) c] = mode == 0 ? v2 : (mode == 1 ? v1 : high);
     }
 }
 

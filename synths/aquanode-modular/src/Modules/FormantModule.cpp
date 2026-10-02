@@ -41,8 +41,8 @@ void FormantModule::processVoiceSample (int v, const StereoFrame* inputs, Stereo
 
 void FormantModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
-    const double freq = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                           ! pool.isMuted (v), sampleRate));
+    const double freq = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                           ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
 
     // glottal source: a saw sharpened by Shape into a narrow pulse, which is
     // what gives the formants something harmonically rich to resonate on

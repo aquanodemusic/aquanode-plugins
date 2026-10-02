@@ -110,7 +110,7 @@ void OscillatorModule::processVoiceSample (int v, const StereoFrame* inputs, Ste
 void OscillatorModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
     // mono glide: slides from the previous note's pitch (no-op when polyphonic)
-    freqHz[v] = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(), ! pool.isMuted (v), sampleRate));
+    freqHz[v] = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(), ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
 
     const float fmIn = inputs[0][0];               // this voice's own FM signal
     const bool envConnected = isInputConnected (1);

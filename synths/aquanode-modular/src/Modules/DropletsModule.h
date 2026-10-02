@@ -80,7 +80,13 @@ public:
     void processSample (const aquanode::StereoFrame* inputs, aquanode::StereoFrame* outputs) override
     {
         processVoiceSample (0, inputs, outputs);   // global lane = voice slot 0
+        renderGlobalMidiHits (inputs, outputs, 0);   // notes on Midi In, see ModuleCore.h
     }
+
+    // global lane: notes arriving on Midi In each start a drip stream that
+    // runs while the note is held, alongside whatever Gate In is doing
+    bool acceptsGlobalMidiNotes() const override { return true; }
+    bool appliesOwnVelocity() const override { return true; }   // voiceVelocity already scales the drips
 
 private:
     struct Droplet

@@ -20,8 +20,8 @@ void BowedModule::processVoiceSample (int v, const StereoFrame* inputs, StereoFr
 
 void BowedModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
-    const double freq = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                           ! pool.isMuted (v), sampleRate));
+    const double freq = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                           ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
     const double delaySamples = juce::jlimit (4.0, (double) maxDelaySamples - 2.0,
                                               sampleRate / juce::jmax (20.0, freq));
 

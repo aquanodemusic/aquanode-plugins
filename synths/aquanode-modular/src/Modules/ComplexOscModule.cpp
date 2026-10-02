@@ -21,8 +21,8 @@ void ComplexOscModule::processVoiceSample (int v, const StereoFrame* inputs, Ste
 void ComplexOscModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
     const double twoPi = juce::MathConstants<double>::twoPi;
-    const double freq = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                           ! pool.isMuted (v), sampleRate));
+    const double freq = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                           ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
 
     // internal modulation oscillator (the 259's second oscillator)
     modPhase[v] += freq * param (pModRatio) / sampleRate;

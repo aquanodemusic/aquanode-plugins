@@ -51,18 +51,25 @@ void HatsModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* out
     }
     sum *= 1.0f / kNumOscs;
 
-    // band-pass (Chamberlin SVF) around Tone
+    // band-pass around Tone. A TPT state-variable filter: the Chamberlin form
+    // used before went unstable at this damping once Tone passed ~70% (its
+    // coefficient outgrew the damping), which with a long Decay ended in NaN.
     const float bpFreq = juce::jlimit (1000.0f, 12000.0f, 3000.0f + param (pTone) * 90.0f);
-    const float f = 2.0f * std::sin (juce::MathConstants<float>::pi
-                                     * juce::jmin (bpFreq, (float) (sampleRate * 0.22)) / (float) sampleRate);
-    bpLow[v]  += f * bpBand[v];
-    const float hpTmp = sum - bpLow[v] - bpBand[v] * 1.2f;
-    bpBand[v] += f * hpTmp;
+    const float g = std::tan (juce::MathConstants<float>::pi
+                              * juce::jmin (bpFreq, (float) (sampleRate * 0.45)) / (float) sampleRate);
+    constexpr float k = 1.2f;
+    const float a1 = 1.0f / (1.0f + g * (g + k));
+    const float a2 = g * a1, a3 = g * a2;
+    const float v3 = sum - bpLow[v];
+    const float bandOut = a1 * bpBand[v] + a2 * v3;
+    const float lowOut = bpLow[v] + a2 * bpBand[v] + a3 * v3;
+    bpBand[v] = 2.0f * bandOut - bpBand[v];
+    bpLow[v] = 2.0f * lowOut - bpLow[v];
 
     // one-pole high-pass at ~5 kHz to strip the body
     const float hpCoeff = std::exp ((float) (-2.0 * juce::MathConstants<double>::pi * 5000.0 / sampleRate));
-    hpState[v] = hpCoeff * (hpState[v] + bpBand[v] - hpPrevIn[v]);
-    hpPrevIn[v] = bpBand[v];
+    hpState[v] = hpCoeff * (hpState[v] + bandOut - hpPrevIn[v]);
+    hpPrevIn[v] = bandOut;
 
     const float out = std::tanh (hpState[v] * 3.0f * env[v]);
     outputs[0][0] = out;
@@ -77,12 +84,13 @@ static ModuleDescriptor hatsDescriptor()
     d.description =
         "606/808-style metallic percussion: six detuned squares summed, band-passed and shaped by "
         "a snappy decay - short Decay is a closed hat, long an open one. Trig In takes a Clock, "
-        "Euclid or Step Seq gate; it also fires on MIDI note-on.";
+        "Euclid or Step Seq gate; it also fires on MIDI note-on. Midi In plays it from notes instead (Keyboard Midi, Piano Roll, Arp...): every note is a hit, alongside Trig In.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 7;
     d.sockets = {
         modIn    ("trigIn",   "Trig In"),
-        audioOut ("audioOut", "Audio Out")
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
     };
     d.params = {
         makeRotary ("tune",  "Tune",  100.0f, 500.0f, 205.0f, 0, "Hz", true),

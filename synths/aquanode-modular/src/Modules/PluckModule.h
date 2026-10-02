@@ -65,7 +65,11 @@ public:
     void processSample (const aquanode::StereoFrame* inputs, aquanode::StereoFrame* outputs) override
     {
         processVoiceSample (0, inputs, outputs);
+        renderGlobalMidiHits (inputs, outputs, 0);   // notes on Midi In, see ModuleCore.h
     }
+
+    // global lane: notes arriving on Midi In play as overlapping hits
+    bool acceptsGlobalMidiNotes() const override { return true; }
 
 private:
     aquanode::ModuleVoicePool pool;
