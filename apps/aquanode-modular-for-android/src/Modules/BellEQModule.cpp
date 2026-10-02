@@ -112,6 +112,7 @@ float BellEQModule::responseDbAt (float frequencyHz) const
 //==============================================================================
 class BellEQDisplay : public juce::Component,
                       public aquanode::CustomParamCableTargets,
+                      public aquanode::ExtraContentParamListener,
                       private juce::Timer
 {
 public:
@@ -195,6 +196,7 @@ public:
         eq->setParameter (BellEQModule::gainParamId (draggedBell),
                           juce::jlimit (BellEQModule::kMinGain, BellEQModule::kMaxGain,
                                         yToDb (e.position.y)));
+        knobsFollow();
         repaint();
     }
 
@@ -218,7 +220,15 @@ public:
         const auto id = BellEQModule::qParamId (bell);
         eq->setParameter (id, juce::jlimit (BellEQModule::kMinQ, BellEQModule::kMaxQ,
                                             eq->getParameter (id) * (1.0f + wheel.deltaY * 0.6f)));
+        knobsFollow();
         repaint();
+    }
+
+    // the Freq / Gain / Q knobs move along with the dot, live
+    void knobsFollow()
+    {
+        if (paramValuesChangedByContent)
+            paramValuesChangedByContent();
     }
 
     //=== CustomParamCableTargets: cables land on a dot and drive its freq ====

@@ -38,6 +38,13 @@ public:
     }
     double currentSampleRate() const { return sampleRate; }
 
+    // The take is part of the patch: saved into exported presets and the DAW
+    // session (as a WAV, like a loaded sample) and back on load. Delete
+    // throws it away.
+    bool hasAudioToSave() const override;
+    std::shared_ptr<const juce::AudioBuffer<float>> getAudioToSave (double& rate) const override;
+    void restoreSavedAudio (std::shared_ptr<juce::AudioBuffer<float>> audio, double rate) override;
+
 private:
     void saveToFile();
 
@@ -49,6 +56,7 @@ private:
     void writeToDestination (const juce::URL& destination, int numFrames, double sr, bool useFlac, int bitDepth);
 
     std::vector<float> bufL, bufR;
+    double takeRate { 0.0 };   // rate the take was recorded (or restored) at; 0 = none
     std::atomic<bool> recording { false };
     std::atomic<int> recordedCount { 0 };
 

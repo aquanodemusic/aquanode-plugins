@@ -91,8 +91,8 @@ void PhaseDistortModule::processVoiceSample (int v, const StereoFrame* inputs, S
 
 void PhaseDistortModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
-    const double freq = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                           ! pool.isMuted (v), sampleRate));
+    const double freq = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                           ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
 
     phase[v] += freq / sampleRate;
     phase[v] -= std::floor (phase[v]);

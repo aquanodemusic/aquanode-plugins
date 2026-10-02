@@ -8,7 +8,7 @@ static aquanode::ModuleDescriptor alwaysMidiDescriptor()
     d.displayName = "Always Midi";
     d.description =
         "Holds one note down forever, so a generator sounds with nobody at the keyboard. Patch "
-        "its Midi Out into a generator's Add Midi In or into a Midi Add's Always Midi In to "
+        "its Midi Out into a generator's Add Midi In or into a Midi Add's Midi In to "
         "drone a whole chord. Renew re-triggers the note rather than holding it, which is what "
         "keeps envelopes and one-shot voices like Pluck or Kick alive; it is the drone's pulse.";
     d.section = ModuleSection::Utility;

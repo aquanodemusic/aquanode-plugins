@@ -181,6 +181,24 @@ struct CustomParamCableTargets
     virtual juce::Point<int> paramTargetCentre (const juce::String& paramId) const = 0;
 };
 
+//==============================================================================
+// Implemented by extra-content components that change ORDINARY (visible)
+// parameters themselves - e.g. the Piano Roll's full-window editor, which has
+// its own Tempo and Bars controls. The editor fills in the callback so the
+// module's generic knobs follow along. Optional.
+//==============================================================================
+struct ExtraContentParamListener
+{
+    virtual ~ExtraContentParamListener() = default;
+
+    // full refresh: knob values AND layout (the card may change size)
+    std::function<void()> paramsChangedByContent;
+
+    // light refresh: only the knob values, cheap enough to call on every
+    // mouse-drag event (3-Bell EQ's display moving a bell)
+    std::function<void()> paramValuesChangedByContent;
+};
+
 struct SocketSpec
 {
     juce::String id;
@@ -277,6 +295,14 @@ inline const juce::StringArray& midiNoteNameChoices()
 
 
 static constexpr int kMaxVoices = 24;
+
+// How long a one-pole exponential decay with time constant tauMs takes to
+// fall 60 dB (ln 1000 = 6.91 time constants). The drums' Decay knobs are such
+// time constants, and their voiceTailSeconds() must cover this whole fade:
+// the engine frees a released voice once that tail has run out, so a tail of
+// just one time constant (what they used to report) cut every hit off while
+// still clearly audible.
+inline double decayTailSeconds (double tauMs) { return tauMs * 0.001 * 6.91; }
 
 //==============================================================================
 // Standard amplitude handling for a pitched generator, matching Oscillator's
@@ -503,6 +529,43 @@ inline double seqDivisionBeats (int choice)
 
 using StereoFrame = std::array<float, 2>;
 
+// The non-note MIDI the engine has seen, kept up to date sample by sample.
+// Every module can read it (Midi Controls turns it into cables; pitched
+// generators read the bend). Written by the audio thread only.
+struct MidiControlState
+{
+    float bend { 0.0f };            // -1..1, centre 0
+    float bendRangeSemis { 2.0f };  // set from a Midi Controls module, 2 by default
+    float modWheel { 0.0f };        // 0..1
+    float aftertouch { 0.0f };      // 0..1, channel pressure or the strongest poly pressure
+    float cc[128] {};               // 0..1
+    bool sustain { false };
+
+    float bendSemitones() const { return bend * bendRangeSemis; }
+};
+
+// One note event reported by a MIDI note driver (Arp, Always Midi, Piano Roll)
+struct MidiDriverEvent
+{
+    int note { -1 };
+    float velocity { 0.85f };   // note-ons only
+    bool isOn { false };
+};
+
+// The most events a driver may report in one sample (a Piano Roll chord
+// ending as the next one starts, plus previews, fits comfortably)
+static constexpr int kMaxDriverEventsPerSample = 160;
+
+// What the host said about its transport this block. In the standalone app,
+// on Android and in hosts that report nothing, hasBpm stays false - anything
+// offering "lock to host tempo" must fall back to its own tempo then.
+struct HostTransport
+{
+    bool hasBpm { false };
+    double bpm { 120.0 };
+    bool isPlaying { false };
+};
+
 //==============================================================================
 // Global polyphony (Nord Modular G2 style): the WHOLE patch is evaluated once
 // per voice. The engine owns a single global voice pool; modules hold
@@ -556,6 +619,17 @@ public:
     virtual void reset() {}                            // wipe transient state (voices/filters/delays), no reallocation
     virtual void blockStart() {}                       // once per processBlock (latch buffers etc.)
     virtual void setTempo (double bpm) { tempoBpm = bpm; }
+    void setHostTransport (const HostTransport& t) { hostTransport = t; }
+    void setMidiControls (const MidiControlState* state) { midiControls = state; }
+
+    // A source whose knob cables are ABSOLUTE (Curve CV): its 0..1 output is
+    // mapped onto the target knob's whole min..max range instead of being
+    // added to the knob's current value. Cable depth then blends between the
+    // knob's own setting and that mapped value; negative depth inverts it.
+    virtual bool drivesKnobsAbsolutely() const { return false; }
+
+    // Only Midi Controls answers: the pitch-bend range it sets, < 0 = none
+    virtual float bendRangeSetting() const { return -1.0f; }
 
     // Snapshot of the plugin's host-automatable modulation parameters, handed
     // to every module once per block. Only DAW Mod reads it.
@@ -576,6 +650,11 @@ public:
     // sample and turns what they report into real voices.
     virtual bool isMidiNoteDriver() const { return false; }
 
+    // A driver whose own clock should keep running even while nothing it
+    // feeds is audible (Piano Roll: pressing Play on an unpatched roll still
+    // moves its playhead). Its notes start no voices until something listens.
+    virtual bool runsWithoutListeners() const { return false; }
+
     // One sample of the driver's own time. Report at most one note-off and one
     // note-on (-1 for "nothing"); both may land on the same sample.
     virtual void midiDriverAdvance (double sr, int& onNote, int& offNote)
@@ -584,6 +663,44 @@ public:
         onNote = -1;
         offNote = -1;
     }
+
+    // Multi-note form of the above, for drivers that can start several notes
+    // on one sample (a Piano Roll chord) or care about velocity. The engine
+    // only calls this one; the default wraps midiDriverAdvance, so the Arp and
+    // Always Midi keep working untouched. Note-offs should come first.
+    virtual int midiDriverAdvanceEvents (double sr, MidiDriverEvent* events, int maxEvents)
+    {
+        int onNote = -1, offNote = -1;
+        midiDriverAdvance (sr, onNote, offNote);
+        int n = 0;
+        if (offNote >= 0 && n < maxEvents) events[n++] = { offNote, 0.0f, false };
+        if (onNote >= 0 && n < maxEvents)  events[n++] = { onNote, 0.85f, true };
+        return n;
+    }
+
+    //=== MIDI processors =====================================================
+    // Every MIDI module is a stream that can be routed anywhere. A PROCESSOR
+    // takes a stream in on its Midi In and hands a stream on from its Midi
+    // Out: Midi Add (chords), Discard Midi (filters), Arp (re-times), Keyboard
+    // Midi (passes the keys). With nothing patched into its Midi In - or no
+    // Midi In at all, like Keyboard Midi - a processor hears the played keys.
+    // Several streams may feed one processor, and processors chain freely:
+    // Piano Roll -> Midi Add -> Discard Midi -> Arp -> Oscillator works.
+    virtual bool isMidiProcessor() const { return false; }
+
+    // One incoming note event in, the events to pass on out (audio thread).
+    // Note-offs must undo exactly what the matching note-on produced, so a
+    // processor that changes pitches remembers them. Default: pass through.
+    virtual int processMidiEvent (const MidiDriverEvent& in, MidiDriverEvent* out, int maxOut)
+    {
+        if (maxOut <= 0)
+            return 0;
+        out[0] = in;
+        return 1;
+    }
+
+    // all notes off arrived: forget anything held
+    virtual void midiAllNotesOff() {}
 
     // The keys the player is currently holding, for drivers that care (the Arp
     // arpeggiates them; Always Midi ignores them entirely).
@@ -625,6 +742,86 @@ public:
 
     //=== MIDI (non-note messages; note events are routed via voiceNoteOn/Off) =
     virtual void handleMidiEvent (const juce::MidiMessage&) {}
+
+    //=== MIDI hits in the global lane =========================================
+    // The drums (and Droplets) are Flexible: fed by a Clock or by nothing they
+    // run in the GLOBAL lane, where the engine never hands out note-ons - so
+    // a key or a Piano Roll note could not reach them. A module that returns
+    // true here gets the notes arriving on its Midi In as "hits" instead:
+    // each lands on one of its spare internal voice slots (slot 0 stays with
+    // Trig In / Gate In), so hits overlap and ring out like separate strikes,
+    // and Trig In keeps working exactly as before. The module's processSample
+    // calls renderGlobalMidiHits() after rendering slot 0.
+    virtual bool acceptsGlobalMidiNotes() const { return false; }
+
+    // false: the hit is scaled by note velocity here. A module that already
+    // applies voiceVelocity itself (Droplets) returns true to avoid doubling.
+    virtual bool appliesOwnVelocity() const { return false; }
+
+    void globalMidiNoteOn (int engineVoice, int note, float velocity01)
+    {
+        if (engineVoice < 0 || engineVoice >= kMaxVoices)
+            return;
+
+        int slot = hits.slotOfVoice[engineVoice];
+        if (slot <= 0)
+        {
+            // round-robin over the spare slots, preferring one that is idle
+            slot = -1;
+            for (int k = 0; k < kMaxVoices - 1 && slot < 0; ++k)
+            {
+                const int s = 1 + (hits.next + k) % (kMaxVoices - 1);
+                if (! hits.active[s])
+                    slot = s;
+            }
+            if (slot < 0)
+                slot = 1 + hits.next % (kMaxVoices - 1);
+            hits.next = slot % (kMaxVoices - 1);
+
+            for (auto& s : hits.slotOfVoice)
+                if (s == slot)
+                    s = -1;
+            hits.slotOfVoice[engineVoice] = slot;
+        }
+
+        if (! hits.active[slot])
+            ++hits.numActive;
+        hits.active[slot] = true;
+        hits.held[slot] = true;
+        hits.quietSamples[slot] = 0;
+        hits.velocity[slot] = velocity01;
+        voiceNoteOn (slot, note, false);
+        voiceVelocity (slot, velocity01);
+    }
+
+    void globalMidiNoteOff (int engineVoice)
+    {
+        if (engineVoice < 0 || engineVoice >= kMaxVoices)
+            return;
+
+        const int slot = hits.slotOfVoice[engineVoice];
+        if (slot <= 0)
+            return;
+
+        hits.slotOfVoice[engineVoice] = -1;
+        if (hits.held[slot])
+        {
+            hits.held[slot] = false;
+            hits.tailLeft[slot] = voiceTailSeconds() + 0.05;
+            voiceNoteOff (slot);
+        }
+    }
+
+    void resetGlobalMidiHits()
+    {
+        for (auto& s : hits.slotOfVoice) s = -1;
+        for (int s = 0; s < kMaxVoices; ++s)
+        {
+            hits.active[s] = hits.held[s] = false;
+            hits.tailLeft[s] = 0.0;
+        }
+        hits.numActive = 0;
+    }
 
     //=== parameters ===========================================================
     float param (int index) const
@@ -676,6 +873,14 @@ public:
         return i >= 0 ? paramValues[(size_t) i].load (std::memory_order_relaxed) : 0.0f;
     }
 
+    // index-based setter: no string lookup, so the audio thread may use it
+    // (Piano Roll's "Once" mode switching itself off at the end)
+    void setParameterByIndex (int index, float value)
+    {
+        if (descriptor != nullptr && index >= 0 && index < (int) descriptor->params.size())
+            paramValues[(size_t) index].store (value, std::memory_order_relaxed);
+    }
+
     float getParameterBase (int index) const
     {
         return paramValues[(size_t) index].load (std::memory_order_relaxed);
@@ -722,6 +927,20 @@ public:
         return loadedSample;
     }
 
+    //=== audio stored with the patch ==========================================
+    // Whatever a module holds as audio is written into presets / the DAW
+    // session through these. By default that is the loaded sample; Record
+    // overrides them so its take is saved too.
+    virtual bool hasAudioToSave() const { return usesLoadedSample(); }
+    virtual std::shared_ptr<const juce::AudioBuffer<float>> getAudioToSave (double& rate) const
+    {
+        return getLoadedSample (&rate);
+    }
+    virtual void restoreSavedAudio (std::shared_ptr<juce::AudioBuffer<float>> audio, double rate)
+    {
+        setLoadedSample (std::move (audio), rate);
+    }
+
     int getSampleChangeCounter() const { return sampleChangeCounter.load (std::memory_order_acquire); }
 
     // loads any supported audio file into the shared sample buffer (message thread)
@@ -746,6 +965,10 @@ public:
 
     // the one non-declarative UI case: Sampler's waveform display
     virtual std::unique_ptr<juce::Component> createExtraContentComponent() { return nullptr; }
+
+    // Width of the module's card in the patch, 0 = the standard width. Only
+    // modules with a big custom UI (Piano Roll) want more.
+    virtual int preferredModuleWidth() const { return 0; }
     virtual int extraContentHeight() const { return 0; }
 
     //=== custom state ========================================================
@@ -768,8 +991,71 @@ protected:
             outputs[i] = { 0.0f, 0.0f };
     }
 
+    // Adds every sounding MIDI hit (see acceptsGlobalMidiNotes) onto outputs.
+    // triggerInput is the Trig In / Gate In socket: the hit slots see it as
+    // silent, so the cable keeps driving slot 0 alone.
+    void renderGlobalMidiHits (const StereoFrame* inputs, StereoFrame* outputs, int triggerInput)
+    {
+        if (hits.numActive <= 0 || descriptor == nullptr)
+            return;
+
+        constexpr int maxSockets = 8;
+        const int numIn = juce::jlimit (1, maxSockets, descriptor->numInputs());
+        const int numOut = juce::jlimit (1, maxSockets, descriptor->numOutputs());
+
+        StereoFrame in[maxSockets];
+        for (int i = 0; i < numIn; ++i)
+            in[i] = inputs[i];
+        if (triggerInput >= 0 && triggerInput < numIn)
+            in[triggerInput] = { 0.0f, 0.0f };
+
+        for (int slot = 1; slot < kMaxVoices; ++slot)
+        {
+            if (! hits.active[slot])
+                continue;
+
+            StereoFrame out[maxSockets] {};
+            processVoiceSample (slot, in, out);
+
+            const float g = appliesOwnVelocity() ? 1.0f : hits.velocity[slot];
+            for (int o = 0; o < numOut; ++o)
+            {
+                outputs[o][0] += out[o][0] * g;
+                outputs[o][1] += out[o][1] * g;
+            }
+
+            if (! hits.held[slot])
+            {
+                // A released hit ends once it has actually gone quiet (-80 dB
+                // for 50 ms) - never by the clock alone, because several
+                // modules ring far longer than voiceTailSeconds() admits
+                // (Modal Drum's Decay is a time constant, ~7x longer to fade)
+                // and cutting them there is an audible chop. The reported tail
+                // is the minimum; 30 s past it is a safety net.
+                float peak = 0.0f;
+                for (int o = 0; o < numOut; ++o)
+                    peak = juce::jmax (peak, std::abs (out[o][0]), std::abs (out[o][1]));
+                hits.quietSamples[slot] = peak < 1.0e-4f ? hits.quietSamples[slot] + 1 : 0;
+
+                hits.tailLeft[slot] -= 1.0 / sampleRate;
+                const bool quiet = hits.quietSamples[slot] > (int) (0.05 * sampleRate);
+                if ((hits.tailLeft[slot] <= 0.0 && quiet) || hits.tailLeft[slot] < -30.0)
+                {
+                    hits.active[slot] = false;
+                    --hits.numActive;
+                    voiceReset (slot);
+                }
+            }
+        }
+    }
+
     double sampleRate { 44100.0 };
     double tempoBpm { 120.0 };
+    HostTransport hostTransport;
+    const MidiControlState* midiControls { nullptr };
+
+    // the played pitch bend in semitones, for pitched generators
+    float pitchBendSemitones() const { return midiControls != nullptr ? midiControls->bendSemitones() : 0.0f; }
     const float* hostModValues { nullptr };
 
 private:
@@ -787,6 +1073,20 @@ private:
     std::atomic<int> sampleChangeCounter { 0 };
 
     std::unique_ptr<juce::FileChooser> activeChooser;
+
+    // global-lane MIDI hits (audio thread only); see acceptsGlobalMidiNotes
+    struct MidiHits
+    {
+        MidiHits() { for (auto& s : slotOfVoice) s = -1; }
+        int slotOfVoice[kMaxVoices];        // engine voice -> internal slot, -1 = none
+        bool active[kMaxVoices] {};
+        bool held[kMaxVoices] {};
+        float velocity[kMaxVoices] {};
+        double tailLeft[kMaxVoices] {};
+        int quietSamples[kMaxVoices] {};
+        int numActive { 0 };
+        int next { 0 };
+    } hits;
 
     JUCE_DECLARE_WEAK_REFERENCEABLE (SynthModule)
     JUCE_DECLARE_NON_COPYABLE (SynthModule)

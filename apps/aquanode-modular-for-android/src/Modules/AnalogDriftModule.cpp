@@ -138,8 +138,8 @@ void AnalogDriftModule::processVoiceSample (int v, const StereoFrame* inputs, St
 
 void AnalogDriftModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
-    freqHz[v] = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                   ! pool.isMuted (v), sampleRate));
+    freqHz[v] = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                   ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
 
     const float fmIn = inputs[0][0];
     const bool envConnected = isInputConnected (1);

@@ -85,13 +85,14 @@ static ModuleDescriptor modalDrumDescriptor()
         "Physical-modelling percussion: a short exciter feeding six parallel resonators, with "
         "Inharm morphing the partials from harmonic (marimba, tom) to stretched (bells, metal). "
         "Trig In takes a Clock, Euclid or Step Seq gate; Pitch In takes a Step Seq's Pitch Out or "
-        "KeyTrack (semitones/60) - Step Seq melodies on toms.";
+        "KeyTrack (semitones/60) - Step Seq melodies on toms. Midi In plays it from notes (Keyboard Midi, Piano Roll...): each note strikes it at that pitch, alongside Trig In.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 5;
     d.sockets = {
         modIn    ("trigIn",   "Trig In"),
         modIn    ("pitchIn",  "Pitch In"),
-        audioOut ("audioOut", "Audio Out")
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
     };
     d.params = {
         makeRotary ("tune",   "Tune",   30.0f, 1000.0f, 120.0f, 0, "Hz", true),

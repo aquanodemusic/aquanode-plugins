@@ -76,12 +76,13 @@ static ModuleDescriptor clapDescriptor()
     d.description =
         "The 808 clap trick: three short noise bursts a few milliseconds apart (that stutter is "
         "what the ear reads as many hands), then a diffuse tail. Trig In takes a Clock, Euclid or "
-        "Step Seq gate.";
+        "Step Seq gate. Midi In plays it from notes instead (Keyboard Midi, Piano Roll, Arp...): every note is a clap, alongside Trig In.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 9;
     d.sockets = {
         modIn    ("trigIn",   "Trig In"),
-        audioOut ("audioOut", "Audio Out")
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
     };
     d.params = {
         makeRotary ("tone",       "Tone",      0.0f, 100.0f, 50.0f, 0, "%"),

@@ -40,7 +40,7 @@ public:
 
     void voiceNoteOn (int v, int, bool) override { pool.noteOn (v, voiceLimit()); env[v] = 1.0f; }
 
-    double voiceTailSeconds() const override { return param (pDecay) * 0.001 + 0.1; }
+    double voiceTailSeconds() const override { return aquanode::decayTailSeconds (juce::jmax (5.0f, param (pDecay))) + 0.05; }
 
     void processVoiceSample (int v, const aquanode::StereoFrame* inputs,
                              aquanode::StereoFrame* outputs) override;
@@ -50,7 +50,11 @@ public:
     void processSample (const aquanode::StereoFrame* inputs, aquanode::StereoFrame* outputs) override
     {
         processVoiceSample (0, inputs, outputs);
+        renderGlobalMidiHits (inputs, outputs, 0);   // notes on Midi In, see ModuleCore.h
     }
+
+    // global lane: notes arriving on Midi In play as overlapping hits
+    bool acceptsGlobalMidiNotes() const override { return true; }
 
 private:
     aquanode::ModuleVoicePool pool;

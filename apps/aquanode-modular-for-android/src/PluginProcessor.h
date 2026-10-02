@@ -41,6 +41,13 @@ struct ModuleInstance
                  != midiSourceIds.end();
     }
 
+    // audio thread only: did this module get a note-on for engine voice v?
+    // A gated module (a generator with a Midi In) stays silent on every voice
+    // it was not given a note for - otherwise its envelope, shared by the
+    // whole voice, would make it sound at a stale pitch on notes that were
+    // meant for some OTHER generator (the "phantom note" bug).
+    bool voiceHeard[aquanode::kMaxVoices] {};
+
     // runtime socket buffers (audio thread only)
     std::vector<aquanode::StereoFrame> inBuf, outBuf, prevOutBuf;              // global lane
     std::vector<aquanode::StereoFrame> outV, prevOutV;   // per-voice lanes, [voice * numOut + socket]
@@ -133,12 +140,17 @@ public:
     // Effect build (AQUANODE_FX_BUILD): Audio In -> Audio Out pass-through.
     void initializePatch();
 
-    // On-screen keyboard (used by the Android build's bottom keyboard, and
-    // harmless everywhere else). The editor attaches a MidiKeyboardComponent
-    // to this state; processBlock merges its events into the incoming MIDI so
-    // taps play exactly like host/keyboard notes. It also records the incoming
-    // stream, so on-screen keys light up when a real controller plays.
+    // On-screen keyboard (the bottom keyboard every build shows, toggled by
+    // the Keys button). The editor attaches a MidiKeyboardComponent to this
+    // state; processBlock merges its events into the incoming MIDI so clicks
+    // and taps play exactly like host/keyboard notes. It also records the
+    // incoming stream, so on-screen keys light up when a real controller plays.
     juce::MidiKeyboardState keyboardState;
+
+    // The Sidebar / Keys panel toggles live here rather than in the editor, so
+    // closing and reopening a plugin window keeps them as they were left.
+    bool uiSidebarVisible { true };
+    bool uiKeyboardVisible { true };
 
 private:
     //=== compiled process graph (published to the audio thread) ==============
@@ -160,40 +172,72 @@ private:
         int paramIdx { 0 };
         float scale { 0.0f };       // depth * (param max - min)
         bool feedback { false };
+
+        // absolute cables (Curve CV): the source's 0..1 is the knob's whole
+        // range, blended with the knob's own setting by |depth|
+        bool absolute { false };
+        float depth { 0.0f };
+        float minValue { 0.0f }, maxValue { 1.0f };
     };
 
-    // a Midi Add instance that at least one generator is listening to.
-    // drivenBy is the note driver patched into its "Always Midi In" socket,
-    // or -1 when it chords the host keyboard as usual.
-    struct MidiAddRef
-    {
-        int instanceId { -1 };
-        aquanode::SynthModule* dsp { nullptr };
-        int drivenBy { -1 };
-    };
-
-    // a Discard Midi instance with listeners: it passes the keyboard through
-    // to those generators, minus the note classes switched on in its grid
-    struct MidiFilterRef
-    {
-        int instanceId { -1 };
-        aquanode::SynthModule* dsp { nullptr };
-    };
-
-    // a MIDI note driver (Arp, Always Midi) with at least one listener;
-    // ticked once per sample so it can emit notes on its own clock
+    // a MIDI note driver (Arp, Always Midi, Piano Roll) whose notes reach
+    // something; ticked once per sample so it can emit notes on its own clock
     struct MidiDriverRef
     {
         int instanceId { -1 };
         aquanode::SynthModule* dsp { nullptr };
     };
 
+    // How one node takes part in MIDI routing, frozen into the compiled graph
+    // so the audio thread never reads the instances' routing fields while the
+    // message thread is rebuilding them.
+    struct NodeMidiRouting
+    {
+        std::vector<int> sources;       // instance ids patched into its Midi In
+        bool replaces { false };        // a source that takes the played keys away
+        bool gated { false };           // silent on voices it got no note-on for
+        bool hitsInGlobalLane { false };// global-lane drum: notes arrive as hits
+
+        bool listensTo (int id) const
+        {
+            return std::find (sources.begin(), sources.end(), id) != sources.end();
+        }
+    };
+
+    // One MIDI stream: everything a module with a Midi Out sends on. Its notes
+    // start voices on the sound-making modules listening to it directly
+    // (hasConsumers), and are handed to every MIDI processor listening to it,
+    // which in turn send on streams of their own.
+    struct MidiStream
+    {
+        int sourceId { -1 };
+        bool hasConsumers { false };
+        std::vector<int> processors;    // node indices of listening MIDI processors
+    };
+
     struct ProcessGraph
     {
         std::vector<std::shared_ptr<ModuleInstance>> nodes;      // topological order
-        std::vector<MidiAddRef> midiAdds;
+        std::vector<NodeMidiRouting> midi;                       // per node
+        std::vector<MidiStream> streams;
+        std::vector<int> keyboardProcessors;    // processors fed by the played keys (empty Midi In)
+
+        const MidiStream* findStream (int sourceId) const
+        {
+            for (const auto& st : streams)
+                if (st.sourceId == sourceId)
+                    return &st;
+            return nullptr;
+        }
+
+        // does this source start voices on anything that makes sound?
+        bool feeds (int sourceId) const
+        {
+            const auto* st = findStream (sourceId);
+            return st != nullptr && st->hasConsumers;
+        }
+
         std::vector<MidiDriverRef> midiDrivers;
-        std::vector<MidiFilterRef> midiFilters;
         std::vector<std::vector<CompiledEdge>> incoming;         // per node
         std::vector<std::vector<CompiledParamEdge>> incomingParams;
         juce::uint64 serial { 0 };
@@ -208,31 +252,30 @@ private:
     struct VoiceState
     {
         int note { -1 };            // the pitch this voice sounds
-        int sourceNote { -1 };      // the key that spawned it (note-off matches on this)
-        int midiSource { -1 };      // Midi Add / Arp instance that made it, -1 = played directly
-        int originDriver { -1 };    // note driver (Arp / Always Midi) this voice ultimately
-                                    // came from, even when a Midi Add chorded it on the way:
-                                    // that driver's note-off has to release these too
-        bool selfReleased { false };// an Arp releases its own notes; keys must not
+        int midiSource { -1 };      // the stream that started it, -1 = the played keys
         bool active { false };
         bool held { false };
         double countdown { 0.0 };       // seconds of tail left after note-off
         juce::uint64 order { 0 };
     };
 
+    // MIDI routing (audio thread). A note event travels from its source
+    // through every processor chain it is patched into; wherever it meets
+    // sound-making modules it starts or releases a voice.
+    static constexpr int kMaxMidiChainDepth = 16;
+    void keyboardEvent (const ProcessGraph& graph, const aquanode::MidiDriverEvent& e);
+    void handleControlMessage (const ProcessGraph& graph, const juce::MidiMessage& msg);
+
+    // non-note MIDI (bend, wheels, CCs, sustain), audio thread only
+    aquanode::MidiControlState midiState;
+    bool sustainedKeys[128] {};     // released while the pedal was down
+    void emitMidi (const ProcessGraph& graph, int sourceId, const aquanode::MidiDriverEvent& e, int depth);
+    void feedProcessor (const ProcessGraph& graph, int nodeIndex, const aquanode::MidiDriverEvent& e, int depth);
+
     void refreshActiveVoices();
-    void engineNoteOn  (const ProcessGraph& graph, int note, float velocity01);
-    void startVoice (const std::vector<std::shared_ptr<ModuleInstance>>& nodes,
-                     int note, int sourceNote, int midiSource, float velocity01,
-                     bool listenersOnly, bool selfReleased = false, int originDriver = -1);
-    // spawns the extra notes of every Midi Add fed by this note source:
-    // driverId < 0 means the host keyboard, otherwise a note driver's id
-    void spawnMidiAdditions (const ProcessGraph& graph, int note, float velocity01,
-                             int driverId, bool selfReleased);
-    void midiDriverNoteOff (const std::vector<std::shared_ptr<ModuleInstance>>& nodes,
-                            int note, int driverInstanceId);
-    void engineNoteOff (const std::vector<std::shared_ptr<ModuleInstance>>& nodes, int note);
-    void engineAllNotesOff (const std::vector<std::shared_ptr<ModuleInstance>>& nodes);
+    void startVoice (const ProcessGraph& graph, int note, int midiSource, float velocity01);
+    void releaseVoices (const std::vector<std::shared_ptr<ModuleInstance>>& nodes, int midiSource, int note);
+    void engineAllNotesOff (const ProcessGraph& graph);
     void deactivateVoice (const std::vector<std::shared_ptr<ModuleInstance>>& nodes, int v);
     double computeVoiceTail (const std::vector<std::shared_ptr<ModuleInstance>>& nodes) const;
 

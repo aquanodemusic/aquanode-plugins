@@ -60,11 +60,50 @@ std::unique_ptr<juce::Component> RecordModule::createExtraContentComponent()
 void RecordModule::prepare (double sr)
 {
     SynthModule::prepare (sr);
-    const int capacity = juce::jmax (1, (int) (sr * maxRecordSeconds));
-    bufL.assign ((size_t) capacity, 0.0f);
-    bufR.assign ((size_t) capacity, 0.0f);
-    recordedCount.store (0, std::memory_order_relaxed);
     recording.store (false, std::memory_order_relaxed);
+
+    // Keep the existing take (one restored from a preset, or recorded before
+    // the host re-prepared us at another rate) instead of wiping it.
+    const int keep = recordedCount.load (std::memory_order_relaxed);
+    const int capacity = juce::jmax (1, (int) (sr * maxRecordSeconds), keep);
+    bufL.resize ((size_t) capacity, 0.0f);
+    bufR.resize ((size_t) capacity, 0.0f);
+}
+
+bool RecordModule::hasAudioToSave() const
+{
+    return ! recording.load (std::memory_order_acquire) && recordedCount.load (std::memory_order_acquire) > 0;
+}
+
+std::shared_ptr<const juce::AudioBuffer<float>> RecordModule::getAudioToSave (double& rate) const
+{
+    if (! hasAudioToSave())
+        return nullptr;
+
+    const int frames = recordedCount.load (std::memory_order_acquire);
+    auto take = std::make_shared<juce::AudioBuffer<float>> (2, frames);
+    take->copyFrom (0, 0, bufL.data(), frames);
+    take->copyFrom (1, 0, bufR.data(), frames);
+    rate = takeRate > 0.0 ? takeRate : sampleRate;
+    return take;
+}
+
+void RecordModule::restoreSavedAudio (std::shared_ptr<juce::AudioBuffer<float>> audio, double rate)
+{
+    if (audio == nullptr || audio->getNumSamples() <= 0)
+        return;
+
+    const int frames = audio->getNumSamples();
+    if ((int) bufL.size() < frames)
+    {
+        bufL.resize ((size_t) frames, 0.0f);
+        bufR.resize ((size_t) frames, 0.0f);
+    }
+    std::copy (audio->getReadPointer (0), audio->getReadPointer (0) + frames, bufL.begin());
+    const int rch = audio->getNumChannels() > 1 ? 1 : 0;
+    std::copy (audio->getReadPointer (rch), audio->getReadPointer (rch) + frames, bufR.begin());
+    takeRate = rate;
+    recordedCount.store (frames, std::memory_order_release);
 }
 
 void RecordModule::processSample (const StereoFrame* inputs, StereoFrame* outputs)
@@ -95,7 +134,15 @@ void RecordModule::uiButtonClicked (const juce::String& paramId)
         // Start always begins a fresh take; use Save first if the previous
         // one is still needed.
         recordedCount.store (0, std::memory_order_release);
+        takeRate = sampleRate;
         recording.store (true, std::memory_order_release);
+    }
+    else if (paramId == "clear")
+    {
+        // throw the take away (it is no longer saved with the patch either)
+        recording.store (false, std::memory_order_release);
+        recordedCount.store (0, std::memory_order_release);
+        takeRate = 0.0;
     }
     else if (paramId == "stop")
     {
@@ -127,7 +174,7 @@ void RecordModule::saveToFile()
 
     juce::WeakReference<SynthModule> weakThis (this);
     const int framesToWrite = numFrames;
-    const double sr = sampleRate;
+    const double sr = takeRate > 0.0 ? takeRate : sampleRate;   // a restored take keeps its own rate
 
     // native OS "Save As" dialog (Explorer/Finder on desktop, SAF "create
     // document" picker on Android). getURLResult() rather than getResult():
@@ -264,7 +311,8 @@ static ModuleDescriptor recordDescriptor()
         "Taps whatever passes through it and records it, at whatever sample rate this instance "
         "is actually running at (the host's rate in a DAW, the audio device's rate standalone, or "
         "44.1 kHz if neither is known yet). Save opens a native file dialog and writes a WAV or "
-        "FLAC file at 16 or 24 bit. Auto-stops after 2 minutes.";
+        "FLAC file at 16 or 24 bit. Auto-stops after 2 minutes. The take is kept with the patch (presets "
+        "and DAW sessions) until Delete throws it away.";
     d.section = ModuleSection::Utility;
     d.sidebarOrder = 26;
     d.sockets = {
@@ -276,7 +324,8 @@ static ModuleDescriptor recordDescriptor()
         makeCombo  ("bitDepth", "Bit Depth",  { "16-bit", "24-bit" }, 0, 0, 2),
         makeButton ("start",    "Start",      1, 1),
         makeButton ("stop",     "Stop",       1, 1),
-        makeButton ("save",     "Save",       1, 1)
+        makeButton ("save",     "Save",       1, 1),
+        makeButton ("clear",    "Delete",     1, 2)
     };
     return d;
 }

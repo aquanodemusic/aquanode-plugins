@@ -114,12 +114,22 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
     if (graph == nullptr || graph->nodes.empty())
         return;
 
-    // host tempo (120 BPM fallback)
+    // host tempo (120 BPM fallback). The standalone app and Android have no
+    // play head at all, so HostTransport::hasBpm tells modules that offer a
+    // "lock to host" whether there is anything to lock to.
     double bpm = 120.0;
+    HostTransport hostTransport;
     if (auto* ph = getPlayHead())
         if (auto pos = ph->getPosition())
-            if (auto hostBpm = pos->getBpm())
+        {
+            if (auto hostBpm = pos->getBpm(); hostBpm && *hostBpm > 0.0)
+            {
                 bpm = *hostBpm;
+                hostTransport.hasBpm = true;
+                hostTransport.bpm = *hostBpm;
+            }
+            hostTransport.isPlaying = pos->getIsPlaying();
+        }
 
     const auto& nodes = graph->nodes;
 
@@ -128,6 +138,9 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
         for (auto& n : nodes)
         {
             n->dsp->reset();
+            n->dsp->resetGlobalMidiHits();
+            n->dsp->midiAllNotesOff();
+            std::fill (std::begin (n->voiceHeard), std::end (n->voiceHeard), false);
             std::fill (n->outBuf.begin(), n->outBuf.end(), StereoFrame { 0.0f, 0.0f });
             std::fill (n->prevOutBuf.begin(), n->prevOutBuf.end(), StereoFrame { 0.0f, 0.0f });
             std::fill (n->outV.begin(), n->outV.end(), StereoFrame { 0.0f, 0.0f });
@@ -146,9 +159,20 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
     for (auto& n : nodes)
     {
         n->dsp->setTempo (bpm);
+        n->dsp->setHostTransport (hostTransport);
+        n->dsp->setMidiControls (&midiState);
         n->dsp->setHostModValues (dawModSnapshot.data());
         n->dsp->blockStart();
     }
+
+    // the pitch-bend range comes from the first Midi Controls module, if any
+    midiState.bendRangeSemis = 2.0f;
+    for (auto& n : nodes)
+        if (const float r = n->dsp->bendRangeSetting(); r >= 0.0f)
+        {
+            midiState.bendRangeSemis = r;
+            break;
+        }
 
     // Fold in any notes played on the on-screen keyboard (and mirror the
     // incoming stream back onto it for visual feedback). Must run before the
@@ -164,6 +188,7 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
     const auto* hostInR = inputScratch.getReadPointer (1);
 
     const double invSr = 1.0 / currentSampleRate;
+    MidiDriverEvent driverEvents[kMaxDriverEventsPerSample];
 
     // reused per-contribution accumulator (all edge type conversions)
     auto accumulate = [] (StereoFrame& dst, const StereoFrame& frame, EdgeConversion conv)
@@ -194,42 +219,28 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
         {
             const auto msg = (*midiIt).getMessage();
             if (msg.isNoteOn())
-            {
-                for (const auto& md : graph->midiDrivers)
-                    md.dsp->midiDriverHeldNoteOn (msg.getNoteNumber());
-                engineNoteOn (*graph, msg.getNoteNumber(), msg.getFloatVelocity());
-            }
+                keyboardEvent (*graph, { msg.getNoteNumber(), msg.getFloatVelocity(), true });
             else if (msg.isNoteOff())
-            {
-                for (const auto& md : graph->midiDrivers)
-                    md.dsp->midiDriverHeldNoteOff (msg.getNoteNumber());
-                engineNoteOff (nodes, msg.getNoteNumber());
-            }
+                keyboardEvent (*graph, { msg.getNoteNumber(), 0.0f, false });
             else if (msg.isAllNotesOff() || msg.isAllSoundOff())
             {
-                for (const auto& md : graph->midiDrivers)
-                    md.dsp->midiDriverAllHeldOff();
-                engineAllNotesOff (nodes);
+                std::fill (std::begin (sustainedKeys), std::end (sustainedKeys), false);
+                engineAllNotesOff (*graph);
             }
+            else
+                handleControlMessage (*graph, msg);
             ++midiIt;
         }
 
         // note drivers run on their own clock, emitting their own notes
+        // (several per sample for a Piano Roll chord, each with a velocity),
+        // which travel down whatever their Midi Out is patched into
         for (const auto& md : graph->midiDrivers)
         {
-            int onNote = -1, offNote = -1;
-            md.dsp->midiDriverAdvance (currentSampleRate, onNote, offNote);
-
-            if (offNote >= 0)
-                midiDriverNoteOff (nodes, offNote, md.instanceId);
-            if (onNote >= 0)
-            {
-                startVoice (nodes, onNote, onNote, md.instanceId, 0.85f, true, true,
-                            md.instanceId);
-                // a Midi Add with this driver in its Always Midi In turns the
-                // driver's single note into a chord
-                spawnMidiAdditions (*graph, onNote, 0.85f, md.instanceId, true);
-            }
+            const int numEvents = md.dsp->midiDriverAdvanceEvents (currentSampleRate, driverEvents,
+                                                                   kMaxDriverEventsPerSample);
+            for (int ev = 0; ev < numEvents; ++ev)
+                emitMidi (*graph, md.instanceId, driverEvents[ev], 0);
         }
 
         // released voices die once their patch-wide tail has elapsed
@@ -278,7 +289,22 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
                         value = 0.5f * (f[0] + f[1]);
                     }
 
-                    node.dsp->addParamMod (pe.paramIdx, value * pe.scale);
+                    if (pe.absolute)
+                    {
+                        // 0..1 -> the knob's whole range (inverted for a
+                        // negative depth), blended with the knob's own
+                        // setting by |depth|: 100% = the curve alone
+                        const float v = juce::jlimit (0.0f, 1.0f, value);
+                        const float span = pe.maxValue - pe.minValue;
+                        const float target = pe.depth >= 0.0f ? pe.minValue + v * span
+                                                              : pe.maxValue - v * span;
+                        const float base = node.dsp->getParameterBase (pe.paramIdx);
+                        node.dsp->addParamMod (pe.paramIdx, std::abs (pe.depth) * (target - base));
+                    }
+                    else
+                    {
+                        node.dsp->addParamMod (pe.paramIdx, value * pe.scale);
+                    }
                 }
             }
 
@@ -286,9 +312,20 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
             {
                 // ---- per-voice lane: run this module once for every active
                 // voice, with that voice's own inputs
+                const bool gated = graph->midi[ni].gated;
+
                 for (int k = 0; k < numActiveVoices; ++k)
                 {
                     const int v = activeVoiceList[k];
+
+                    // a generator that was never given this voice's note
+                    // stays silent on it, whatever its envelope is doing
+                    if (gated && ! node.voiceHeard[v])
+                    {
+                        for (int i = 0; i < node.numOut; ++i)
+                            node.outV[(size_t) (v * node.numOut + i)] = { 0.0f, 0.0f };
+                        continue;
+                    }
 
                     for (int i = 0; i < node.numIn; ++i)
                         node.inBuf[(size_t) i] = { 0.0f, 0.0f };
@@ -375,6 +412,28 @@ void AquanodeModularAudioProcessor::processBlock (juce::AudioBuffer<float>& buff
         if (outR != nullptr)
             outR[s] = sumR;
     }
+
+    // Safety net: if anything in the patch produced NaN or infinity, never
+    // hand it to the host - a single NaN reaching a DAW channel can silence a
+    // whole bus (its reverbs and EQs keep recirculating it). The block is
+    // muted and every module's state is wiped, so the patch heals itself on
+    // the next block instead of staying broken.
+    bool finite = true;
+    for (int ch = 0; ch < buffer.getNumChannels() && finite; ++ch)
+    {
+        const auto* d = buffer.getReadPointer (ch);
+        for (int i = 0; i < numSamples; ++i)
+            if (! std::isfinite (d[i]))
+            {
+                finite = false;
+                break;
+            }
+    }
+    if (! finite)
+    {
+        buffer.clear();
+        resetAllPending.store (true, std::memory_order_release);
+    }
 }
 
 //==============================================================================
@@ -406,8 +465,12 @@ void AquanodeModularAudioProcessor::deactivateVoice (
     for (const auto& n : nodes)
     {
         if (! n->perVoice)
+        {
+            n->dsp->globalMidiNoteOff (v);   // no-op unless a drum took this voice as a hit
             continue;
+        }
 
+        n->voiceHeard[v] = false;
         n->dsp->voiceReset (v);
         for (int i = 0; i < n->numOut; ++i)
         {
@@ -419,16 +482,31 @@ void AquanodeModularAudioProcessor::deactivateVoice (
     refreshActiveVoices();
 }
 
-void AquanodeModularAudioProcessor::startVoice (
-    const std::vector<std::shared_ptr<ModuleInstance>>& nodes,
-    int note, int sourceNote, int midiSource, float velocity01,
-    bool listenersOnly, bool selfReleased, int originDriver)
+void AquanodeModularAudioProcessor::startVoice (const ProcessGraph& graph, int note,
+                                                int midiSource, float velocity01)
 {
-    // 1) the same pitch from the same origin is still sounding -> retrigger it
+    const auto& nodes = graph.nodes;
+    const bool fromStream = midiSource >= 0;
+
+    // A note from a MIDI stream that no sound-making module listens to has
+    // nobody to play it. It used to take a voice anyway, and every module
+    // without a Midi In (ADSR, LFO, filters...) followed that voice - so an
+    // Always Midi into a Midi Add that led nowhere still opened envelopes,
+    // and any oscillator on such an envelope droned at a stale pitch with
+    // nothing played. Such a note now simply does not start a voice.
+    if (fromStream && ! graph.feeds (midiSource))
+        return;
+
+    // 1) the same pitch from the same stream is still HELD -> retrigger it.
+    //    A note that has been released keeps its voice for its release tail
+    //    and the new note gets a fresh voice, the way a polysynth (and the
+    //    Virtual DX7 engine) does it: re-striking a key during its release
+    //    starts a clean note instead of picking up the old one's envelopes
+    //    mid-release.
     int v = -1;
     bool retrigger = false;
     for (int i = 0; i < kMaxVoices; ++i)
-        if (voiceStates[i].active && voiceStates[i].note == note
+        if (voiceStates[i].active && voiceStates[i].held && voiceStates[i].note == note
             && voiceStates[i].midiSource == midiSource)
         {
             v = i;
@@ -456,163 +534,177 @@ void AquanodeModularAudioProcessor::startVoice (
     }
 
     voiceStates[v].note = note;
-    voiceStates[v].sourceNote = sourceNote;
     voiceStates[v].midiSource = midiSource;
-    voiceStates[v].originDriver = originDriver;
-    voiceStates[v].selfReleased = selfReleased;
     voiceStates[v].active = true;
     voiceStates[v].held = true;
     voiceStates[v].countdown = 0.0;
     voiceStates[v].order = ++voiceOrderCounter;
     refreshActiveVoices();
 
-    // Notes from a Midi Add / Arp only reach the generators patched to that
-    // specific instance. Notes the player pressed reach everything EXCEPT
-    // generators following an Arp, since an Arp takes those notes over rather
-    // than adding to them. Generators that get no note-on simply stay silent
-    // on this voice.
-    //
-    // Modules with no "Add Midi In" socket at all (ADSR, LFO, envelope
-    // followers, etc.) aren't generators a Midi Add can be patched into -
-    // they just shadow whichever voice slot is active, exactly like they do
-    // for a normally-played note. Without this, a voice spawned by a Midi
-    // Add would never reach that ADSR's voiceNoteOn, so its envelope would
-    // stay at Idle/0 forever and silently mute the added notes even though
-    // the generator itself was triggered correctly.
-    for (const auto& n : nodes)
+    // Notes from a stream only reach the modules patched to that stream.
+    // The played keys reach every module with nothing in its Midi In.
+    // Modules with no Midi In at all (ADSR, LFO, filters...) shadow whichever
+    // voice is active, exactly like for a played note - an ADSR has to open
+    // for a Piano Roll note too - and gated generators that were not given
+    // this voice's note stay silent on it whatever those envelopes do.
+    for (size_t i = 0; i < nodes.size(); ++i)
     {
-        if (! n->perVoice)
+        auto& n = *nodes[i];
+        const auto& routing = graph.midi[i];
+
+        if (! n.perVoice)
+        {
+            // a drum sitting in the global lane with something patched into
+            // its Midi In: the note arrives as a hit
+            if (routing.hitsInGlobalLane && fromStream && routing.listensTo (midiSource))
+                n.dsp->globalMidiNoteOn (v, note, velocity01);
             continue;
+        }
 
-        const bool hasAddMidiIn = n->descriptor().inputIndexOf ("addMidiIn") >= 0;
+        const bool shouldHear = fromStream
+            ? (routing.listensTo (midiSource) || ! routing.gated)
+            : (! routing.replaces);
 
-        const bool shouldHear = listenersOnly
-            ? (n->listensTo (midiSource) || ! hasAddMidiIn)
-            : (! n->midiSourceReplaces);
+        n.voiceHeard[v] = shouldHear;
 
         if (shouldHear)
         {
-            n->dsp->voiceNoteOn (v, note, retrigger);
-            n->dsp->voiceVelocity (v, velocity01);
+            n.dsp->voiceNoteOn (v, note, retrigger);
+            n.dsp->voiceVelocity (v, velocity01);
         }
     }
 }
 
-// Every Midi Add fed by this note source spawns its extra notes around the
-// given note. driverId < 0 = the host keyboard (Midi Adds with nothing in
-// their Always Midi In); otherwise only the Midi Adds that driver feeds.
-void AquanodeModularAudioProcessor::spawnMidiAdditions (const ProcessGraph& graph, int note,
-                                                        float velocity01, int driverId,
-                                                        bool selfReleased)
+void AquanodeModularAudioProcessor::releaseVoices (
+    const std::vector<std::shared_ptr<ModuleInstance>>& nodes, int midiSource, int note)
 {
-    for (const auto& ma : graph.midiAdds)
-    {
-        if (ma.drivenBy != driverId)
-            continue;
-
-        auto* adder = dynamic_cast<MidiAddModule*> (ma.dsp);
-        if (adder == nullptr)
-            continue;
-
-        // A driven Midi Add hands the driver's own note on to its listeners
-        // as well, so the chord has its root: nothing else would deliver it,
-        // since those generators follow the Midi Add and not the driver.
-        // Keyboard-fed Midi Adds need no such thing - the played key already
-        // reaches every generator by itself.
-        if (driverId >= 0)
-            startVoice (graph.nodes, note, note, ma.instanceId, velocity01, true,
-                        selfReleased, driverId);
-
-        for (int slot = 0; slot < MidiAddModule::kNumSlots; ++slot)
-        {
-            const int offset = adder->offsetSemitones (slot);
-            if (offset == 0)
-                continue;   // unison copy: the generator already plays this pitch
-
-            const int added = note + offset;
-            if (added < 0 || added > 127)
-                continue;   // transposed off the end of the keyboard
-
-            startVoice (graph.nodes, added, note, ma.instanceId, velocity01, true,
-                        selfReleased, driverId);
-        }
-    }
-}
-
-void AquanodeModularAudioProcessor::engineNoteOn (const ProcessGraph& graph, int note, float velocity01)
-{
-    const auto& nodes = graph.nodes;
-
-    // the key itself: heard by every generator, exactly as before
-    startVoice (nodes, note, note, -1, velocity01, false);
-
-    // Discard Midi hands the key on to its listeners - unless the note class
-    // is switched on in its grid, in which case those generators stay silent
-    // and the "wrong" note simply never sounds
-    for (const auto& mf : graph.midiFilters)
-    {
-        auto* filter = dynamic_cast<DiscardMidiModule*> (mf.dsp);
-        if (filter == nullptr || filter->isNoteDiscarded (note))
-            continue;
-
-        startVoice (nodes, note, note, mf.instanceId, velocity01, true);
-    }
-
-    // plus whatever each keyboard-fed Midi Add adds around it
-    spawnMidiAdditions (graph, note, velocity01, -1, false);
-}
-
-void AquanodeModularAudioProcessor::midiDriverNoteOff (
-    const std::vector<std::shared_ptr<ModuleInstance>>& nodes, int note, int driverInstanceId)
-{
-    // releases the driver's own note AND every note a Midi Add chorded onto
-    // it (those carry the driver in originDriver and the driver's pitch in
-    // sourceNote, so a whole drone chord lets go together)
     for (int v = 0; v < kMaxVoices; ++v)
     {
-        if (! voiceStates[v].active || ! voiceStates[v].held)
-            continue;
-
-        const bool isDriverNote = voiceStates[v].midiSource == driverInstanceId
-                                    && voiceStates[v].note == note;
-        const bool isChordedNote = voiceStates[v].originDriver == driverInstanceId
-                                    && voiceStates[v].sourceNote == note;
-
-        if (! isDriverNote && ! isChordedNote)
+        if (! voiceStates[v].active || ! voiceStates[v].held
+            || voiceStates[v].midiSource != midiSource || voiceStates[v].note != note)
             continue;
 
         voiceStates[v].held = false;
         voiceStates[v].countdown = computeVoiceTail (nodes);
 
         for (const auto& n : nodes)
+        {
             if (n->perVoice)
                 n->dsp->voiceNoteOff (v);
-    }
-}
-
-void AquanodeModularAudioProcessor::engineNoteOff (
-    const std::vector<std::shared_ptr<ModuleInstance>>& nodes, int note)
-{
-    // release every voice this key spawned: the note itself and any additions
-    // a Midi Add made from it (matched on sourceNote, not the sounding pitch)
-    for (int v = 0; v < kMaxVoices; ++v)
-    {
-        if (voiceStates[v].active && voiceStates[v].held
-            && ! voiceStates[v].selfReleased && voiceStates[v].sourceNote == note)
-        {
-            voiceStates[v].held = false;
-            voiceStates[v].countdown = computeVoiceTail (nodes);
-
-            for (const auto& n : nodes)
-                if (n->perVoice)
-                    n->dsp->voiceNoteOff (v);
+            else
+                n->dsp->globalMidiNoteOff (v);
         }
     }
 }
 
-void AquanodeModularAudioProcessor::engineAllNotesOff (
-    const std::vector<std::shared_ptr<ModuleInstance>>& nodes)
+// A note event leaving a stream's Midi Out: voices for the sound-making
+// modules listening to it, and the event handed to every processor listening
+// to it - which may send events on again, and so on down any chain.
+void AquanodeModularAudioProcessor::emitMidi (const ProcessGraph& graph, int sourceId,
+                                              const MidiDriverEvent& e, int depth)
 {
+    if (e.note < 0 || e.note > 127)
+        return;
+
+    const auto* stream = graph.findStream (sourceId);
+    if (stream == nullptr)
+        return;
+
+    if (stream->hasConsumers)
+    {
+        if (e.isOn) startVoice (graph, e.note, sourceId, e.velocity);
+        else        releaseVoices (graph.nodes, sourceId, e.note);
+    }
+
+    if (depth < kMaxMidiChainDepth)
+        for (int nodeIndex : stream->processors)
+            feedProcessor (graph, nodeIndex, e, depth + 1);
+}
+
+void AquanodeModularAudioProcessor::feedProcessor (const ProcessGraph& graph, int nodeIndex,
+                                                   const MidiDriverEvent& e, int depth)
+{
+    auto& node = *graph.nodes[(size_t) nodeIndex];
+
+    MidiDriverEvent out[16];
+    const int n = node.dsp->processMidiEvent (e, out, 16);
+    for (int i = 0; i < n; ++i)
+        emitMidi (graph, node.id, out[i], depth);
+}
+
+// a played key (host MIDI or the on-screen keyboard)
+void AquanodeModularAudioProcessor::handleControlMessage (const ProcessGraph& graph, const juce::MidiMessage& msg)
+{
+    if (msg.isPitchWheel())
+    {
+        midiState.bend = juce::jlimit (-1.0f, 1.0f, (float) (msg.getPitchWheelValue() - 8192) / 8192.0f);
+    }
+    else if (msg.isController())
+    {
+        const int cc = msg.getControllerNumber();
+        const float v = (float) msg.getControllerValue() / 127.0f;
+        midiState.cc[cc & 127] = v;
+
+        if (cc == 1)
+            midiState.modWheel = v;
+
+        if (cc == 64)
+        {
+            const bool down = msg.getControllerValue() >= 64;
+            if (midiState.sustain && ! down)
+            {
+                // pedal up: every key let go while it was down is released now
+                midiState.sustain = false;
+                for (int note = 0; note < 128; ++note)
+                    if (sustainedKeys[note])
+                    {
+                        sustainedKeys[note] = false;
+                        keyboardEvent (graph, { note, 0.0f, false });
+                    }
+            }
+            midiState.sustain = down;
+        }
+    }
+    else if (msg.isChannelPressure())
+    {
+        midiState.aftertouch = (float) msg.getChannelPressureValue() / 127.0f;
+    }
+    else if (msg.isAftertouch())
+    {
+        midiState.aftertouch = (float) msg.getAfterTouchValue() / 127.0f;
+    }
+}
+
+void AquanodeModularAudioProcessor::keyboardEvent (const ProcessGraph& graph, const MidiDriverEvent& e)
+{
+    // Sustain pedal: a key let go while the pedal is down keeps sounding until
+    // the pedal comes up (striking it again re-triggers it as usual)
+    if (e.note >= 0 && e.note < 128)
+    {
+        if (! e.isOn && midiState.sustain)
+        {
+            sustainedKeys[e.note] = true;
+            return;
+        }
+        if (e.isOn)
+            sustainedKeys[e.note] = false;
+    }
+
+    // the key itself, for every module with nothing in its Midi In - always
+    // started, since an ADSR alone (an FX patch) wants it too
+    if (e.isOn) startVoice (graph, e.note, -1, e.velocity);
+    else        releaseVoices (graph.nodes, -1, e.note);
+
+    // and every processor with an empty Midi In (Midi Add chords the keys,
+    // Discard Midi filters them, the Arp arpeggiates them, Keyboard Midi
+    // passes them on)
+    for (int nodeIndex : graph.keyboardProcessors)
+        feedProcessor (graph, nodeIndex, e, 1);
+}
+
+void AquanodeModularAudioProcessor::engineAllNotesOff (const ProcessGraph& graph)
+{
+    const auto& nodes = graph.nodes;
     const double tail = computeVoiceTail (nodes);
     for (int v = 0; v < kMaxVoices; ++v)
     {
@@ -622,10 +714,17 @@ void AquanodeModularAudioProcessor::engineAllNotesOff (
             voiceStates[v].countdown = tail;
 
             for (const auto& n : nodes)
+            {
                 if (n->perVoice)
                     n->dsp->voiceNoteOff (v);
+                else
+                    n->dsp->globalMidiNoteOff (v);
+            }
         }
     }
+
+    for (const auto& n : nodes)
+        n->dsp->midiAllNotesOff();
 }
 
 //==============================================================================
@@ -709,11 +808,11 @@ int AquanodeModularAudioProcessor::cloneModule (int instanceId)
         if (custom.isNotEmpty())
             dst->dsp->loadCustomState (custom);
 
-        if (src->dsp->usesLoadedSample())
+        if (src->dsp->hasAudioToSave())
         {
             double rate = 44100.0;
-            if (auto sample = src->dsp->getLoadedSample (&rate))
-                dst->dsp->setLoadedSample (sample, rate);
+            if (auto audio = src->dsp->getAudioToSave (rate))
+                dst->dsp->restoreSavedAudio (std::make_shared<juce::AudioBuffer<float>> (*audio), rate);
         }
     }
     return newId;
@@ -786,7 +885,13 @@ bool AquanodeModularAudioProcessor::addParamCable (int fromModule, const juce::S
     const aquanode::ParamSpec* spec = nullptr;
     for (const auto& ps : dst->descriptor().params)
         if (ps.id == paramId) { spec = &ps; break; }
-    if (spec == nullptr || spec->type != aquanode::ParamType::Rotary
+    // every knob-like control takes cables: round knobs, stepped knobs
+    // (Always Midi's Note, a delay's synced Time...) and horizontal bars -
+    // which is what lets a DAW Mod automate them from the host
+    const bool knobLike = spec != nullptr && (spec->type == aquanode::ParamType::Rotary
+                                              || spec->type == aquanode::ParamType::RotarySteppedList
+                                              || spec->type == aquanode::ParamType::HBar);
+    if (! knobLike
         || (spec->hidden && ! spec->hiddenCableTarget) || ! spec->modulatable)
         return false;
 
@@ -906,7 +1011,8 @@ void AquanodeModularAudioProcessor::rebuildGraph()
 
     // resolve cables to (node, socket) index edges; drop any stale ones
     struct RawEdge { int from, fromSock, to, toSock; SocketKind fromKind, toKind; bool feedback = false;
-                     bool isParam = false; int paramIdx = -1; float scale = 0.0f; };
+                     bool isParam = false; int paramIdx = -1; float scale = 0.0f;
+                     bool absolute = false; float depth = 0.0f, minValue = 0.0f, maxValue = 1.0f; };
     std::vector<RawEdge> rawEdges;
     std::vector<std::vector<int>> adjacency ((size_t) n);   // outgoing raw-edge indices
 
@@ -965,34 +1071,6 @@ void AquanodeModularAudioProcessor::rebuildGraph()
         rawEdges.push_back (e);
     }
 
-    // A Midi Add fed by a replacing driver hands that takeover on to its own
-    // listeners: Always Midi -> Midi Add -> Oscillator drones a chord and the
-    // played keys stay out of it, exactly as a direct Always Midi cable would.
-    // One level deep only - deeper MIDI chains are not a supported topology.
-    for (auto& inst : instances)
-    {
-        if (inst->midiSourceReplaces)
-            continue;
-
-        for (int srcId : inst->midiSourceIds)
-        {
-            auto* srcInst = getInstance (srcId);
-            if (srcInst == nullptr)
-                continue;
-
-            for (int upId : srcInst->midiSourceIds)
-            {
-                auto* up = getInstance (upId);
-                if (up != nullptr && up->dsp->isMidiNoteDriver()
-                    && up->dsp->midiSourceReplacesInput())
-                {
-                    inst->midiSourceReplaces = true;
-                    break;
-                }
-            }
-        }
-    }
-
     // parameter-modulation cables join the same dependency graph so sources
     // are always computed before the knobs they drive (cycles -> feedback)
     for (const auto& pc : paramCables)
@@ -1028,6 +1106,10 @@ void AquanodeModularAudioProcessor::rebuildGraph()
         e.isParam = true;
         e.paramIdx = paramIdx;
         e.scale = pc.depth * span;
+        e.absolute = instances[(size_t) from]->dsp->drivesKnobsAbsolutely();
+        e.depth = pc.depth;
+        e.minValue = toDesc.params[(size_t) paramIdx].minValue;
+        e.maxValue = toDesc.params[(size_t) paramIdx].maxValue;
 
         adjacency[(size_t) from].push_back ((int) rawEdges.size());
         rawEdges.push_back (e);
@@ -1144,6 +1226,10 @@ void AquanodeModularAudioProcessor::rebuildGraph()
             pe.paramIdx = e.paramIdx;
             pe.scale = e.scale;
             pe.feedback = e.feedback;
+            pe.absolute = e.absolute;
+            pe.depth = e.depth;
+            pe.minValue = e.minValue;
+            pe.maxValue = e.maxValue;
             graph->incomingParams[(size_t) orderPosition[(size_t) e.to]].push_back (pe);
             continue;
         }
@@ -1209,72 +1295,142 @@ void AquanodeModularAudioProcessor::rebuildGraph()
         }
     }
 
-    // MIDI note drivers (Arp, Always Midi) with at least one listener get
-    // ticked every sample; an unpatched one costs nothing
-    for (const auto& inst : instances)
+    // ---- MIDI routing, frozen into the graph for the audio thread --------
+    // Every module with a Midi Out is a stream. A "note consumer" turns
+    // notes into sound: it has a Midi In and no Midi Out (generators, the
+    // drums, Noise). A "processor" has both (Midi Add, Discard Midi, Arp) or
+    // listens to the keys with no input at all (Keyboard Midi). Streams flow
+    // from module to module along the MIDI cables, through any number of
+    // processors, and fan out to as many listeners as are patched.
+    auto isNoteConsumer = [] (const ModuleInstance& inst)
     {
-        if (! inst->dsp->isMidiNoteDriver())
-            continue;
+        bool hasMidiIn = false, hasMidiOut = false;
+        for (const auto& sk : inst.descriptor().sockets)
+            if (sk.kind == SocketKind::Midi)
+                (sk.direction == SocketDirection::Input ? hasMidiIn : hasMidiOut) = true;
+        return hasMidiIn && ! hasMidiOut;
+    };
 
-        for (const auto& other : instances)
-            if (other->listensTo (inst->id))
-            {
-                graph->midiDrivers.push_back ({ inst->id, inst->dsp.get() });
-                break;
-            }
+    graph->midi.resize (graph->nodes.size());
+    for (size_t i = 0; i < graph->nodes.size(); ++i)
+    {
+        const auto& inst = *graph->nodes[i];
+        auto& r = graph->midi[i];
+        r.sources = inst.midiSourceIds;
+
+        // anything patched into a Midi In replaces the played keys there
+        r.replaces = ! r.sources.empty();
+
+        // Generators (Add Midi In) are always gated. Modules that grew a
+        // plain "Midi In" (drums, Noise, Droplets) only once it is patched:
+        // unpatched they follow every voice exactly as they always did.
+        const auto& desc = inst.descriptor();
+        r.gated = desc.inputIndexOf ("addMidiIn") >= 0
+               || (desc.inputIndexOf ("midiIn") >= 0 && ! r.sources.empty());
+        r.hitsInGlobalLane = ! inst.perVoice && inst.dsp->acceptsGlobalMidiNotes() && ! r.sources.empty();
     }
 
-    // Midi Add instances worth evaluating on each note: only those a
-    // generator is actually listening to, so an unpatched one costs nothing
-    for (const auto& inst : instances)
+    // one stream per module with a Midi Out
+    for (const auto& inst : graph->nodes)
     {
-        if (inst->descriptor().typeId != "util.midiadd")
-            continue;
+        bool hasMidiOut = false;
+        for (const auto& sk : inst->descriptor().sockets)
+            if (sk.kind == SocketKind::Midi && sk.direction == SocketDirection::Output)
+                hasMidiOut = true;
+        if (hasMidiOut)
+            graph->streams.push_back ({ inst->id, false, {} });
+    }
 
-        bool hasListener = false;
-        for (const auto& other : instances)
-            if (other->listensTo (inst->id))
+    auto streamOf = [&graph] (int id) -> MidiStream*
+    {
+        for (auto& st : graph->streams)
+            if (st.sourceId == id)
+                return &st;
+        return nullptr;
+    };
+
+    for (size_t i = 0; i < graph->nodes.size(); ++i)
+    {
+        const auto& inst = *graph->nodes[i];
+        const bool consumer = isNoteConsumer (inst);
+        const bool processor = inst.dsp->isMidiProcessor();
+
+        for (int src : graph->midi[i].sources)
+            if (auto* st = streamOf (src))
             {
-                hasListener = true;
-                break;
+                if (consumer)
+                    st->hasConsumers = true;
+                else if (processor && src != inst.id)
+                    st->processors.push_back ((int) i);
             }
 
-        if (! hasListener)
-            continue;
+        if (processor && graph->midi[i].sources.empty())
+            graph->keyboardProcessors.push_back ((int) i);
+    }
 
-        // a note driver patched into this Midi Add's own "Always Midi In"
-        // chords THAT driver's notes instead of the played keys - an Always
-        // Midi through a Midi Add drones a whole chord. Only the first
-        // driver counts: two drivers into one Midi Add would interleave
-        // note-offs unpredictably.
-        int drivenBy = -1;
-        for (int srcId : inst->midiSourceIds)
+    // MIDI cables may be patched in a loop (Midi Add A -> B -> A); a note
+    // would then circle forever. The loop is broken at its closing cable,
+    // found by a depth-first walk over the processor links.
+    {
+        std::map<int, int> state;   // instance id -> 0 unvisited, 1 on stack, 2 done
+        std::function<void (int)> visit = [&] (int id)
         {
-            auto* srcInst = getInstance (srcId);
-            if (srcInst != nullptr && srcInst->dsp->isMidiNoteDriver())
+            state[id] = 1;
+            if (auto* st = streamOf (id))
             {
-                drivenBy = srcId;
-                break;
+                auto& procs = st->processors;
+                for (size_t k = 0; k < procs.size();)
+                {
+                    const int target = graph->nodes[(size_t) procs[k]]->id;
+                    if (state[target] == 1)
+                    {
+                        procs.erase (procs.begin() + (long) k);   // closes a loop: dropped
+                        continue;
+                    }
+                    if (state[target] == 0)
+                        visit (target);
+                    ++k;
+                }
             }
-        }
-
-        graph->midiAdds.push_back ({ inst->id, inst->dsp.get(), drivenBy });
+            state[id] = 2;
+        };
+        // walk from where notes are born first (drivers, keyboard-fed
+        // processors - anything with an empty Midi In), so the cable that is
+        // dropped is the one closing the loop, not one a note needs on its way
+        for (int pass = 0; pass < 2; ++pass)
+            for (size_t i = 0; i < graph->nodes.size(); ++i)
+            {
+                const int id = graph->nodes[i]->id;
+                const bool root = graph->midi[i].sources.empty();
+                if ((pass == 0) == root && streamOf (id) != nullptr && state[id] == 0)
+                    visit (id);
+            }
     }
 
-    // Discard Midi instances with listeners: they hand the keyboard to those
-    // generators minus the note classes switched on in the grid
-    for (const auto& inst : instances)
+    // does a stream end up anywhere audible, directly or down a chain?
+    std::map<int, int> reachMemo;   // 0 unknown, 1 yes, 2 no
+    std::function<bool (int)> reaches = [&] (int id) -> bool
     {
-        if (inst->descriptor().typeId != "util.discardmidi")
-            continue;
+        if (reachMemo[id] != 0)
+            return reachMemo[id] == 1;
+        reachMemo[id] = 2;   // provisional, guards any leftover cycle
+        bool result = false;
+        if (const auto* st = streamOf (id))
+        {
+            result = st->hasConsumers;
+            for (int p : st->processors)
+                result = reaches (graph->nodes[(size_t) p]->id) || result;
+        }
+        reachMemo[id] = result ? 1 : 2;
+        return result;
+    };
 
-        for (const auto& other : instances)
-            if (other->listensTo (inst->id))
-            {
-                graph->midiFilters.push_back ({ inst->id, inst->dsp.get() });
-                break;
-            }
-    }
+    // MIDI note drivers (Arp, Always Midi, Piano Roll) get ticked every
+    // sample when their notes reach something that sounds - or always, for
+    // the ones whose clock should run regardless (a Piano Roll's playhead)
+    for (const auto& inst : graph->nodes)
+        if (inst->dsp->isMidiNoteDriver() && (reaches (inst->id) || inst->dsp->runsWithoutListeners()))
+            graph->midiDrivers.push_back ({ inst->id, inst->dsp.get() });
 
     // publish: keep the old graph alive in the graveyard until the audio
     // thread has adopted the new one, so nothing is freed under its feet
@@ -1375,10 +1531,11 @@ std::unique_ptr<juce::XmlElement> AquanodeModularAudioProcessor::buildPatchXml (
                 m->createNewChildElement ("CustomState")->addTextElement (custom);
         }
 
-        if (inst->dsp->usesLoadedSample())
+        // loaded samples, and Record's take
+        if (inst->dsp->hasAudioToSave())
         {
             double rate = 44100.0;
-            if (auto sample = inst->dsp->getLoadedSample (&rate))
+            if (auto sample = inst->dsp->getAudioToSave (rate))
             {
                 juce::MemoryBlock wavData;
                 if (writeSampleAsWav (*sample, rate, wavData))
@@ -1511,7 +1668,7 @@ void AquanodeModularAudioProcessor::applyPatchXml (const juce::XmlElement& xml,
                 }
 
                 if (sample != nullptr)
-                    inst->dsp->setLoadedSample (sample, rate);
+                    inst->dsp->restoreSavedAudio (sample, rate);
             }
 
             if (isPrepared)
@@ -1554,6 +1711,16 @@ void AquanodeModularAudioProcessor::applyPatchXml (const juce::XmlElement& xml,
             pc.toModule = pe->getIntAttribute ("toModule");
             pc.paramId = pe->getStringAttribute ("param");
             pc.depth = juce::jlimit (-1.0f, 1.0f, (float) pe->getDoubleAttribute ("depth", 0.3));
+
+            // Curve CV cables set the knob absolutely now, and start at 100 %.
+            // Patches saved before that carry the old 30 % default (which the
+            // depth menu never offers), so 30 % from a Curve CV means "default":
+            // lift it to 100 % so the saved curve covers the whole knob range.
+            if (std::abs (pc.depth - 0.3f) < 0.001f)
+                if (auto* src = getInstance (pc.fromModule))
+                    if (src->dsp != nullptr && src->dsp->drivesKnobsAbsolutely())
+                        pc.depth = 1.0f;
+
             paramCables.push_back (pc);
         }
     }
