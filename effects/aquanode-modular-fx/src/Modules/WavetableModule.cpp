@@ -54,8 +54,8 @@ void WavetableModule::processVoiceSample (int v, const StereoFrame* inputs, Ster
 
 void WavetableModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
-    const double freq = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                           ! pool.isMuted (v), sampleRate));
+    const double freq = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                           ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
 
     phase[v] += freq / sampleRate;
     phase[v] -= std::floor (phase[v]);
@@ -130,7 +130,7 @@ static ModuleDescriptor wavetableDescriptor()
         makeRotary ("warp",     "Warp",     0.0f, 100.0f, 0.0f, 1, "%"),
         makeRotary ("voices",   "Voices",   1.0f, (float) kMaxVoices, (float) kMaxVoices, 1, {}, false, 1.0f).noMod(),
         makeRotary ("glide",    "Glide",    0.0f, 1000.0f, 0.0f, 2, "ms").visibleWhen ("voices", 1.0f),
-        makeButton ("loadSample", "Load", 0, 3)
+        makeButton ("loadSample", "Load", 3, 2)   // own row: in row 0 it overflowed the card
     };
     return d;
 }

@@ -148,8 +148,8 @@ void AdditiveModule::processVoiceSample (int v, const StereoFrame* inputs, Stere
 
 void AdditiveModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
-    const double f0 = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                         ! pool.isMuted (v), sampleRate));
+    const double f0 = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                         ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
 
     const int mode = juce::jlimit (0, 2, (int) param (pPartials));
     const int count = partialCount (mode);

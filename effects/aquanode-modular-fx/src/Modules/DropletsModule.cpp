@@ -187,13 +187,14 @@ static ModuleDescriptor dropletsDescriptor()
         "pitch, chirp and decay follow real bubble acoustics, drip-clocked at Rate with "
         "per-drop stereo spread. The stream runs while a note is held or Gate In is high - a "
         "Clock or Euclid gate works; Env In wants an ADSR and otherwise the drips play at "
-        "full level and simply ring out when the stream stops.";
+        "full level and simply ring out when the stream stops. Midi In takes notes too (Keyboard Midi, Piano Roll...): each held note runs its own drip stream.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 18;
     d.sockets = {
         modIn    ("gateIn", "Gate In"),
         modIn    ("envIn",  "Env In"),
-        audioOut ("audioOut", "Audio Out")
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
     };
     d.params = {
         makeRotary ("size",    "Size",     0.15f, 20.0f, 5.0f, 0, "mm", true),

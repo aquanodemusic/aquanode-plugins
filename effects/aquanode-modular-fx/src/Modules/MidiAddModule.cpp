@@ -9,14 +9,14 @@ static aquanode::ModuleDescriptor midiAddDescriptor()
     d.description =
         "For every note it hears it emits four extra notes at the chosen semitone offsets - "
         "instant chords of any scale from single keys. Its Midi Out goes into a generator's "
-        "Add Midi In; Always Midi In takes an Always Midi or Arp, and it then chords THAT "
-        "driver's notes instead of the played keys. The offsets are modulatable and read at "
+        "Midi In or another processor; its own Midi In takes any stream (Piano Roll, Always "
+        "Midi, Arp, another Midi Add...) and chords that instead of the played keys. The offsets are modulatable and read at "
         "note-on, so an LFO or S&H on Note 1 revoices the chord on every keypress while sounding "
         "notes hold their pitch.";
     d.section = ModuleSection::Utility;
     d.sidebarOrder = 19;
     d.sockets = {
-        midiIn  ("alwaysMidiIn", "Always Midi In"),
+        midiIn  ("alwaysMidiIn", "Midi In"),   // id kept so old patches still connect
         midiOut ("midiOut", "Midi Out")
     };
     // defaults spell a major triad plus an octave below: +4, +7, +12, -12

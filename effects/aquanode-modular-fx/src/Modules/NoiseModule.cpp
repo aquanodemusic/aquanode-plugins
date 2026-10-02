@@ -10,10 +10,13 @@ static aquanode::ModuleDescriptor noiseDescriptor()
         "White or pink noise, per voice: each held note gets its own independent stream, so a "
         "burst gated by an ADSR behaves per note. The classic excitation source - try it into "
         "Resonator, Pluck or the Formant Filter. As a per-voice source it only sounds while notes "
-        "are held.";
+        "are held. Midi In (optional) makes it answer only to the notes patched there.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 3;
-    d.sockets = { audioOut ("audioOut", "Audio Out") };
+    d.sockets = {
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
+    };
     d.params = {
         makeCombo  ("type", "Type", { "White", "Pink" }, 0, 0, 2),
         makeRotary ("level", "Level", 0.0f, 1.0f, 0.8f, 0)

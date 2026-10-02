@@ -21,8 +21,8 @@ void UnisonModule::processVoiceSample (int v, const StereoFrame* inputs, StereoF
 void UnisonModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* outputs)
 {
     const int count = juce::jlimit (1, kMaxUnison, (int) param (pUnison));
-    const double baseFreq = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(),
-                                                               ! pool.isMuted (v), sampleRate));
+    const double baseFreq = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(),
+                                                               ! pool.isMuted (v), sampleRate) + pitchBendSemitones()));
     const int waveform = (int) param (pWaveform);
     const double detuneCents = param (pDetune);
     const float spread = param (pSpread) * 0.01f;

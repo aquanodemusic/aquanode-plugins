@@ -3,7 +3,7 @@
 <JUCERPROJECT id="FXm4Qa" name="Aquanode Modular FX" projectType="audioplug"
               useAppConfig="0" pluginName="Aquanode Modular FX" pluginManufacturerCode="Aqnd"
               pluginCode="Aqfx" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
-              version="3.5" companyName="aquanodemusic" companyCopyright="none"
+              version="4.0" companyName="aquanodemusic" companyCopyright="none"
               companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3"
               pluginCharacteristicsValue="pluginWantsMidiIn">
   <MAINGROUP id="m2RO6u" name="Aquanode Modular FX">
@@ -268,6 +268,36 @@
             file="Source/Modules/DiscardMidiModule.cpp"/>
       <FILE id="aqb00h" name="DiscardMidiModule.h" compile="0" resource="0"
             file="Source/Modules/DiscardMidiModule.h"/>
+      <FILE id="aqk01c" name="KeyboardMidiModule.cpp" compile="1" resource="0"
+            file="Source/Modules/KeyboardMidiModule.cpp"/>
+      <FILE id="aqk01h" name="KeyboardMidiModule.h" compile="0" resource="0"
+            file="Source/Modules/KeyboardMidiModule.h"/>
+      <FILE id="aqp01c" name="PianoRollModule.cpp" compile="1" resource="0"
+            file="Source/Modules/PianoRollModule.cpp"/>
+      <FILE id="aqp01h" name="PianoRollModule.h" compile="0" resource="0"
+            file="Source/Modules/PianoRollModule.h"/>
+      <FILE id="aqf02c" name="SimpleFiltersModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SimpleFiltersModule.cpp"/>
+      <FILE id="aqf02h" name="SimpleFiltersModule.h" compile="0" resource="0"
+            file="Source/Modules/SimpleFiltersModule.h"/>
+      <FILE id="aqm02c" name="MidiControlsModule.cpp" compile="1" resource="0"
+            file="Source/Modules/MidiControlsModule.cpp"/>
+      <FILE id="aqm02h" name="MidiControlsModule.h" compile="0" resource="0"
+            file="Source/Modules/MidiControlsModule.h"/>
+      <FILE id="aqc02c" name="CurveCVModule.cpp" compile="1" resource="0"
+            file="Source/Modules/CurveCVModule.cpp"/>
+      <FILE id="aqc02h" name="CurveCVModule.h" compile="0" resource="0"
+            file="Source/Modules/CurveCVModule.h"/>
+      <FILE id="aqt02c" name="TranswaveModule.cpp" compile="1" resource="0"
+            file="Source/Modules/TranswaveModule.cpp"/>
+      <FILE id="aqt02h" name="TranswaveModule.h" compile="0" resource="0"
+            file="Source/Modules/TranswaveModule.h"/>
+      <FILE id="aqd02c" name="DXOperatorModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DXOperatorModule.cpp"/>
+      <FILE id="aqd02h" name="DXOperatorModule.h" compile="0" resource="0"
+            file="Source/Modules/DXOperatorModule.h"/>
+      <FILE id="aqn02h" name="DXNativeFM.h" compile="0" resource="0"
+            file="Source/Modules/DXNativeFM.h"/>
       <FILE id="aqb01c" name="DrawLFOModule.cpp" compile="1" resource="0"
             file="Source/Modules/DrawLFOModule.cpp"/>
       <FILE id="aqb01h" name="DrawLFOModule.h" compile="0" resource="0" file="Source/Modules/DrawLFOModule.h"/>

@@ -11,10 +11,11 @@ static aquanode::ModuleDescriptor arpDescriptor()
         "its Midi Out into a generator's Add Midi In and that generator hears ONLY the arpeggio - "
         "the difference from Midi Add, which layers notes on top of those you play. Generators "
         "with nothing patched keep playing the chord, so one Arp'd Oscillator over one plain pad "
-        "is a two-cable trick.";
+        "is a two-cable trick. Midi In arpeggiates another stream instead of your keys - a Piano Roll's chords, say.";
     d.section = ModuleSection::Utility;
     d.sidebarOrder = 22;
     d.sockets = {
+        midiIn  ("midiIn",  "Midi In"),
         midiOut ("midiOut", "Midi Out")
     };
     d.params = {

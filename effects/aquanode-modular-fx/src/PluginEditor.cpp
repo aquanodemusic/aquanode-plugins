@@ -26,7 +26,7 @@ ModuleComponent::ModuleComponent (AquanodeModularAudioProcessor& proc, PatchCanv
 {
     buildControls();
     const int h = layoutEverything (false);
-    setSize (moduleWidth, h);
+    setSize (moduleWidth(), h);
 
     // Bounds are WORLD coordinates; pan and zoom live in the transform that
     // the canvas pushes onto every module (see PatchCanvas::applyViewToChildren).
@@ -35,6 +35,14 @@ ModuleComponent::ModuleComponent (AquanodeModularAudioProcessor& proc, PatchCanv
     setTransform (canvas.worldToScreen());
 
     layoutEverything (true);
+}
+
+int ModuleComponent::moduleWidth() const
+{
+    if (auto* inst = processor.getInstance (instanceId))
+        if (const int w = inst->dsp->preferredModuleWidth(); w > 0)
+            return w;
+    return defaultModuleWidth;
 }
 
 bool ModuleComponent::isParamVisible (const ParamSpec& spec) const
@@ -183,7 +191,8 @@ void ModuleComponent::buildControls()
         }
 
         // right-clicks on modulatable knobs open the modulation menu
-        if ((spec.type == ParamType::Rotary || spec.type == ParamType::HBar) && spec.modulatable)
+        if ((spec.type == ParamType::Rotary || spec.type == ParamType::RotarySteppedList
+             || spec.type == ParamType::HBar) && spec.modulatable)
             entry.component->addMouseListener (this, false);
         addAndMakeVisible (entry.component.get());
         controls.push_back (std::move (entry));
@@ -199,6 +208,14 @@ void ModuleComponent::buildControls()
         // rapid clicks count toward the self-cable delete gesture
         if (dynamic_cast<CustomParamCableTargets*> (extraContent.get()) != nullptr)
             extraContent->addMouseListener (this, false);
+
+        // custom UIs that set ordinary params themselves (Piano Roll's editor)
+        // ask for the generic knobs to be refreshed afterwards
+        if (auto* listener = dynamic_cast<ExtraContentParamListener*> (extraContent.get()))
+        {
+            listener->paramsChangedByContent = [this] { refreshFromModel(); };
+            listener->paramValuesChangedByContent = [this] { refreshControlValues(); };
+        }
     }
 }
 
@@ -209,7 +226,7 @@ int ModuleComponent::layoutEverything (bool apply)
         return 40;
 
     const auto& desc = inst->descriptor();
-    const int innerW = moduleWidth - 2 * layout::pad;
+    const int innerW = moduleWidth() - 2 * layout::pad;
     int y = layout::pad;
 
     if (apply)
@@ -224,7 +241,7 @@ int ModuleComponent::layoutEverything (bool apply)
     if (apply)
     {
         const int leftX = layout::pad + layout::socketSize / 2 + 2;
-        const int rightX = moduleWidth - layout::pad - layout::socketSize / 2 - 2;
+        const int rightX = moduleWidth() - layout::pad - layout::socketSize / 2 - 2;
 
         auto placeColumn = [&] (const std::vector<const SocketSpec*>& list, bool isInput, int cx)
         {
@@ -383,7 +400,7 @@ void ModuleComponent::toggleCollapsed()
 juce::Rectangle<int> ModuleComponent::collapseTabArea() const
 {
     // centred in the top margin, above the title
-    return juce::Rectangle<int> (moduleWidth / 2 - 15, 3, 30, 6);
+    return juce::Rectangle<int> (moduleWidth() / 2 - 15, 3, 30, 6);
 }
 
 juce::Rectangle<int> ModuleComponent::collapseHitArea() const
@@ -413,10 +430,29 @@ bool ModuleComponent::isKnobVisible (const juce::String& paramId) const
 void ModuleComponent::refreshLayout()
 {
     const int h = layoutEverything (false);
-    setSize (moduleWidth, h);
+    setSize (moduleWidth(), h);
     layoutEverything (true);
     repaint();
     canvas.moduleMoved();
+}
+
+void ModuleComponent::refreshControlValues()
+{
+    auto* inst = processor.getInstance (instanceId);
+    if (inst == nullptr)
+        return;
+
+    for (auto& c : controls)
+    {
+        const float v = inst->dsp->getParameter (c.spec->id);
+        if (auto* slider = dynamic_cast<juce::Slider*> (c.component.get()))
+        {
+            if (! slider->isMouseButtonDown())
+                slider->setValue (v, juce::dontSendNotification);
+        }
+        else if (auto* combo = dynamic_cast<juce::ComboBox*> (c.component.get()))
+            combo->setSelectedItemIndex ((int) v, juce::dontSendNotification);
+    }
 }
 
 void ModuleComponent::refreshFromModel()
@@ -552,6 +588,7 @@ const aquanode::ParamSpec* ModuleComponent::findModulatableKnobNear (juce::Point
     for (const auto& entry : controls)
     {
         if (! entry.visible || (entry.spec->type != aquanode::ParamType::Rotary
+                                && entry.spec->type != aquanode::ParamType::RotarySteppedList
                                 && entry.spec->type != aquanode::ParamType::HBar)
             || ! entry.spec->modulatable || entry.component == nullptr)
             continue;
@@ -596,7 +633,7 @@ juce::Point<int> ModuleComponent::knobCentreInParent (const juce::String& paramI
                 return getPosition() + extraContent->getPosition() + centre;
         }
 
-    return getPosition() + juce::Point<int> (moduleWidth / 2, headerHeight / 2);
+    return getPosition() + juce::Point<int> (moduleWidth() / 2, headerHeight / 2);
 }
 
 void ModuleComponent::showKnobModMenu (const juce::String& paramId)
@@ -687,6 +724,7 @@ void ModuleComponent::paintOverChildren (juce::Graphics& g)
     for (const auto& entry : controls)
     {
         if (! entry.visible || (entry.spec->type != aquanode::ParamType::Rotary
+                                && entry.spec->type != aquanode::ParamType::RotarySteppedList
                                 && entry.spec->type != aquanode::ParamType::HBar))
             continue;
 
@@ -1361,13 +1399,17 @@ void PatchCanvas::endCableDrag (juce::Point<int> screenPos)
         // Hidden on/off targets (e.g. Pitch Lock Filter keys) default to full
         // depth so a unipolar LFO or DAW automation can actually cross the
         // 0.5 on-threshold; ordinary knobs keep the gentle 30 % default.
+        // Sources that set a knob absolutely (Curve CV: 0..1 = the knob's whole
+        // range) start at 100 %, so the curve really is the knob.
         if (! dragFromInput)
         {
             if (const auto* spec = m->findModulatableKnobNear (localPos))
             {
+                const auto* src = processor.getInstance (dragModuleId);
+                const bool absolute = src != nullptr && src->dsp != nullptr && src->dsp->drivesKnobsAbsolutely();
                 processor.addParamCable (dragModuleId, dragSocketId,
                                          m->getInstanceId(), spec->id,
-                                         spec->hiddenCableTarget ? 1.0f : 0.3f);
+                                         (spec->hiddenCableTarget || absolute) ? 1.0f : 0.3f);
                 break;
             }
         }
@@ -1762,6 +1804,11 @@ void MutatorPanel::doMutate()
         if (inst == nullptr || inst->descriptor().section == ModuleSection::InputOutput)
             continue;   // never mutate Audio In/Out levels
 
+        // A Piano Roll's tempo, length and play state are the arrangement,
+        // not the sound - mutating them would stop or reshape the sequence.
+        if (inst->descriptor().typeId == "util.pianoroll")
+            continue;
+
         for (const auto& p : inst->descriptor().params)
         {
             // FM Ratio sets the oscillator's harmonic relationship to the note being
@@ -1865,21 +1912,23 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
     addAndMakeVisible (toolbarStrip);   // added before the buttons: they draw on top of it
 
     // On-screen keyboard: driven by (and mirrored onto) the processor's shared
-    // MidiKeyboardState. Only visible / laid out on Android.
+    // MidiKeyboardState, shown along the bottom on every build and toggled by
+    // the Keys button. Both panel toggles remember their state in the
+    // processor, so a plugin window reopens the way it was left.
+    sidebarVisible = processor.uiSidebarVisible;
+    keyboardVisible = processor.uiKeyboardVisible;
+    sidebarViewport.setVisible (sidebarVisible);
+
     midiKeyboard = std::make_unique<juce::MidiKeyboardComponent> (
                        processor.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard);
     midiKeyboard->setOctaveForMiddleC (4);
-   #if JUCE_ANDROID
-    addAndMakeVisible (*midiKeyboard);
-   #endif
+    midiKeyboard->setKeyPressBaseOctave (5);   // computer keys: 'A' plays middle C
+    addChildComponent (*midiKeyboard);
+    midiKeyboard->setVisible (keyboardVisible);
 
     for (auto* b : { &initButton, &cloneButton, &deleteButton, &exportButton, &importButton,
-                     &mutatorButton, &sidebarButton })
+                     &mutatorButton, &sidebarButton, &keysButton })
         addAndMakeVisible (b);
-
-   #if JUCE_ANDROID
-    addAndMakeVisible (keysButton);
-   #endif
 
     for (auto* b : { &zoomOutButton, &zoomInButton })
         addAndMakeVisible (b);
@@ -1888,6 +1937,7 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
     sidebarButton.onClick = [this]
     {
         sidebarVisible = ! sidebarVisible;
+        processor.uiSidebarVisible = sidebarVisible;
         sidebarViewport.setVisible (sidebarVisible);
         resized();
     };
@@ -1895,6 +1945,7 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
     keysButton.onClick = [this]
     {
         keyboardVisible = ! keyboardVisible;
+        processor.uiKeyboardVisible = keyboardVisible;
         if (midiKeyboard != nullptr)
             midiKeyboard->setVisible (keyboardVisible);
         resized();
@@ -2034,16 +2085,23 @@ void AquanodeModularAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds();
 
+    // Bottom on-screen keyboard, height scaled to the window (clamped sane):
+    // finger-sized on a phone, a little more compact for a mouse.
    #if JUCE_ANDROID
-    // Bottom on-screen keyboard, height scaled to the screen (clamped sane).
     const int kbH = juce::jlimit (110, 220, getHeight() / 4);
+    const float kbKeys = 30.0f, kbMinKey = 26.0f;
+   #else
+    const int kbH = juce::jlimit (90, 140, getHeight() / 6);
+    const float kbKeys = 36.0f, kbMinKey = 18.0f;
+   #endif
     if (midiKeyboard != nullptr && keyboardVisible)
     {
         auto kbArea = area.removeFromBottom (kbH);
-        midiKeyboard->setKeyWidth (juce::jmax (26.0f, kbArea.getWidth() / 30.0f));
+        midiKeyboard->setKeyWidth (juce::jmax (kbMinKey, kbArea.getWidth() / kbKeys));
         midiKeyboard->setBounds (kbArea);
     }
 
+   #if JUCE_ANDROID
     // Slightly wider sidebar and bigger buttons for touch.
     const int sideW = juce::jlimit (200, 300, getWidth() / 5);
     const int bh = 40, gap = 8, topY = 8;
@@ -2056,7 +2114,7 @@ void AquanodeModularAudioProcessorEditor::resized()
     sidebarViewport.setBounds (area.removeFromLeft (sidebarVisible ? sideW : 0));
     canvas.setBounds (area);
 
-    // mutator strip along the bottom of the patch area (above the keyboard on Android)
+    // mutator strip along the bottom of the patch area (above the keyboard)
     mutatorPanel.setBounds (area.getX(), area.getBottom() - 34, area.getWidth(), 34);
 
     // Toolbar strip along the top of the patch area, laid out the same way as
@@ -2093,9 +2151,7 @@ void AquanodeModularAudioProcessorEditor::resized()
         // Panel toggles sit at the far left of the strip, past the six patch
         // buttons, so the order everyone already knows is untouched.
         buttons.push_back (&sidebarButton);
-       #if JUCE_ANDROID
         buttons.push_back (&keysButton);
-       #endif
 
         const int n = (int) buttons.size();
         const int bw = (bar.getWidth() - (n - 1) * gap) / n;

@@ -56,6 +56,17 @@ public:
 
     void midiDriverAllHeldOff() override { numHeld = 0; }
 
+    // the notes it arpeggiates arrive like any processor's (the played keys
+    // when its Midi In is empty); what it plays comes from its own clock
+    bool isMidiProcessor() const override { return true; }
+    int processMidiEvent (const aquanode::MidiDriverEvent& in, aquanode::MidiDriverEvent*, int) override
+    {
+        if (in.isOn) midiDriverHeldNoteOn (in.note);
+        else         midiDriverHeldNoteOff (in.note);
+        return 0;
+    }
+    void midiAllNotesOff() override { numHeld = 0; }
+
     bool isIdle() const { return numHeld == 0 && currentNote < 0; }
 
     // One sample of arpeggiator time. Reports at most one note-off and one

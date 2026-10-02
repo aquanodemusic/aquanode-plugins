@@ -26,6 +26,18 @@ public:
     // notes reaching the listeners are the played ones minus these classes
     bool midiSourceReplacesInput() const override { return true; }
 
+    // filters whatever arrives on its Midi In (the played keys when nothing
+    // is patched there); note-offs always pass, so nothing can hang
+    bool isMidiProcessor() const override { return true; }
+
+    int processMidiEvent (const aquanode::MidiDriverEvent& in, aquanode::MidiDriverEvent* out, int maxOut) override
+    {
+        if (maxOut <= 0 || (in.isOn && isNoteDiscarded (in.note)))
+            return 0;
+        out[0] = in;
+        return 1;
+    }
+
     // audio thread: asked once per note-on. param() folds in any modulation,
     // so a cable into a box can gate that class in real time.
     bool isNoteDiscarded (int note) const

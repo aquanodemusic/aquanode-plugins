@@ -71,12 +71,13 @@ static ModuleDescriptor kickDescriptor()
     d.description =
         "808-style kick: a sine with an exponential pitch-drop envelope, a click transient and "
         "tanh drive. Trig In takes a Clock, Euclid or Step Seq gate; it also fires on MIDI "
-        "note-on, so it is polyphonic from the keyboard and mono from a sequencer.";
+        "note-on, so it is polyphonic from the keyboard and mono from a sequencer. Midi In plays it from notes instead (Keyboard Midi, Piano Roll, Arp...): every note is a hit, alongside Trig In.";
     d.section = ModuleSection::Oscillator;
     d.sidebarOrder = 4;
     d.sockets = {
         modIn    ("trigIn",   "Trig In"),
-        audioOut ("audioOut", "Audio Out")
+        audioOut ("audioOut", "Audio Out"),
+        midiIn   ("midiIn",   "Midi In")
     };
     d.params = {
         makeRotary ("tune",       "Tune",     25.0f, 200.0f, 50.0f, 0, "Hz", true),

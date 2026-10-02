@@ -49,6 +49,8 @@ public:
     void prepare (double newSampleRate) override
     {
         aquanode::SynthModule::prepare (newSampleRate);
+        ceilingRelease = (float) std::exp (-1.0 / (0.3 * newSampleRate));   // ~300 ms release
+        ceiling = 1.0f;
 
         if (fft == nullptr)
             fft = std::make_unique<juce::dsp::FFT> (kOrder);
@@ -85,6 +87,18 @@ public:
     }
 
     //==========================================================================
+    // the standalone plugin's output safety limiter, verbatim
+    static float safetyLimit (float x) noexcept
+    {
+        constexpr float threshold = 0.891f;          // ~ -1 dBFS
+        constexpr float range = 1.0f - threshold;
+        const float ax = std::abs (x);
+        if (ax <= threshold)
+            return x;
+        const float over = ax - threshold;
+        return (x < 0.0f ? -1.0f : 1.0f) * (threshold + range * std::tanh (over / range));
+    }
+
     void processSample (const aquanode::StereoFrame* inputs,
                         aquanode::StereoFrame* outputs) override
     {
@@ -111,8 +125,20 @@ public:
         inModL[(size_t) rover] = inputs[1][0];
         inModR[(size_t) rover] = inputs[1][1];
 
-        outputs[0][0] = wetL * wet + dryL * dry;
-        outputs[0][1] = wetR * wet + dryR * dry;
+        // Same safety net the standalone Spectral Morph has at its output: a
+        // soft knee from -1 dBFS. The morph itself may boost a bin by up to
+        // Max Boost (72 dB by default) - that is intentional - but it must
+        // never leave this module at +70 dB.
+        // Inside a patch signals are often hotter than a DAW channel (several
+        // summed voices), so the knee is scaled to the louder input: a 0 dBFS
+        // input behaves exactly like the standalone, hot patches pass as they
+        // are, and only a genuine blow-up past the inputs is caught.
+        const float inPeak = juce::jmax (std::abs (inputs[0][0]), std::abs (inputs[0][1]),
+                                         std::abs (inputs[1][0]), std::abs (inputs[1][1]));
+        ceiling = juce::jmax (inPeak, ceiling * ceilingRelease);
+        const float scale = juce::jmax (1.0f, ceiling);
+        outputs[0][0] = safetyLimit ((wetL * wet + dryL * dry) / scale) * scale;
+        outputs[0][1] = safetyLimit ((wetR * wet + dryR * dry) / scale) * scale;
 
         if (++rover >= kFFTSize)
         {
@@ -324,6 +350,8 @@ private:
     std::vector<float> outFifoL, outFifoR, accumL, accumR;
     std::vector<float> workCL, workCR, workML, workMR, cepBuf;
     std::vector<float> magCar, magMod, envCarInst, envModInst, envCarSm, envModSm, gain;
+    float ceiling { 1.0f };            // output safety knee follows the inputs
+    float ceilingRelease { 0.9999f };
     std::vector<float> window;
 
     float olaScale { 1.0f };

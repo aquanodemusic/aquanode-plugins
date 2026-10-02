@@ -195,7 +195,7 @@ void SamplerModule::renderVoice (int v, const StereoFrame* inputs, StereoFrame* 
     outputs[0][1] = 0.0f;
 
     // mono glide slides the playback rate between notes (no-op when polyphonic)
-    rate[v] = midiNoteToHz ((double) glide.next (v, glideMillis(), isMonoVoice(), ! pool.isMuted (v), sampleRate)) / rootHz;
+    rate[v] = midiNoteToHz ((double) (glide.next (v, glideMillis(), isMonoVoice(), ! pool.isMuted (v), sampleRate) + pitchBendSemitones())) / rootHz;
 
     if (latchedSample == nullptr || latchedSample->getNumSamples() < 2)
         return;

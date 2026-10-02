@@ -41,7 +41,7 @@ public:
         trigger (v);
     }
 
-    double voiceTailSeconds() const override { return param (pTailDecay) * 0.001 + 0.15; }
+    double voiceTailSeconds() const override { return 0.15 + aquanode::decayTailSeconds (juce::jmax (5.0f, param (pTailDecay))); }   // bursts, then the tail
 
     void processVoiceSample (int v, const aquanode::StereoFrame* inputs,
                              aquanode::StereoFrame* outputs) override;
@@ -51,7 +51,11 @@ public:
     void processSample (const aquanode::StereoFrame* inputs, aquanode::StereoFrame* outputs) override
     {
         processVoiceSample (0, inputs, outputs);
+        renderGlobalMidiHits (inputs, outputs, 0);   // notes on Midi In, see ModuleCore.h
     }
+
+    // global lane: notes arriving on Midi In play as overlapping hits
+    bool acceptsGlobalMidiNotes() const override { return true; }
 
 private:
     void trigger (int v)

@@ -41,6 +41,7 @@ public:
 
     void refreshLayout();          // recompute (visibility may have changed) and resize
     void refreshFromModel();       // pull all knob/combo values from the DSP (mutator etc.)
+    void refreshControlValues();   // knob values only, no relayout
 
     //=== collapse (hide the controls, keep the header and its sockets) ========
     // Collapsed modules shrink to their header, so a big patch stays readable
@@ -61,7 +62,11 @@ public:
     void mouseDrag (const juce::MouseEvent& e) override;
     void mouseUp (const juce::MouseEvent& e) override;
 
-    static constexpr int moduleWidth = 250;
+    static constexpr int defaultModuleWidth = 250;
+
+    // 250 for almost everything; a module can ask for a wider card (the
+    // Piano Roll, whose grid lives inside it and can be resized)
+    int moduleWidth() const;
 
 private:
     struct ControlEntry
@@ -399,8 +404,9 @@ private:
 
     MutatorPanel mutatorPanel;
 
-    // Bottom on-screen keyboard. Constructed always (cheap), but only shown and
-    // given layout space on Android; desktop keeps its host/hardware MIDI path.
+    // Bottom on-screen keyboard, on every build: the Keys button shows and
+    // hides it (hidden, the patch area gets its height back). Host and
+    // hardware MIDI keep working either way and light up its keys.
     std::unique_ptr<juce::MidiKeyboardComponent> midiKeyboard;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
