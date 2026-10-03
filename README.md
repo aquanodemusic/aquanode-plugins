@@ -1,7 +1,8 @@
 # Aquanode Plugins
 
 Aquanode Plugins is a large collection of VST3 audio plugins written in JUCE / C++ with the help of Claude AI.
-Every plugin is free and open source, and compiled as both VST3 and sometimes as standalone app for Windows, as well as a few ports for Android.
+Every plugin is free and open source, and I compiled them as both VST3 and sometimes as standalone app for Windows, as well as a few ports for Android. Mac ports are available in a fork of this repo, see the Download section below.
+
 Synths inspired by hardware modules do not contain any proprietary code or other material, everything is done from scratch or credited open source material.
 Scroll down for a list of included plugins, separated by synth (sound generation) and effect plugin types.
 Next to Windows, the plugins should also compile for Mac and Linux. I only provide Windows builds here, since I only have a Windows machine.
@@ -11,12 +12,12 @@ missing features or unexpected behaviour especially when you try to deep dive in
 
 # Downloads
 
-All builds as well as Presets and Samples are on the [Releases](../../releases) page, sorted by type: One `.zip` file for `.vst3`, one for `.exe`, one for `.apk` and one for Presets and Samples each. These are named accordingly, such as `aquanode-plugins-windows-vst3.zip`.
+All of my builds as well as Presets and Samples are on the [Releases](../../releases) page, sorted by type: One `.zip` file for `.vst3`, one for `.exe`, one for `.apk` and one for Presets and Samples each. These are named accordingly, such as `aquanode-plugins-windows-vst3.zip`.
 
 The source code and manuals (the "README" files) are available in the repository directly, of which you can download a `.zip` bundle directly here: https://github.com/aquanodemusic/aquanode-plugins/archive/refs/heads/main.zip
 
-Many of the plugins are also available for Mac here, thanks to the artist and Apple developer CutUpMusic:
-https://cutupmusic.gumroad.com/l/aquanode
+Many of the plugins are also available for Mac here, thanks to the artist and Apple developer from CutUp Studios:
+https://github.com/lnswlrd/aquanode-plugins
 
 # Support 
 
