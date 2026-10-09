@@ -69,9 +69,23 @@ public:
         setColour (juce::ComboBox::textColourId,         col::text);
         setColour (juce::ComboBox::outlineColourId,      col::edge);
         setColour (juce::ComboBox::arrowColourId,        col::accent);
+        // Menus and dialogs in the panel's brown. (A PopupMenu only gets these
+        // if it is given this look - see the editor's menus - otherwise JUCE
+        // draws it in its own grey default.)
         setColour (juce::PopupMenu::backgroundColourId,  col::panel);
         setColour (juce::PopupMenu::textColourId,        col::text);
+        setColour (juce::PopupMenu::headerTextColourId,  col::accent);
         setColour (juce::PopupMenu::highlightedBackgroundColourId, col::accentDim);
+        setColour (juce::PopupMenu::highlightedTextColourId,       col::text);
+        setColour (juce::AlertWindow::backgroundColourId, col::panel);
+        setColour (juce::AlertWindow::textColourId,       col::text);
+        setColour (juce::AlertWindow::outlineColourId,    col::accentDim);
+        setColour (juce::TextEditor::backgroundColourId,  col::bg);
+        setColour (juce::TextEditor::textColourId,        col::text);
+        setColour (juce::TextEditor::outlineColourId,     col::edge);
+        setColour (juce::TextEditor::focusedOutlineColourId, col::accent);
+        setColour (juce::TextEditor::highlightColourId,   col::accentDim);
+        setColour (juce::CaretComponent::caretColourId,   col::accent);
         setColour (juce::TextButton::buttonColourId,     col::panelHi);
         setColour (juce::TextButton::textColourOnId,     col::text);
         setColour (juce::TextButton::textColourOffId,    col::text);
@@ -187,9 +201,52 @@ public:
 //  either side of A440). Drag sideways (or scroll) to change one, double-click
 //  to return to its default. The toggles and the MIDI channel box get the same
 //  small type so they fit alongside.
+//
+//  A rotary slider given a caption (the master volume) is drawn as the same
+//  slot with a knob at its right-hand end in place of the printed value, so it
+//  reads as one of the row's controls; flagged bipolar, its arc grows out of
+//  the top of the knob either way. One without a caption (DC) is the plain
+//  compact knob.
+//
+//  naturalBarWidth() / knobTileWidth() measure, in the font actually in use,
+//  how wide a control has to be for its caption and its widest value, so the
+//  editor can size every bar to its own text rather than giving a short
+//  "FCtrl" as much room as "AfterTouch".
 // ============================================================================
 class HeaderLookAndFeel : public CompactLookAndFeel {
 public:
+    static constexpr float kBarInset = 6.0f;   // slot edge to text, each side
+    static constexpr float kCapGap   = 5.0f;   // between a caption and its value
+
+    static juce::Font captionFont() { return juce::Font (juce::FontOptions (10.0f)); }
+    static juce::Font valueFont()   { return juce::Font (juce::FontOptions (10.5f, juce::Font::bold)); }
+
+    static float textWidth (const juce::Font& f, const juce::String& s) {
+        juce::GlyphArrangement ga;
+        ga.addLineOfText (f, s, 0.0f, 0.0f);
+        return ga.getBoundingBox (0, -1, true).getWidth();
+    }
+
+    // Caption, gap and the wider of the values at the bar's two ends (the
+    // widest text these bars print: "99", "12", "-75.0"), inside the slot's
+    // insets. Not the current value, so the layout never shifts as it moves.
+    // `caption` measures another caption the bar can show instead of its
+    // current one (PORTA's GLISS).
+    static int naturalBarWidth (juce::Slider& s, const juce::String& caption = {}) {
+        float valueW = 0.0f;
+        for (double v : { s.getMinimum(), s.getMaximum() })
+            valueW = juce::jmax (valueW, textWidth (valueFont(), s.getTextFromValue (v)));
+        const float capW = textWidth (captionFont(), caption.isNotEmpty() ? caption
+                                                                          : s.getProperties() [captionProperty()].toString());
+        return (int) std::ceil (2.0f * kBarInset + capW + kCapGap + valueW);
+    }
+
+    // A captioned knob: the caption in its slot, then a knob as tall as the row.
+    static int knobTileWidth (juce::Slider& s, int height) {
+        const float capW = textWidth (captionFont(), s.getProperties() [captionProperty()].toString());
+        return (int) std::ceil (kBarInset + capW + 3.0f) + height;
+    }
+
     void drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h,
                            float sliderPos, float minPos, float maxPos,
                            juce::Slider::SliderStyle style, juce::Slider& s) override
@@ -216,14 +273,82 @@ public:
         g.setColour (col::accent.withAlpha (s.isEnabled() ? 0.9f : 0.4f));
         g.fillRect (juce::Rectangle<float> (px - 1.0f, in.getY() + 2.0f, 2.0f, in.getHeight() - 4.0f));
 
+        // The value first, at the right; the caption gets what is left, and is
+        // squeezed (never overprinted) if a narrow bar runs short.
         const juce::String cap = s.getProperties() [captionProperty()].toString();
-        auto text = in.reduced (4.0f, 0.0f);
-        g.setFont (juce::Font (juce::FontOptions (10.0f)));
-        g.setColour (col::textDim.withAlpha (s.isEnabled() ? 1.0f : 0.5f));
-        g.drawText (cap, text, juce::Justification::centredLeft, false);
-        g.setFont (juce::Font (juce::FontOptions (10.5f, juce::Font::bold)));
+        const juce::String value = s.getTextFromValue (s.getValue());
+        auto text = in.reduced (kBarInset - 2.0f, 0.0f);
+        g.setFont (valueFont());
         g.setColour (col::text.withAlpha (s.isEnabled() ? 1.0f : 0.5f));
-        g.drawText (s.getTextFromValue (s.getValue()), text, juce::Justification::centredRight, false);
+        g.drawText (value, text, juce::Justification::centredRight, false);
+        text.removeFromRight (textWidth (valueFont(), value) + kCapGap);
+        if (text.getWidth() > 4.0f) {
+            g.setFont (captionFont());
+            g.setColour (col::textDim.withAlpha (s.isEnabled() ? 1.0f : 0.5f));
+            g.drawFittedText (cap, text.toNearestInt(), juce::Justification::centredLeft, 1, 0.7f);
+        }
+    }
+
+    void drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h,
+                           float pos, float startAngle, float endAngle,
+                           juce::Slider& s) override
+    {
+        const juce::String cap = s.getProperties() [captionProperty()].toString();
+        if (cap.isEmpty()) {
+            CompactLookAndFeel::drawRotarySlider (g, x, y, w, h, pos, startAngle, endAngle, s);
+            return;
+        }
+        const bool  focus = s.hasKeyboardFocus (false);
+        const float alpha = s.isEnabled() ? 1.0f : 0.5f;
+        const auto  face  = focus ? col::panel.brighter (0.15f) : col::panelHi;
+        auto b = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h);
+
+        // The knob takes a square as tall as the strip at the right; the slot
+        // with the caption runs in underneath it, so the two read as one piece.
+        const auto knob = b.removeFromRight (juce::jmin ((float) h, b.getWidth()));
+        const auto slot = b.withRight (knob.getCentreX()).reduced (0.5f);
+        g.setColour (col::edge);
+        g.fillRoundedRectangle (slot, 4.0f);
+        g.setColour (face);
+        g.fillRoundedRectangle (slot.reduced (1.5f), 3.0f);
+        g.setFont (captionFont());
+        g.setColour (col::textDim.withAlpha (alpha));
+        g.drawText (cap, slot.withRight (knob.getX()).withTrimmedLeft (kBarInset),
+                    juce::Justification::centredLeft, false);
+
+        const auto  c = knob.getCentre();
+        const float r = knob.getHeight() * 0.5f - 0.5f;
+        const float angle = startAngle + pos * (endAngle - startAngle);
+        g.setColour (col::edge);
+        g.fillEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f);
+        g.setColour (face);
+        g.fillEllipse (c.x - r * 0.8f, c.y - r * 0.8f, r * 1.6f, r * 1.6f);
+
+        const float ar = r * 0.9f;
+        juce::Path track, arc;
+        track.addCentredArc (c.x, c.y, ar, ar, 0.0f, startAngle, endAngle, true);
+        g.setColour (col::accentDim.withAlpha (0.45f));
+        g.strokePath (track, juce::PathStrokeType (2.2f, juce::PathStrokeType::curved,
+                                                   juce::PathStrokeType::rounded));
+        // From the start, or from the top for a bipolar value (the volume's
+        // 0 dB), as the bars fill from the left or from the middle.
+        const float from = s.getProperties().contains (bipolarProperty()) ? (startAngle + endAngle) * 0.5f
+                                                                           : startAngle;
+        if (std::abs (angle - from) > 0.01f) {
+            arc.addCentredArc (c.x, c.y, ar, ar, 0.0f, juce::jmin (from, angle), juce::jmax (from, angle), true);
+            g.setColour (col::accent.withAlpha (alpha));
+            g.strokePath (arc, juce::PathStrokeType (2.4f, juce::PathStrokeType::curved,
+                                                     juce::PathStrokeType::rounded));
+        }
+
+        if (focus) {
+            g.setColour (col::accent.withAlpha (0.6f));
+            g.drawEllipse (c.x - r, c.y - r, r * 2.0f, r * 2.0f, 1.2f);
+        }
+
+        g.setColour (col::text.withAlpha (alpha));
+        g.setFont (juce::Font (juce::FontOptions (10.5f, juce::Font::bold)));
+        g.drawText (s.getTextFromValue (s.getValue()), knob, juce::Justification::centred, false);
     }
 
     juce::Font getTextButtonFont (juce::TextButton&, int) override {
@@ -441,11 +566,11 @@ private:
         float t = r.getWidth() * 0.16f;
         auto on = col::ledOn, off = col::ledOn.withAlpha (0.10f);
         auto horiz = [&](float cx, float cy, float len, bool s){
-            juce::Rectangle<float> seg (cx - len/2, cy - t/2, len, t);
-            g.setColour (s?on:off); g.fillRoundedRectangle (seg, t*0.4f); };
+            juce::Rectangle<float> bar (cx - len/2, cy - t/2, len, t);
+            g.setColour (s?on:off); g.fillRoundedRectangle (bar, t*0.4f); };
         auto vert = [&](float cx, float cy, float len, bool s){
-            juce::Rectangle<float> seg (cx - t/2, cy - len/2, t, len);
-            g.setColour (s?on:off); g.fillRoundedRectangle (seg, t*0.4f); };
+            juce::Rectangle<float> bar (cx - t/2, cy - len/2, t, len);
+            g.setColour (s?on:off); g.fillRoundedRectangle (bar, t*0.4f); };
         float w = r.getWidth(), h = r.getHeight();
         float x0 = r.getX(), y0 = r.getY();
         float segH = h * 0.42f, segW = w * 0.7f;
@@ -3685,11 +3810,11 @@ public:
     void paintButton (juce::Graphics& g, bool over, bool down) override {
         getLookAndFeel().drawButtonBackground (g, *this, findColour (juce::TextButton::buttonColourId), over, down);
         auto b = getLocalBounds().toFloat();
-        const auto text = getButtonText();
-        if (text.isNotEmpty()) {
+        const auto label = getButtonText();
+        if (label.isNotEmpty()) {
             g.setColour (col::text);
             g.setFont (juce::Font (juce::FontOptions (10.5f, juce::Font::bold)));
-            g.drawText (text, b.withTrimmedRight (12.0f), juce::Justification::centred, false);
+            g.drawText (label, b.withTrimmedRight (12.0f), juce::Justification::centred, false);
             b = b.removeFromRight (16.0f);
         }
         const auto c = b.getCentre();
@@ -3822,9 +3947,11 @@ private:
     vdx7ui::EnvelopeView  envView;              // the six operator EGs, under the selector
     vdx7ui::SoundingKeyboard keyboard;   // held keys + chord-added notes
 
-    // Header, second row: the DX7's FUNCTION page (see setupFunctionRow), plus
-    // the native engine's DC blocker knob at its end.
+    // Header, second row: the master volume knob at its start, the DX7's
+    // FUNCTION page (see setupFunctionRow), and the native engine's DC blocker
+    // knob at its end.
     vdx7ui::HeaderLookAndFeel headerLnf;   // outlives the controls below
+    juce::Slider      volKnob;
     juce::Slider      tuneBar, portaTimeBar, pbBar;
     juce::TextButton  monoBtn, portaModeBtn;
     std::array<juce::Slider, 4> ctlRange;             // MW, FC, BC, AT range

@@ -78,9 +78,21 @@ void ChorusVerbAudioProcessor::getStateInformation(juce::MemoryBlock& dest)
 
 void ChorusVerbAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    if (std::unique_ptr<juce::XmlElement> xml{ getXmlFromBinary(data, sizeInBytes) })
-        if (xml->hasTagName(apvts.state.getType()))
-            apvts.replaceState(juce::ValueTree::fromXml(*xml));
+    std::unique_ptr<juce::XmlElement> xml{ getXmlFromBinary(data, sizeInBytes) };
+    if (xml == nullptr || !xml->hasTagName(apvts.state.getType()))
+        return;
+
+    apvts.replaceState(juce::ValueTree::fromXml(*xml));
+
+    // A session saved before the delay had its Self-Feedback switch let
+    // Feedback run all the way to 1.20. Such a session now loads with the
+    // switch off, which would cap it at 1.00 - so if it was set above 1.00,
+    // switch Self-Feedback on and it sounds exactly as it was saved.
+    if (xml->getChildByAttribute("id", cv83::ids::delaySelfFb) == nullptr)
+        if (auto* fb = xml->getChildByAttribute("id", cv83::ids::delayFb))
+            if (fb->getDoubleAttribute("value") > 1.0)
+                if (auto* p = apvts.getParameter(cv83::ids::delaySelfFb))
+                    p->setValueNotifyingHost(1.0f);
 }
 
 juce::AudioProcessorEditor* ChorusVerbAudioProcessor::createEditor()

@@ -12,7 +12,31 @@ The order is, matching the synth:
 IN → Chorus → Delay → Phaser → Reverb → OUT
 ```
 
-Each stage can be switched off independently.
+Each stage can be switched off independently. Delay and Reverb start switched
+on, Chorus and Phaser off.
+
+## The window
+
+The same FX page VirtualDX7 has: each effect is a unit with its ON/OFF switch
+(the reverb's FREEZE beside it) and its knobs in rows of three. By default
+that is all there is - a slim rack strip. **SHOW VISUALIZERS**, at the bottom
+right, adds a phosphor-green display under each unit's knobs (the window grows
+to make room, and shrinks back when they are hidden again; the choice is saved
+with the session). The displays redraw as you turn:
+
+- **Chorus** - the delay each channel's LFO sweeps (left bright, right dimmer,
+  one trace per Unison voice), with the swept range and the detune it causes.
+- **Delay** - the echoes of a single click, left above the line and right below,
+  rendered by a private copy of the delay itself, with the number of repeats
+  until they are 60 dB down ("runaway" once the loop gain reaches 1).
+- **Phaser** - the unit's frequency response at the current Mix, with the band
+  the notches sweep across.
+- **Reverb** - a spectrogram of the tail of a short noise burst, rendered by a
+  private copy of the reverb, with its RT60 in the corner.
+
+A display dims while its effect is off, and hidden displays cost nothing - they
+neither redraw nor render. The window can be resized; the whole layout scales
+with it.
 
 ## The shared piece every effect is built on: `FxBase`
 
@@ -42,6 +66,13 @@ by up to 180°, which is what gives the effect stereo width — at 0% both
 channels wobble in lockstep (mono-compatible chorus); at 100% they're in
 antiphase (as wide as it gets).
 
+`Unison` reads each line at 1–6 taps instead of one, their LFO phases spread
+evenly round the cycle, so at any moment the voices sit at different delays
+and detunes — the thick, ensemble-like chorus. The sum is scaled by
+1/√voices, which keeps a bright, broadband sound at the same level (within
+about 1 dB); deep bass, where the taps stay in phase, adds up instead (up to
++7 dB with six voices). At 1 voice it is exactly the single-tap chorus.
+
 ## Delay
 
 Two independent delay lines (`Time L`, `Time R`), each with its own
@@ -52,6 +83,14 @@ way, and it stops the feedback path from building up an undifferentiated
 low-frequency wash after a few repeats. Delay time changes are smoothed
 rather than jumped to, avoiding a pitch-bend/zipper artifact when turning 
 the knob.
+
+`Self-FB` (Allow Self-Feedback, off by default) decides what the top of the
+`Feedback` knob does. Off, Feedback stops at 1.00 however far the knob turns
+(the knob prints the 1.00 actually used), so the echoes can hold but never
+grow. On, the range up to 1.20 is live and the delay can run away into the
+line's clamp — self-oscillation, on purpose. A session saved before this
+switch existed with Feedback above 1.00 loads with it switched on, so it
+sounds as it was saved.
 
 ## Phaser
 
@@ -181,7 +220,7 @@ infinite pad/drone.
 
 All parameters live in one `juce::AudioProcessorValueTreeState`
 (`ChorusVerbAudioProcessor::apvts`), added by `FxChain::addParameters()`, so
-every knob, switch and the Phaser's stage-count menu are host-automatable
+every knob and switch (the Phaser's stage count is a knob too) is host-automatable
 out of the box.
 
 | Section | Parameter | Range | Default |
@@ -191,13 +230,15 @@ out of the box.
 | | Depth | 0 – 100 % | 50 % |
 | | Delay | 1 – 20 ms | 7 ms |
 | | Spread | 0 – 100 % | 50 % |
+| | Unison | 1 – 6 voices | 1 voice |
 | | Mix | 0 – 100 % | 50 % |
-| Delay | On | on/off | off |
+| Delay | On | on/off | on |
 | | Time L | 20 – 2000 ms (log) | 250 ms |
 | | Time R | 20 – 2000 ms (log) | 375 ms |
-| | Feedback | 0 – 1.2 | 0.3 |
+| | Feedback | 0 – 1.2 (1.0 unless Self-FB) | 0.3 |
 | | High-Pass | 20 – 2000 Hz (log) | 100 Hz |
 | | Mix | 0 – 100 % | 35 % |
+| | Self-FB | on/off | off |
 | Phaser | On | on/off | off |
 | | Rate | 0.05 – 10 Hz (log) | 0.5 Hz |
 | | Depth | 0 – 100 % | 50 % |
@@ -205,7 +246,7 @@ out of the box.
 | | Feedback | 0 – 100 % | 20 % |
 | | Mix | 0 – 100 % | 50 % |
 | | Stages | 2 / 4 / 6 / 8 / 10 / 12 | 4 |
-| Reverb | On | on/off | off |
+| Reverb | On | on/off | on |
 | | Size | 0.1 – 8 (log) | 1.0 |
 | | Feedback | 0 – 1.2 | 0.7 |
 | | Damping | 0 – 100 % | 40 % |
@@ -223,7 +264,9 @@ actually resolves detail instead of linearly across a huge span.
 The DSP here is unmodified from VirtualDX7's `FxChain.h`, which was itself
 ported from the Aquanode Modular effect modules (`ChorusModule`,
 `DelayModule`, `PhaserModule`, `AquatonReverbModule`). Only the surrounding
-plugin (parameter IDs, the `AudioProcessor`/`AudioProcessorEditor`, and the
-UI classes) is new — built to expose those same four algorithms as their
-own standalone insert effect, with the Chord/Harmonizer section (a MIDI
-note-doubler, not an audio effect) left out entirely.
+plugin (parameter IDs and the `AudioProcessor`/`AudioProcessorEditor`) is
+new — built to expose those same four algorithms as their own standalone
+insert effect, with the Chord/Harmonizer section (a MIDI note-doubler, not an
+audio effect) left out entirely. The UI classes (the effect units, the knobs
+and the four scopes) are VirtualDX7's FX page, with only the namespace and the
+parameter IDs changed, so the two plugins look and read the same.

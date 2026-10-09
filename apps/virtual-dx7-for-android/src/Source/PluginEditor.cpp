@@ -167,6 +167,7 @@ VDX7AudioProcessorEditor::VDX7AudioProcessorEditor (VDX7AudioProcessor& p)
         m.addItem (3, "Export bank (.syx)...");
         m.addSeparator();
         m.addItem (4, "Save voice into existing bank (.syx)...");
+        m.setLookAndFeel (&lnf);   // else JUCE's default (grey) look
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (fileBtn),
             [this](int choice){
                 if      (choice == 1) importBankFromFile();
@@ -203,6 +204,7 @@ VDX7AudioProcessorEditor::VDX7AudioProcessorEditor (VDX7AudioProcessor& p)
         m.addItem (5, "Unload Firmware",       roms.hasFirmware());
         m.addItem (6, "Unload Factory Voices", roms.hasVoices());
 
+        m.setLookAndFeel (&lnf);   // else JUCE's default (grey) look
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (romBtn),
             [this](int choice)
             {
@@ -377,7 +379,7 @@ VDX7AudioProcessorEditor::~VDX7AudioProcessorEditor()
     for (auto& k : opLevel)  k.setLookAndFeel (nullptr);
     fnWatchers.clear();
     for (auto& l : resetListeners) { monoBtn.removeMouseListener (l.get()); portaModeBtn.removeMouseListener (l.get()); }
-    for (juce::Component* c : { (juce::Component*) &tuneBar, (juce::Component*) &portaTimeBar,
+    for (juce::Component* c : { (juce::Component*) &volKnob, (juce::Component*) &tuneBar, (juce::Component*) &portaTimeBar,
                                 (juce::Component*) &pbBar, (juce::Component*) &monoBtn,
                                 (juce::Component*) &portaModeBtn, (juce::Component*) &moreBtn,
                                 (juce::Component*) &dcKnob })
@@ -543,6 +545,35 @@ void VDX7AudioProcessorEditor::setupFunctionRow()
         content.addAndMakeVisible (b);
     };
 
+    // Master volume, first in the row: the whole instrument after the effects,
+    // -12..+12 dB. A knob in a captioned slot rather than a bar, its arc
+    // growing out of 0 dB at the top; it prints whole dB, the tooltip and the
+    // host the tenths.
+    volKnob.setSliderStyle (juce::Slider::RotaryVerticalDrag);
+    volKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    volKnob.setVelocityBasedMode (false);
+    volKnob.setWantsKeyboardFocus (true);
+    volKnob.getProperties().set (vdx7ui::HeaderLookAndFeel::captionProperty(), "VOL");
+    volKnob.getProperties().set (vdx7ui::HeaderLookAndFeel::bipolarProperty(), true);
+    volKnob.setLookAndFeel (&headerLnf);
+    if (auto* param = apvts.getParameter (vdx7::fnid::masterVolume)) {
+        attachments.push_back (std::make_unique<juce::SliderParameterAttachment> (*param, volKnob));
+        volKnob.setDoubleClickReturnValue (true, 0.0);
+        volKnob.setTitle (param->getName (64));
+    }
+    volKnob.textFromValueFunction = [] (double v) {
+        const int db = juce::roundToInt (v);
+        return (db > 0 ? "+" : "") + juce::String (db);
+    };
+    volKnob.onValueChange = [this] {
+        const double v = volKnob.getValue();
+        volKnob.setTooltip ("Master Volume: " + juce::String (std::abs (v) < 0.05 ? 0.0 : v, 1) + " dB. "
+                            "The whole instrument after the effects, -12 to +12 dB. "
+                            "Drag up / down or scroll, click twice for 0 dB.");
+    };
+    volKnob.onValueChange();
+    content.addAndMakeVisible (volKnob);
+
     bar (tuneBar, vdx7::fnid::masterTune, "TUNE",
          "Master Tune, in cents: the whole instrument, up to 75 cents either way of A440. "
          "Drag sideways, click twice for A440.", true);
@@ -555,7 +586,8 @@ void VDX7AudioProcessorEditor::setupFunctionRow()
             "pitch, FOLLOW glides them to each new key. MONO: FINGERED glides only between "
             "keys played legato, FULL glides every note.");
     bar (portaTimeBar, vdx7::fnid::portaTime, "PORTA",
-         "Portamento Time: how long a note takes to glide to the next one (0 = no glide)");
+         "Portamento Time: how long a note takes to glide to the next one (0 = no glide). "
+         "Reads GLISS while Glissando (MORE menu) has the glide move in semitone steps.");
     bar (pbBar, vdx7::fnid::pbRange, "PitchB",
          "Pitch Bend Range: how far the bend wheel reaches, 0 to 12 semitones");
 
@@ -586,12 +618,15 @@ void VDX7AudioProcessorEditor::setupFunctionRow()
         content.addAndMakeVisible (m);
     }
 
-    // MORE: the MIDI receive channel and memory protect.
+    // MORE: pitch bend step, glissando, the MIDI receive channel and memory
+    // protect.
     moreBtn.setButtonText ("MORE");
     moreBtn.setLookAndFeel (&headerLnf);
     moreBtn.setTitle ("More function settings");
     moreBtn.onMenu  = [this] { showMoreMenu(); };
     moreBtn.onReset = [this] {
+        resetParam (vdx7::fnid::pbStep);
+        resetParam (vdx7::fnid::portaGliss);
         resetParam (vdx7::fnid::midiChannel);
         resetParam (vdx7::fnid::memProtect);
     };
@@ -599,7 +634,8 @@ void VDX7AudioProcessorEditor::setupFunctionRow()
 
     // The menus show the parameters' state, which host automation, undo or a
     // restored project can change too.
-    std::vector<juce::String> watched { vdx7::fnid::midiChannel, vdx7::fnid::memProtect };
+    std::vector<juce::String> watched { vdx7::fnid::pbStep, vdx7::fnid::portaGliss,
+                                        vdx7::fnid::midiChannel, vdx7::fnid::memProtect };
     for (int c = 0; c < 4; ++c) {
         watched.push_back (vdx7::fnid::pitch (c));
         watched.push_back (vdx7::fnid::amp (c));
@@ -669,6 +705,7 @@ void VDX7AudioProcessorEditor::showAssignMenu (int c)
         const bool on = paramValue (apvts, ids[d]) >= 0.5f;
         m.addItem (names[d], true, on, [this, id = ids[d], on] { setParamValue (id, on ? 0.0f : 1.0f); });
     }
+    m.setLookAndFeel (&lnf);   // else JUCE's default (grey) look
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (ctlAssign[(size_t) c]));
 }
 
@@ -685,12 +722,33 @@ void VDX7AudioProcessorEditor::showMoreMenu()
         channels.addItem ("Channel " + juce::String (i), true, ch == i,
                           [this, i] { setParamValue (vdx7::fnid::midiChannel, (float) i); });
 
+    // PITCH BEND STEP: off (smooth, over PB RANGE) or 1..12 semitones a step,
+    // ticked like a set of radio buttons.
+    const int step = juce::roundToInt (paramValue (apvts, vdx7::fnid::pbStep));
+    const bool gliss = paramValue (apvts, vdx7::fnid::portaGliss) >= 0.5f;
+    juce::PopupMenu steps;
+    steps.addItem ("Off  (smooth bend over PitchB's range)", true, step == 0,
+                   [this] { setParamValue (vdx7::fnid::pbStep, 0.0f); });
+    steps.addSeparator();
+    for (int i = 1; i <= 12; ++i) {
+        const int reach = (12 / i) * i;   // the biggest bend these steps allow
+        steps.addItem (juce::String (i) + (i == 1 ? " semitone" : " semitones")
+                           + "  (up to " + (reach == 12 ? juce::String ("an octave") : juce::String (reach) + " semitones") + ")",
+                       true, step == i, [this, i] { setParamValue (vdx7::fnid::pbStep, (float) i); });
+    }
+
     juce::PopupMenu m;
+    m.addSectionHeader ("Pitch Bend");
+    m.addSubMenu ("Pitch Bend Step:  " + (step == 0 ? juce::String ("Off") : juce::String (step) + " st"), steps);
+    m.addSectionHeader ("Portamento");
+    m.addItem ("Glissando  (glide in semitone steps)", true, gliss,
+               [this, gliss] { setParamValue (vdx7::fnid::portaGliss, gliss ? 0.0f : 1.0f); });
     m.addSectionHeader ("MIDI");
     m.addSubMenu ("Receive Channel:  " + (ch == 0 ? juce::String ("Omni") : juce::String (ch)), channels);
     m.addSectionHeader ("Memory");
     m.addItem ("Memory Protect  (refuse voice / bank dumps arriving over MIDI)", true, prot,
                [this, prot] { setParamValue (vdx7::fnid::memProtect, prot ? 0.0f : 1.0f); });
+    m.setLookAndFeel (&lnf);   // else JUCE's default (grey) look
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (moreBtn));
 }
 
@@ -713,9 +771,29 @@ void VDX7AudioProcessorEditor::refreshFunctionMenus()
     }
     const int ch = juce::roundToInt (paramValue (apvts, vdx7::fnid::midiChannel));
     const bool prot = paramValue (apvts, vdx7::fnid::memProtect) >= 0.5f;
-    moreBtn.setTooltip ("MIDI channel: " + (ch == 0 ? juce::String ("Omni") : juce::String (ch))
+    const int step = juce::roundToInt (paramValue (apvts, vdx7::fnid::pbStep));
+    const bool gliss = paramValue (apvts, vdx7::fnid::portaGliss) >= 0.5f;
+    moreBtn.setTooltip ("Pitch Bend Step: " + (step == 0 ? juce::String ("off") : juce::String (step) + " st")
+                        + ", Glissando: " + (gliss ? "on" : "off")
+                        + ", MIDI channel: " + (ch == 0 ? juce::String ("Omni") : juce::String (ch))
                         + ", Memory Protect: " + (prot ? "on" : "off")
-                        + ". Click for the menu, twice to reset both.");
+                        + ". Click for the menu, twice to reset them all.");
+
+    // With a bend step set the wheel reaches an octave whatever PitchB says,
+    // so PitchB steps back (still adjustable, for when the step goes off).
+    pbBar.setAlpha (step > 0 ? 0.45f : 1.0f);
+    pbBar.setTooltip (step > 0
+        ? "Pitch Bend Range: not in use while Pitch Bend Step is " + juce::String (step)
+              + " (MORE menu) - the wheel then moves in steps of " + juce::String (step)
+              + " semitones, up to an octave."
+        : juce::String ("Pitch Bend Range: how far the bend wheel reaches, 0 to 12 semitones"));
+
+    // Glissando shows on the panel: the PORTA bar reads GLISS while it is on.
+    const juce::String porta = gliss ? "GLISS" : "PORTA";
+    if (portaTimeBar.getProperties() [vdx7ui::HeaderLookAndFeel::captionProperty()].toString() != porta) {
+        portaTimeBar.getProperties().set (vdx7ui::HeaderLookAndFeel::captionProperty(), porta);
+        portaTimeBar.repaint();
+    }
 }
 
 void VDX7AudioProcessorEditor::updateFunctionLabels()
@@ -728,28 +806,63 @@ void VDX7AudioProcessorEditor::updateFunctionLabels()
 }
 
 // One strip, left to right:
-//   [TUNE] [POLY] [RETAIN] [PORTA] [PB] | [MW v] [FC v] [BC v] [AT v] | [MORE v] (DC)
+//   [VOL o] | [TUNE] [POLY] [RETAIN] [PORTA] [PB] | [MW v] [FC v] [BC v] [AT v] | [MORE v] (DC)
+//
+// Every bar is as wide as its caption plus its widest value need in the font
+// actually in use (HeaderLookAndFeel::naturalBarWidth), so "FCtrl" no longer
+// gets as much room as "AfterTouch", and whatever the row has left over is
+// shared out evenly between the bars. The buttons and the knobs keep their
+// fixed sizes.
 void VDX7AudioProcessorEditor::layoutFunctionRow (juce::Rectangle<int> row)
 {
-    const int gap = 4, groupGap = 9;
-    tuneBar.setBounds (row.removeFromLeft (72));        row.removeFromLeft (gap);
-    monoBtn.setBounds (row.removeFromLeft (44));        row.removeFromLeft (gap);
-    portaModeBtn.setBounds (row.removeFromLeft (52));   row.removeFromLeft (gap);
-    portaTimeBar.setBounds (row.removeFromLeft (64));   row.removeFromLeft (gap);
-    pbBar.setBounds (row.removeFromLeft (48));          row.removeFromLeft (groupGap);
+    using HL = vdx7ui::HeaderLookAndFeel;
+    const int gap = 4, groupGap = 6, chevronW = 16, chevronGap = 2;
+    const int monoW = 44, modeW = 52, moreW = 58;
+    const int knobW = row.getHeight();
+    const int volW  = HL::knobTileWidth (volKnob, row.getHeight());
 
-    dcKnob.setBounds (row.removeFromRight (row.getHeight()));   row.removeFromRight (gap);
-    moreBtn.setBounds (row.removeFromRight (58));               row.removeFromRight (groupGap);
+    std::array<juce::Slider*, 7> bars { &tuneBar, &portaTimeBar, &pbBar,
+                                        &ctlRange[0], &ctlRange[1], &ctlRange[2], &ctlRange[3] };
+    std::array<int, 7> w {};
+    int used = volW + monoW + modeW + moreW + knobW
+             + 4 * (chevronGap + chevronW)
+             + 3 * groupGap      // after VOL, after PB, before MORE
+             + 8 * gap;          // TUNE|POLY|RETAIN|PORTA|PB, MW|FC|BC|AT, MORE|DC
+    for (size_t i = 0; i < bars.size(); ++i) {
+        w[i] = HL::naturalBarWidth (*bars[i]);
+        if (bars[i] == &portaTimeBar)   // reads GLISS while glissando is on: room for either
+            w[i] = juce::jmax (HL::naturalBarWidth (portaTimeBar, "PORTA"), HL::naturalBarWidth (portaTimeBar, "GLISS"));
+        used += w[i];
+    }
 
-    // The four controllers share what is left.
-    const int each = (row.getWidth() - 3 * gap) / 4;
+    // Share out the spare width (or, in a font too wide for the row, the
+    // shortfall - the captions then squeeze rather than collide).
+    const int spare = row.getWidth() - used;
+    const int n = (int) bars.size();
+    for (int i = 0; i < n; ++i)
+        w[(size_t) i] = juce::jmax (24, w[(size_t) i] + spare * (i + 1) / n - spare * i / n);
+
+    dcKnob.setBounds (row.removeFromRight (knobW));   // pinned to the right edge
+    row.removeFromRight (gap);
+
+    auto take = [&row] (int width, int after) {
+        auto r = row.removeFromLeft (width);
+        row.removeFromLeft (after);
+        return r;
+    };
+    volKnob.setBounds      (take (volW,  groupGap));
+    tuneBar.setBounds      (take (w[0],  gap));
+    monoBtn.setBounds      (take (monoW, gap));
+    portaModeBtn.setBounds (take (modeW, gap));
+    portaTimeBar.setBounds (take (w[1],  gap));
+    pbBar.setBounds        (take (w[2],  groupGap));
     for (int c = 0; c < 4; ++c) {
-        auto cell = (c < 3) ? row.removeFromLeft (each) : row;
-        if (c < 3) row.removeFromLeft (gap);
-        ctlAssign[(size_t) c].setBounds (cell.removeFromRight (16));
-        cell.removeFromRight (2);
+        auto cell = take (w[(size_t) (3 + c)] + chevronGap + chevronW, c < 3 ? gap : groupGap);
+        ctlAssign[(size_t) c].setBounds (cell.removeFromRight (chevronW));
+        cell.removeFromRight (chevronGap);
         ctlRange[(size_t) c].setBounds (cell);
     }
+    moreBtn.setBounds (row);   // exactly moreW: the widths above add up to the row
 }
 
 void VDX7AudioProcessorEditor::importBankFromFile()
@@ -778,7 +891,8 @@ void VDX7AudioProcessorEditor::importBankFromFile()
             {
                 juce::AlertWindow::showMessageBoxAsync (
                     juce::MessageBoxIconType::WarningIcon, "Import failed",
-                    "No 32-voice DX7 bank (a 4104-byte SysEx dump) was found in that file.");
+                    "No 32-voice DX7 bank (a 4104-byte SysEx dump) was found in that file.",
+                    {}, this);   // `this`: drawn in the editor's colours, not JUCE's grey
             }
         });
 }
@@ -870,7 +984,7 @@ void VDX7AudioProcessorEditor::saveIntoBankFile()
             if (! target.read (mb)) {
                 juce::AlertWindow::showMessageBoxAsync (
                     juce::MessageBoxIconType::WarningIcon, "Save failed",
-                    "That file could not be read.");
+                    "That file could not be read.", {}, this);
                 return;
             }
 
@@ -879,7 +993,7 @@ void VDX7AudioProcessorEditor::saveIntoBankFile()
                                          mb.getSize(), *bank)) {
                 juce::AlertWindow::showMessageBoxAsync (
                     juce::MessageBoxIconType::WarningIcon, "Not a bank",
-                    "No 32-voice DX7 bank (a 4104-byte SysEx dump) was found in that file.");
+                    "No 32-voice DX7 bank (a 4104-byte SysEx dump) was found in that file.", {}, this);
                 return;
             }
 
@@ -892,6 +1006,7 @@ void VDX7AudioProcessorEditor::saveIntoBankFile()
                     juce::String (i + 1).paddedLeft ('0', 2) + "  "
                     + (nm.isEmpty() ? juce::String ("(unnamed)") : nm));
             }
+            m.setLookAndFeel (&lnf);   // else JUCE's default (grey) look
             m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (fileBtn),
                 [this, target, bank](int choice){
                     if (choice < 1 || choice > 32) return;
@@ -902,6 +1017,7 @@ void VDX7AudioProcessorEditor::saveIntoBankFile()
                         "Preset name",
                         "Name for this preset (up to 10 characters):",
                         juce::MessageBoxIconType::QuestionIcon);
+                    aw->setLookAndFeel (&lnf);   // the editor's colours, like its menus
                     aw->addTextEditor ("nm",
                         juce::String (processor.getVoiceCopy().name().c_str()).trim());
                     if (auto* te = aw->getTextEditor ("nm")) te->setInputRestrictions (10);
@@ -936,7 +1052,8 @@ void VDX7AudioProcessorEditor::saveIntoBankFile()
                                 ok ? "Saved" : "Save failed",
                                 ok ? ("\"" + nm.trim() + "\" written to slot "
                                       + juce::String (slot + 1) + " of\n" + target.name())
-                                   : juce::String ("Could not write to that location."));
+                                   : juce::String ("Could not write to that location."),
+                                {}, this);
                         }), false);
                 });
         });
@@ -1047,12 +1164,12 @@ void VDX7AudioProcessorEditor::layoutContent()
     opCard.setBounds (card);
     auto cells = card.withTrimmedTop (24).reduced (6, 4);
     const int btnH = 34, btnGap = 6, knobGap = 3;
-    for (int row = 0; row < 2; ++row) {
+    for (int line = 0; line < 2; ++line) {
         auto rowArea = cells.removeFromTop (btnH);
         const int bw = (rowArea.getWidth() - 2 * btnGap) / 3;
         for (int c = 0; c < 3; ++c) {
             auto cell = (c < 2) ? rowArea.removeFromLeft (bw) : rowArea;   // last one takes the remainder
-            const auto idx = (size_t) (row * 3 + c);
+            const auto idx = (size_t) (line * 3 + c);
             opLevel[idx].setBounds (cell.removeFromRight (btnH));
             cell.removeFromRight (knobGap);
             opSelect[idx].setBounds (cell);

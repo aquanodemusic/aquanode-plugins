@@ -602,6 +602,8 @@ namespace vdx7 {
         n.portaFollow     = f.portaMode != 0;
         vdx7native::portamentoTimeToGlide(f.portaTime, n.portamentoTau, n.portamentoDelay);
         n.bendRange       = (float)juce::jlimit(0, 12, f.pbRange);
+        n.bendStep        = juce::jlimit(0, 12, f.pbStep);
+        n.glissando       = f.gliss;
         n.masterTuneCents = (float)juce::jlimit(-256, 255, f.masterTune) * kMasterTuneCentsPerStep;
         auto conv = [](const FunctionSettings::Controller& c, vdx7native::Functions::Assign& a) {
             a.range  = (float)juce::jlimit(0, 99, c.range) / 99.0f;
@@ -640,7 +642,10 @@ namespace vdx7 {
         int mono = s.mono ? 1 : 0;
         send(64, w.mono ? 1 : 0, mono);                      s.mono = mono != 0;
         send(65, juce::jlimit(0, 12, w.pbRange), s.pbRange);
+        send(66, juce::jlimit(0, 12, w.pbStep), s.pbStep);
         send(67, w.portaMode != 0 ? 1 : 0, s.portaMode);
+        int gliss = s.gliss ? 1 : 0;
+        send(68, w.gliss ? 1 : 0, gliss);                    s.gliss = gliss != 0;
         send(69, juce::jlimit(0, 99, w.portaTime), s.portaTime);
         const FunctionSettings::Controller* want[4] = { &w.modWheel, &w.foot, &w.breath, &w.aftertouch };
         FunctionSettings::Controller* sent[4] = { &s.modWheel, &s.foot, &s.breath, &s.aftertouch };
@@ -934,6 +939,30 @@ void VDX7AudioProcessor::addFunctionParameters(juce::AudioProcessorValueTreeStat
         juce::AudioParameterFloatAttributes().withStringFromValueFunction([](float v, int) {
             return v <= 0.0f ? juce::String("Off") : juce::String(v, 2) + " Hz";
         })));
+
+    // Master volume, both engines, after the effects: -12..+12 dB, linear in
+    // dB so unity - the default, so projects saved before this existed sound
+    // as they did - sits exactly in the middle of the knob.
+    layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{ fnid::masterVolume, 1 },
+        "Master Volume", juce::NormalisableRange<float>(kMasterVolumeMinDb, kMasterVolumeMaxDb, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes()
+            .withLabel("dB")
+            .withStringFromValueFunction([](float v, int) {
+                if (std::abs(v) < 0.05f) return juce::String("0.0");   // never "-0.0"
+                return (v > 0.0f ? "+" : "") + juce::String(v, 1);
+            })
+            .withValueFromStringFunction([](const juce::String& s) {
+                return juce::jlimit(kMasterVolumeMinDb, kMasterVolumeMaxDb, s.trim().getFloatValue());
+            })));
+
+    // PITCH BEND STEP and GLISSANDO (function parameters 66 and 68), in the
+    // MORE menu. Added last so no existing parameter changes its place in a
+    // host. Step 0 is the smooth bend PB RANGE sets; 1..12 makes the wheel move
+    // in steps of that many semitones, up to an octave whatever the range.
+    intParam(fnid::pbStep, "Pitch Bend Step", 0, 12, 0, [](int v, int) {
+        return v == 0 ? juce::String("Off") : juce::String(v) + " st";
+    });
+    boolParam(fnid::portaGliss, "Glissando", false);
 }
 
 void VDX7AudioProcessor::bindFunctionParameters()
@@ -944,11 +973,14 @@ void VDX7AudioProcessor::bindFunctionParameters()
         jassert(r != nullptr);
         return r;
     };
+    fnRaw_.masterVolume = raw(fnid::masterVolume);
     fnRaw_.masterTune = raw(fnid::masterTune);
     fnRaw_.polyMono   = raw(fnid::polyMono);
     fnRaw_.portaMode  = raw(fnid::portaMode);
     fnRaw_.portaTime  = raw(fnid::portaTime);
     fnRaw_.pbRange    = raw(fnid::pbRange);
+    fnRaw_.pbStep     = raw(fnid::pbStep);
+    fnRaw_.gliss      = raw(fnid::portaGliss);
     fnRaw_.midiCh     = raw(fnid::midiChannel);
     fnRaw_.protect    = raw(fnid::memProtect);
     fnRaw_.dcBlock    = raw(fnid::dcBlock);
@@ -969,6 +1001,8 @@ vdx7::FunctionSettings VDX7AudioProcessor::readFunctionParameters() const
     f.portaMode     = get(fnRaw_.portaMode);
     f.portaTime     = get(fnRaw_.portaTime);
     f.pbRange       = get(fnRaw_.pbRange);
+    f.pbStep        = get(fnRaw_.pbStep);
+    f.gliss         = get(fnRaw_.gliss) != 0;
     f.memoryProtect = get(fnRaw_.protect) != 0;
     vdx7::FunctionSettings::Controller* ctl[4] = { &f.modWheel, &f.foot, &f.breath, &f.aftertouch };
     for (int c = 0; c < 4; ++c) {
@@ -1039,7 +1073,38 @@ void VDX7AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     mono_.assign((size_t)juce::jmax(1, samplesPerBlock), 0.0f);
     fx_.prepare(sampleRate, juce::jmax(1, samplesPerBlock));
     channelScratch_.ensureSize(4096);
+    masterGain_.reset(sampleRate, 0.03);
+    masterGain_.setCurrentAndTargetValue(
+        vdx7::masterVolumeGain(fnRaw_.masterVolume->load(std::memory_order_relaxed)));
     sendCurrentVoice();
+}
+
+// The very last thing in processBlock: the whole instrument, effect tails
+// included, at the master volume. Settled at unity it costs nothing.
+void VDX7AudioProcessor::applyMasterVolume(juce::AudioBuffer<float>& buffer, int numSamples)
+{
+    masterGain_.setTargetValue(
+        vdx7::masterVolumeGain(fnRaw_.masterVolume->load(std::memory_order_relaxed)));
+
+    const int numCh = buffer.getNumChannels();
+    if (numCh <= 0)
+        return;
+    if (!masterGain_.isSmoothing())
+    {
+        const float g = masterGain_.getTargetValue();
+        if (!juce::exactlyEqual(g, 1.0f))
+            buffer.applyGain(0, numSamples, g);
+        return;
+    }
+
+    // Ramping: every channel follows the same per-sample gain.
+    float* ch[2] = { buffer.getWritePointer(0), numCh > 1 ? buffer.getWritePointer(1) : nullptr };
+    for (int n = 0; n < numSamples; ++n)
+    {
+        const float g = masterGain_.getNextValue();
+        ch[0][n] *= g;
+        if (ch[1] != nullptr) ch[1][n] *= g;
+    }
 }
 
 bool VDX7AudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -1065,6 +1130,14 @@ void VDX7AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
     // What the engine is about to play, chord notes included - for the
     // on-screen keyboard only (display state, never fed back into MIDI).
     soundingNotes.processNextMidiBuffer(midi, 0, numSamples, false);
+
+    // FUNCTION page and the native DC blocker, before this block's MIDI: the
+    // native engine acts on a note the moment it is handed one, so a setting
+    // that changes in the same block as a note (MONO switched on as a chord is
+    // played, or the very first block after a project loads) must already be
+    // in place. Cheap: only changes go further.
+    engine_.setFunctions(readFunctionParameters());
+    engine_.setDcBlockHz(fnRaw_.dcBlock->load(std::memory_order_relaxed));
 
     for (const auto meta : midi) {
         const auto msg = meta.getMessage();
@@ -1098,10 +1171,6 @@ void VDX7AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
         }
     }
 
-    // FUNCTION page and the native DC blocker. Cheap: only changes go further.
-    engine_.setFunctions(readFunctionParameters());
-    engine_.setDcBlockHz(fnRaw_.dcBlock->load(std::memory_order_relaxed));
-
     if ((int)mono_.size() < numSamples) mono_.assign((size_t)numSamples, 0.0f);
     engine_.renderMono(mono_.data(), numSamples);
 
@@ -1126,6 +1195,8 @@ void VDX7AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
         for (int n = 0; n < numSamples; ++n)
             l[n] = (l[n] + scratchR_[(size_t)n]) * 0.5f;
     }
+
+    applyMasterVolume(buffer, numSamples);
 }
 
 void VDX7AudioProcessor::sendCurrentVoice()

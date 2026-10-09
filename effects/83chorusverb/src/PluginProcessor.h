@@ -108,6 +108,17 @@ namespace cv83 {
     // ========================================================================
     //  Chorus  -  modulated delay line per channel; the LFO phase offset
     //  between the channels is the stereo spread.
+    //
+    //  Unison reads each line at 1..6 taps instead of one, their LFO phases
+    //  spread evenly round the cycle, so at any moment the voices sit at
+    //  different delays and detunes - the thick, ensemble-like chorus. The
+    //  sum is scaled by 1/sqrt(voices), which keeps a bright, broadband sound
+    //  at the same level (within about 1 dB). Pure low tones behave like a
+    //  comb filter instead: deep bass, where the taps stay in phase, adds up
+    //  (up to +7 dB with six voices), and a note whose period is close to the
+    //  spread of the voices' delays partly cancels - less Depth or Delay
+    //  evens it out. At 1 voice this is exactly the original single-tap
+    //  chorus.
     // ========================================================================
     class Chorus : public FxBase
     {
@@ -132,6 +143,9 @@ namespace cv83 {
         void setDepth(float percent) { depth = percent * 0.01f; }
         void setBaseDelay(float ms) { baseMs = ms; }
         void setSpread(float percent) { spread = percent * 0.01f; }
+        void setVoices(int n) { voices = juce::jlimit(1, maxVoices, n); }
+
+        static constexpr int maxVoices = 6;
 
     private:
         void processInternal(float* left, float* right, int numSamples) override
@@ -139,6 +153,9 @@ namespace cv83 {
             const int size = (int)line[0].size();
             if (size < 4)
                 return;
+
+            const int nv = voices;
+            const float voiceGain = 1.0f / std::sqrt((float)nv);
 
             for (int n = 0; n < numSamples; ++n)
             {
@@ -150,21 +167,27 @@ namespace cv83 {
 
                 for (int c = 0; c < 2; ++c)
                 {
-                    const double ph = lfoPhase + (c == 1 ? spread * 0.5 : 0.0);   // up to 180 deg
-                    const float lfo = (float)std::sin(ph * juce::MathConstants<double>::twoPi);
+                    float sum = 0.0f;
+                    for (int v = 0; v < nv; ++v)
+                    {
+                        const double ph = lfoPhase + (c == 1 ? spread * 0.5 : 0.0)   // up to 180 deg
+                                        + (double)v / (double)nv;                      // unison voices spread round the cycle
+                        const float lfo = (float)std::sin(ph * juce::MathConstants<double>::twoPi);
 
-                    // sweep around the base delay; never below 0.5 ms
-                    const float delayMs = juce::jmax(0.5f, baseMs * (1.0f + 0.9f * depth * lfo));
-                    const double delaySamples =
-                        juce::jlimit(1.0, (double)size - 2.0, delayMs * 0.001 * sampleRate);
+                        // sweep around the base delay; never below 0.5 ms
+                        const float delayMs = juce::jmax(0.5f, baseMs * (1.0f + 0.9f * depth * lfo));
+                        const double delaySamples =
+                            juce::jlimit(1.0, (double)size - 2.0, delayMs * 0.001 * sampleRate);
 
-                    double readPos = (double)writePos - delaySamples;
-                    while (readPos < 0.0) readPos += size;
-                    const int i0 = (int)readPos;
-                    const int i1 = (i0 + 1) % size;
-                    const float frac = (float)(readPos - i0);
-                    wet[c] = line[c][(size_t)i0]
-                        + (line[c][(size_t)i1] - line[c][(size_t)i0]) * frac;
+                        double readPos = (double)writePos - delaySamples;
+                        while (readPos < 0.0) readPos += size;
+                        const int i0 = (int)readPos;
+                        const int i1 = (i0 + 1) % size;
+                        const float frac = (float)(readPos - i0);
+                        sum += line[c][(size_t)i0]
+                            + (line[c][(size_t)i1] - line[c][(size_t)i0]) * frac;
+                    }
+                    wet[c] = sum * voiceGain;
 
                     line[c][(size_t)writePos] = (c == 0 ? dryL : dryR);
                 }
@@ -178,6 +201,7 @@ namespace cv83 {
         int    writePos{ 0 };
         double lfoPhase{ 0.0 };
         float  rate{ 0.5f }, depth{ 0.5f }, baseMs{ 7.0f }, spread{ 0.5f };
+        int    voices{ 1 };
     };
 
     // ========================================================================
@@ -510,6 +534,7 @@ namespace cv83 {
         static constexpr const char* chorusDelay = "chorusDelay";
         static constexpr const char* chorusSpread = "chorusSpread";
         static constexpr const char* chorusMix = "chorusMix";
+        static constexpr const char* chorusVoices = "chorusVoices";
         // Delay
         static constexpr const char* delayOn = "delayOn";
         static constexpr const char* delayTimeL = "delayTimeL";
@@ -517,6 +542,7 @@ namespace cv83 {
         static constexpr const char* delayFb = "delayFeedback";
         static constexpr const char* delayHp = "delayHighPass";
         static constexpr const char* delayMix = "delayMix";
+        static constexpr const char* delaySelfFb = "delaySelfFeedback";
         // Phaser
         static constexpr const char* phaserOn = "phaserOn";
         static constexpr const char* phaserRate = "phaserRate";
@@ -566,20 +592,29 @@ namespace cv83 {
             const juce::NormalisableRange<float> percent(0.0f, 100.0f, 0.1f);
 
             // ---- Chorus ---------------------------------------------------------
-            addBool(chorusOn, "Chorus On", false);
+            addBool(chorusOn, "Chorus On", true);
             addFloat(chorusRate, "Chorus Rate", logRange(0.1f, 10.0f), 0.5f, "Hz");
             addFloat(chorusDepth, "Chorus Depth", percent, 50.0f, "%");
             addFloat(chorusDelay, "Chorus Delay", { 1.0f, 20.0f, 0.1f }, 7.0f, "ms");
             addFloat(chorusSpread, "Chorus Spread", percent, 50.0f, "%");
             addFloat(chorusMix, "Chorus Mix", percent, 50.0f, "%");
+            layout.add(std::make_unique<juce::AudioParameterInt>(
+                juce::ParameterID{ chorusVoices, 1 }, "Chorus Unison", 1, Chorus::maxVoices, 1,
+                juce::AudioParameterIntAttributes().withStringFromValueFunction(
+                    [](int v, int) { return v == 1 ? juce::String("1 voice") : juce::String(v) + " voices"; })));
 
             // ---- Delay ----------------------------------------------------------
-            addBool(delayOn, "Delay On", false);
+            addBool(delayOn, "Delay On", true);
             addFloat(delayTimeL, "Delay Time L", logRange(20.0f, Delay::maxTimeMs), 250.0f, "ms");
             addFloat(delayTimeR, "Delay Time R", logRange(20.0f, Delay::maxTimeMs), 375.0f, "ms");
             addFloat(delayFb, "Delay Feedback", { 0.0f, 1.2f, 0.001f }, 0.3f, "");
             addFloat(delayHp, "Delay High-Pass", logRange(20.0f, 2000.0f), 100.0f, "Hz");
             addFloat(delayMix, "Delay Mix", percent, 35.0f, "%");
+            // Off by default: Feedback then stops at 1.00 however far the knob
+            // turns, so the echoes can hold but never grow. On, the knob's
+            // range above 1.00 is live and the delay can run away into the
+            // line's clamp - self-oscillation, on purpose.
+            addBool(delaySelfFb, "Delay Self-Feedback", false);
 
             // ---- Phaser ---------------------------------------------------------
             addBool(phaserOn, "Phaser On", false);
@@ -593,7 +628,7 @@ namespace cv83 {
                 juce::StringArray{ "2", "4", "6", "8", "10", "12" }, 1));
 
             // ---- Reverb ---------------------------------------------------------
-            addBool(reverbOn, "Reverb On", false);
+            addBool(reverbOn, "Reverb On", true);
             addFloat(reverbSize, "Reverb Size", logRange(0.1f, 8.0f), 1.0f, "");
             addFloat(reverbFb, "Reverb Feedback", { 0.0f, 1.2f, 0.001f }, 0.7f, "");
             addFloat(reverbDamp, "Reverb Damping", percent, 40.0f, "%");
@@ -626,10 +661,12 @@ namespace cv83 {
             pChorusOn = get(chorusOn); pChorusRate = get(chorusRate);
             pChorusDepth = get(chorusDepth); pChorusDelay = get(chorusDelay);
             pChorusSpread = get(chorusSpread); pChorusMix = get(chorusMix);
+            pChorusVoices = get(chorusVoices);
 
             pDelayOn = get(delayOn); pDelayTimeL = get(delayTimeL);
             pDelayTimeR = get(delayTimeR); pDelayFb = get(delayFb);
             pDelayHp = get(delayHp); pDelayMix = get(delayMix);
+            pDelaySelfFb = get(delaySelfFb);
 
             pPhaserOn = get(phaserOn); pPhaserRate = get(phaserRate);
             pPhaserDepth = get(phaserDepth); pPhaserCentre = get(phaserCentre);
@@ -658,12 +695,13 @@ namespace cv83 {
             chorus.setDepth(v(pChorusDepth));
             chorus.setBaseDelay(v(pChorusDelay));
             chorus.setSpread(v(pChorusSpread));
+            chorus.setVoices(juce::roundToInt(v(pChorusVoices)));
             chorus.setDryWet(v(pChorusMix));
 
             delay.setEnabled(on(pDelayOn));
             delay.setTimeL(v(pDelayTimeL));
             delay.setTimeR(v(pDelayTimeR));
-            delay.setFeedback(v(pDelayFb));
+            delay.setFeedback(on(pDelaySelfFb) ? v(pDelayFb) : juce::jmin(1.0f, v(pDelayFb)));
             delay.setHighPass(v(pDelayHp));
             delay.setDryWet(v(pDelayMix));
 
@@ -713,9 +751,11 @@ namespace cv83 {
         Reverb reverb;
 
         std::atomic<float>* pChorusOn{ nullptr }, * pChorusRate{ nullptr }, * pChorusDepth{ nullptr },
-            * pChorusDelay{ nullptr }, * pChorusSpread{ nullptr }, * pChorusMix{ nullptr };
+            * pChorusDelay{ nullptr }, * pChorusSpread{ nullptr }, * pChorusMix{ nullptr },
+            * pChorusVoices{ nullptr };
         std::atomic<float>* pDelayOn{ nullptr }, * pDelayTimeL{ nullptr }, * pDelayTimeR{ nullptr },
-            * pDelayFb{ nullptr }, * pDelayHp{ nullptr }, * pDelayMix{ nullptr };
+            * pDelayFb{ nullptr }, * pDelayHp{ nullptr }, * pDelayMix{ nullptr },
+            * pDelaySelfFb{ nullptr };
         std::atomic<float>* pPhaserOn{ nullptr }, * pPhaserRate{ nullptr }, * pPhaserDepth{ nullptr },
             * pPhaserCentre{ nullptr }, * pPhaserFb{ nullptr }, * pPhaserStages{ nullptr },
             * pPhaserMix{ nullptr };

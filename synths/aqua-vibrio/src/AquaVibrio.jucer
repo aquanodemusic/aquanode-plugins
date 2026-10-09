@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="AqVb01" name="AquaVibrio" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="0" jucerFormatVersion="1"
-              companyName="aquanodemusic" companyCopyright="none" version="1.0.0"
+              companyName="aquanodemusic" companyCopyright="none" version="2.0.0"
               pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
               pluginName="Aqua Vibrio" pluginDesc="Virus-architecture synthesiser on Aquanode DSP"
               pluginManufacturer="Aquanode" pluginManufacturerCode="Aqnd" pluginCode="AqVb"
@@ -34,6 +34,20 @@
           file="Source/AquaVibrioRandom.cpp"/>
     <FILE id="cgBx8b" name="AquaVibrioScaling.h" compile="0" resource="0"
           file="Source/AquaVibrioScaling.h"/>
+    <FILE id="avnl01" name="AquaVibrioNoteLayers.h" compile="0" resource="0"
+          file="Source/AquaVibrioNoteLayers.h"/>
+    <FILE id="avnl02" name="AquaVibrioNoteLayerManager.h" compile="0" resource="0"
+          file="Source/AquaVibrioNoteLayerManager.h"/>
+    <FILE id="avnl03" name="AquaVibrioNoteLayerManager.cpp" compile="1"
+          resource="0" file="Source/AquaVibrioNoteLayerManager.cpp"/>
+    <FILE id="avnl04" name="AquaVibrioMutator.h" compile="0" resource="0"
+          file="Source/AquaVibrioMutator.h"/>
+    <FILE id="avnl05" name="AquaVibrioMutator.cpp" compile="1" resource="0"
+          file="Source/AquaVibrioMutator.cpp"/>
+    <FILE id="avnl06" name="AquaVibrioNoteLockView.h" compile="0" resource="0"
+          file="Source/AquaVibrioNoteLockView.h"/>
+    <FILE id="avnl07" name="AquaVibrioLabels.h" compile="0" resource="0"
+          file="Source/AquaVibrioLabels.h"/>
     <FILE id="mzuTe2" name="PluginEditor.cpp" compile="1" resource="0"
           file="Source/PluginEditor.cpp"/>
     <FILE id="eTFO0P" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>

@@ -198,7 +198,9 @@ struct FunctionSettings
     bool mono       = false; // POLY / MONO
     int  portaMode  = 0;     // 0 = RETAIN (poly) / FINGERED (mono), 1 = FOLLOW / FULL TIME
     int  portaTime  = 0;     // 0..99
+    bool gliss      = false; // GLISSANDO: portamento in semitone steps
     int  pbRange    = 2;     // 0..12 semitones
+    int  pbStep     = 0;     // 0 = smooth; 1..12 semitones per step (the range is then an octave)
 
     // Controller range 0..99 and assign bits: 1 = PITCH, 2 = AMP, 4 = EG BIAS.
     struct Controller { int range = 99; int assign = 0; };
@@ -207,17 +209,20 @@ struct FunctionSettings
     bool memoryProtect = false;
 };
 
-// APVTS IDs of the FUNCTION page (and of the native engine's DC blocker, which
-// lives with them in the header). All start with "fn", outside both the
-// "p<offset>" VCED namespace and the "fx" effects, so they are saved and
-// restored as their own group and never mistaken for a patch byte.
+// APVTS IDs of the FUNCTION page (and of the native engine's DC blocker and
+// the master volume, which live with them in the header). All start with "fn",
+// outside both the "p<offset>" VCED namespace and the "fx" effects, so they are
+// saved and restored as their own group and never mistaken for a patch byte.
 namespace fnid
 {
+    inline constexpr const char* masterVolume = "fnMasterVolume";  // dB, -12..+12
     inline constexpr const char* masterTune   = "fnMasterTune";
     inline constexpr const char* polyMono     = "fnPolyMono";
     inline constexpr const char* portaMode    = "fnPortaMode";
     inline constexpr const char* portaTime    = "fnPortaTime";
     inline constexpr const char* pbRange      = "fnPbRange";
+    inline constexpr const char* pbStep       = "fnPbStep";        // 0 = smooth, 1..12
+    inline constexpr const char* portaGliss   = "fnPortaGliss";
     inline constexpr const char* midiChannel  = "fnMidiChannel";   // 0 = omni, 1..16
     inline constexpr const char* memProtect   = "fnMemProtect";
     inline constexpr const char* dcBlock      = "fnDcBlock";       // Hz, 0 = off
@@ -235,6 +240,14 @@ namespace fnid
 // One function master-tune step, in cents. Measured on the emulated firmware:
 // +-256 steps land on +-74.8 cents.
 static constexpr float kMasterTuneCentsPerStep = 1200.0f / 4096.0f;
+
+// Master volume range, in dB: a trim either side of unity, 0 dB in the middle.
+static constexpr float kMasterVolumeMinDb = -12.0f;
+static constexpr float kMasterVolumeMaxDb =  12.0f;
+inline float masterVolumeGain (float db)
+{
+    return std::pow (10.0f, juce::jlimit (kMasterVolumeMinDb, kMasterVolumeMaxDb, db) * 0.05f);
+}
 
 // ============================================================================
 //  Real-time engine wrapper
@@ -550,11 +563,14 @@ private:
     // FUNCTION page parameters (raw APVTS values, read once per block).
     struct FnRaw
     {
+        std::atomic<float>* masterVolume = nullptr;
         std::atomic<float>* masterTune = nullptr;
         std::atomic<float>* polyMono   = nullptr;
         std::atomic<float>* portaMode  = nullptr;
         std::atomic<float>* portaTime  = nullptr;
         std::atomic<float>* pbRange    = nullptr;
+        std::atomic<float>* pbStep     = nullptr;
+        std::atomic<float>* gliss      = nullptr;
         std::atomic<float>* midiCh     = nullptr;
         std::atomic<float>* protect    = nullptr;
         std::atomic<float>* dcBlock    = nullptr;
@@ -564,6 +580,11 @@ private:
         std::atomic<float>* egBias[4] {};
     } fnRaw_;
     juce::MidiBuffer channelScratch_;   // filterMidiChannel's working buffer
+
+    // The master volume as a linear gain, ramped (~30 ms) so a turning knob
+    // or a jump in automation never zippers or clicks. Audio thread.
+    juce::SmoothedValue<float> masterGain_ { 1.0f };
+    void applyMasterVolume (juce::AudioBuffer<float>& buffer, int numSamples);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VDX7AudioProcessor)
 };

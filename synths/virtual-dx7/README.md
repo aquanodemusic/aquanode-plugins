@@ -98,23 +98,46 @@ the **LCD** and voice-number LED.
 not the voice, so changing patches never touches them; they are automatable and
 saved with the project, and both engines follow them (the emulator through the
 firmware's own function-parameter SysEx). The values are bars: drag sideways.
-Clicking twice returns any control in this row to its default (on a **v** menu
-button: everything in that menu).
+Each bar is as wide as its caption and its widest value need, measured in the
+font actually in use, so nothing ever overprints. Clicking twice returns any
+control in this row to its default (on a **v** menu button: everything in that
+menu).
+* **VOL** - master volume, both engines, applied last (after the effects, so
+  their tails follow it): -12 to +12 dB, 0 dB (the default) at the top of the
+  knob, and the amber arc grows out from there either way. Drag up / down or
+  scroll. Smoothed, so moving it or automating it never zippers.
 * **TUNE** - master tune in cents, ±75 around A440 (the DX7's own range).
 * **POLY / MONO** and the **portamento mode**: RETAIN / FOLLOW in poly (do notes
   held by the sustain pedal keep their pitch or glide to the new key),
   FINGERED / FULL in mono (glide only when playing legato, or always).
 * **PORTA** - portamento time, 0 (off) … 99. The native engine's glide was
   measured against the emulated DX7: a short hold, then an exponential approach.
-* **PB** - pitch bend range, 0 … 12 semitones.
+  The bar reads **GLISS** while glissando (MORE menu) is on.
+* **PB** - pitch bend range, 0 … 12 semitones. Dimmed while a pitch bend step
+  is set (MORE menu), which takes the wheel to an octave whatever the range.
 * **MW**, **FC**, **BC**, **AT** - mod wheel, foot controller, breath controller
   and aftertouch: range 0 … 99, and the small **v** beside each opens its
   assignment menu (headed with the controller's full name): pitch (vibrato),
   amplitude (tremolo) and EG bias, each switched on or off. The **v** is amber
-  while the controller is assigned to something.
-* **MORE v** - the MIDI receive channel (Omni or 1 … 16; the on-screen keyboard
-  always plays) and memory protect (voice and bank dumps arriving over MIDI are
-  refused; the emulator's LCD answers MEMORY PROTECTED).
+  while the controller is assigned to something. EG bias acts only on
+  operators with amp mod sensitivity, as far as their AMS lets it: with the
+  controller at rest it holds them down by its range, and pushing it lets them
+  up to their programmed level - blow into a breath controller and the sound
+  swells in (with AMS 3 and range 99, 44 dB of swell).
+* **MORE v** - four settings in a menu:
+  * **Pitch Bend Step** - off (a smooth bend over PB's range) or 1 … 12
+    semitones. With a step set the wheel moves the pitch only in whole steps,
+    the first as soon as it leaves the centre, up to the largest multiple of the
+    step that fits in an octave: step 1 plays every semitone, step 5 gives 5 and
+    10, step 6 an octave in two, step 12 a single octave jump (the DX7 manual's
+    behaviour; a 2% dead zone at the centre keeps a resting wheel still).
+  * **Glissando** - the portamento glide, at the same PORTA time and in every
+    portamento mode, heard in semitone steps: each key on the way, as if a
+    finger ran along the keyboard (with a microtuning, each step is a key of the
+    active scale).
+  * the MIDI receive channel (Omni or 1 … 16; the on-screen keyboard always
+    plays) and memory protect (voice and bank dumps arriving over MIDI are
+    refused; the emulator's LCD answers MEMORY PROTECTED).
 * **DC** - native engine only: a DC blocker (a leaky integrator subtracting the
   signal's offset), off at 0, up to a 5 Hz corner at full.
 

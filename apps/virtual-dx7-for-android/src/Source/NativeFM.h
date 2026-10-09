@@ -974,7 +974,16 @@ struct Functions
     // TIME (every note glides from the last one).
     bool  portaFollow    { false };
 
+    // GLISSANDO: the same glide, but heard in semitone steps - each key's
+    // pitch on the way, as if a finger ran along the keyboard.
+    bool  glissando      { false };
+
     float bendRange      { 2.0f };   // semitones at full wheel deflection
+
+    // PITCH BEND STEP. 0 = the smooth bend above; 1..12 = the wheel moves the
+    // pitch in steps of that many semitones instead, and the range is then an
+    // octave whatever bendRange says (see bendSemitones()).
+    int   bendStep       { 0 };
 
     // MASTER TUNE, in cents, applied to every note on top of the tuning table.
     float masterTuneCents{ 0.0f };
@@ -994,6 +1003,31 @@ struct Functions
     Assign breath    { 1.0f, false, false, false };
     Assign aftertouch{ 1.0f, false, false, false };
 };
+
+// The pitch bend wheel (-1..1) in semitones. With PITCH BEND STEP at 0 that is
+// a smooth bend over PB RANGE. With a step set, the DX7 works differently (its
+// manual, "Pitch Bend Range & Step"): the range becomes an octave, the pitch
+// moves only in whole steps, the first one as soon as the wheel leaves the
+// centre, and it stops at the largest multiple of the step that fits in the
+// octave - step 5 gives 5 and 10 semitones, step 6 an octave in two, step 12
+// one octave jump. The wheel's travel is shared out evenly between those
+// steps. A small dead zone around the centre (2% of the travel) keeps a wheel
+// or a MIDI controller resting a tick off centre from jumping a step.
+inline float bendSemitones (float wheel, const Functions& fn)
+{
+    if (fn.bendStep <= 0)
+        return wheel * fn.bendRange;
+
+    constexpr float kDeadZone = 0.02f;
+    const float a = std::abs (wheel);
+    if (a < kDeadZone)
+        return 0.0f;
+
+    const int step  = std::clamp (fn.bendStep, 1, 12);
+    const int steps = 12 / step;                                    // how many fit in the octave
+    const int n     = std::clamp ((int) std::ceil (a * 12.0f / (float) step - 1.0e-4f), 1, steps);
+    return (wheel < 0.0f ? -1.0f : 1.0f) * (float) (n * step);
+}
 
 // PORTAMENTO TIME (0..99) -> how the glide moves. Measured on the emulated DX7
 // (firmware ROM, MONO, legato leaps of one and two octaves) and fitted with an
@@ -1038,7 +1072,7 @@ struct ModContext
     float lfoAmp       { 0.0f };    //  0..1, already faded in
     float ampBias      { 0.0f };    //  0..1 extra amplitude modulation depth
     const Tuning* tuning { nullptr };
-    float egBias       { 0.0f };    //  0..1, lifts operator output levels
+    float egHold       { 0.0f };    //  0..1, how far EG BIAS holds AMS operators down
 };
 
 // ============================================================================
@@ -1187,7 +1221,11 @@ public:
         // pitch envelope, bend, vibrato - is a multiplier on top of whatever
         // frequency that lands on. Doing it this way means a microtuned scale
         // keeps its intervals while bend and vibrato still behave in cents.
-        const float tunedNote  = glideNote_ + transposeSemis;
+        // GLISSANDO hears the glide only at whole keys, so each step lands on
+        // a key of whatever tuning is active; the glide itself runs on
+        // unchanged underneath, so its speed is the portamento's.
+        const float heardNote  = fn.glissando ? std::round (glideNote_) : glideNote_;
+        const float tunedNote  = heardNote + transposeSemis;
         const float continuous = pitchEg + mc.bendSemis + lfoPitchSemis;
 
         const float rootHz = (mc.tuning != nullptr)
@@ -1198,9 +1236,12 @@ public:
 
         // The LFO's amplitude modulation is a *reduction* in level, scaled per
         // operator by that operator's AMS setting. A controller assigned to
-        // amplitude adds to the depth on top of the patch's own AMD.
+        // amplitude adds to the depth on top of the patch's own AMD. EG BIAS
+        // drives the same path with a steady value instead of the LFO, so it
+        // too only reaches operators with AMS, as far as their AMS lets it;
+        // whichever of the two holds an operator down further wins.
         const float amDepth = std::clamp (p.lfoAmpDepth + mc.ampBias, 0.0f, 1.0f);
-        const float amUnit  = mc.lfoAmp * amDepth;
+        const float amUnit  = std::max (mc.lfoAmp * amDepth, mc.egHold);
 
         float targetGain[kNumOps];
         float inc[kNumOps];
@@ -1225,11 +1266,7 @@ public:
                                                     o.leftCurve,  o.rightCurve));
             const float staticDb = unitsToDb (scaled) + velocityDb (velocity_, o.velSens);
 
-            // EG bias raises the operators' output levels (the DX7 uses it for
-            // breath-controlled brightness).
-            const float biasDb = mc.egBias * 24.0f;
-
-            const float db = staticDb + egDb - amUnit * o.amDepthDb + biasDb;
+            const float db = staticDb + egDb - amUnit * o.amDepthDb;
             targetGain[i] = (db <= silenceDb()) ? 0.0f : dbToGain (std::min (db, 6.0f));
 
             if (targetGain[i] > 1.0e-5f) anyAudible = true;
@@ -1758,19 +1795,28 @@ private:
                              + contribution (breath_,     fn_.breath,     fn_.breath.amp)
                              + contribution (aftertouch_, fn_.aftertouch, fn_.aftertouch.amp);
 
-        const float biasCtl  = contribution (modWheel_,   fn_.modWheel,   fn_.modWheel.egBias)
-                             + contribution (foot_,       fn_.foot,       fn_.foot.egBias)
-                             + contribution (breath_,     fn_.breath,     fn_.breath.egBias)
-                             + contribution (aftertouch_, fn_.aftertouch, fn_.aftertouch.egBias);
+        // EG BIAS works the other way round from the other two: a controller
+        // assigned to it holds the operators with AMS down by its range while
+        // it is at rest, and lets them up to their programmed level as it is
+        // pushed - blow into a breath controller and the sound swells in (the
+        // DX7 manual: with AMS at maximum and the controller at minimum, no
+        // sound). Range 0 leaves it out; every assigned controller has to open
+        // for the operators to reach full level.
+        auto hold = [] (float value, const Functions::Assign& a)
+        {
+            return a.egBias ? a.range * (1.0f - value) : 0.0f;
+        };
+        const float holdCtl  = hold (modWheel_, fn_.modWheel) + hold (foot_, fn_.foot)
+                             + hold (breath_, fn_.breath)     + hold (aftertouch_, fn_.aftertouch);
 
         ModContext mc;
         mc.sampleRate = sampleRate_;
         mc.dt         = dt;
-        mc.bendSemis  = bend_ * fn_.bendRange;
+        mc.bendSemis  = bendSemitones (bend_, fn_);
         mc.lfoAmp     = std::clamp ((lfoValue() * 0.5f + 0.5f) * lfoFadeGain_, 0.0f, 1.0f);
         mc.ampBias    = std::clamp (ampCtl,  0.0f, 1.0f);
         mc.tuning     = &tuning_;
-        mc.egBias     = std::clamp (biasCtl, 0.0f, 1.0f);
+        mc.egHold     = std::clamp (holdCtl, 0.0f, 1.0f);
 
         // Raw LFO, already faded in. The per-patch depth is applied in the
         // note, so a controller assigned to pitch can open up vibrato even on a
