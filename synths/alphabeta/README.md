@@ -35,6 +35,8 @@ Thanks for checking it out!
 
 **Preset Randomizer.** Pick a kind of sound in the menu next to RANDOM, then press RANDOM for a new patch of that kind. Each random preset character is a profile of waveform pools, register, oscillator interval, filter type and window, both envelopes, chorus, unison, glide and voice mode, plus behaviour flags that wire up the LFOs and the matrix (tempo-synced wobble, delayed vibrato, PWM shimmer, sample & hold steps, key tracking, pitch drops and rises, the Alpha factory-bass key scaling).
 
+**Preset Mutation.** Wiggles all the knobs that do not change pitch too much (pitch only really can be changed in the modulation matrix screen) slightly. The more you press the mutate button, the more the preset will differ over time.
+
 ## Filter
 
 The smooth Filter is the unique feature of AlphaBeta, providing the characteristic liquid-smooth sweeping filter sound especially in the LP24+ setting. Together with the chorus it can wash out the signal really nicely. The filter has its own envelope and drive, with filter cutoff, resonance, fade and depth controls. Audio-rate filter FM is available with a selectable source. The filter's **Fade** sets the depth at which the filter's cutoff frequency moves from the sustain value to either the cutoff parameter's value when the dial is turned completely counter-clockwise or the envelope depth when the dial is turned completely clockwise. The **Depth** dial sets the degree to which the filter's envelope affects the signal. **-100%** means that the envelope has full negative effect on the filter. **0%** means that the envelope has no effect on the filter. **100%** means that the filter is modulated by the envelope's full range. FM from Oscillator 2 to Oscillator 1 is active when it has values higher than 0.
@@ -60,7 +62,7 @@ See [ENGINE_NOTES.md](ENGINE_NOTES.md) for how the model was made, how close it 
 
 ## Alpha 3 Preset Import
 
-For the NATIVE engine, Alpha 3 preset import is experimental (the ORIGINAL engine imports presets exactly). The matrix, waveforms, ranges, A/B balance, filter type, resonance, drive and LFO shapes/sync are decoded reliably; envelope times, cutoff and LFO rate scaling are best guesses, and osc mix, detune, noise, env depth, fade, volume and chorus are not decoded. Every import writes `Documents/AlphaBeta/Alpha3 import report.txt` listing what was mapped and with what confidence, plus the raw data. Treat an imported patch as a starting point, and use SAVE / LOAD for your own sounds.
+For the NATIVE engine, Alpha 3 preset import is experimental (the ORIGINAL engine imports presets exactly). The matrix, waveforms, ranges, A/B balance, filter type, resonance, drive and LFO shapes/sync are decoded reliably; envelope times, cutoff and LFO rate scaling and the rest are good guesses. Every import writes `Documents/AlphaBeta/Alpha3 import report.txt` listing what was mapped and with what confidence, plus the raw data. In almost all cases it sounds extremely close to the original, the chorus and lfos may drift a little.
 
 ## Saving Patches
 
