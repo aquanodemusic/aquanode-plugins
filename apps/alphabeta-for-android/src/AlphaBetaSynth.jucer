@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="DvkxtU" name="AlphaBetaSynth" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" companyName="aquanodemusic"
+              companyCopyright="none" companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3"
+              version="3.0.0" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
+              pluginName="AlphaBeta" pluginCode="AlBe">
+  <MAINGROUP id="uX8KMf" name="AlphaBetaSynth">
+    <GROUP id="{FA0F579D-6F89-F73C-EB51-AF29B38C0A65}" name="Source">
+      <FILE id="F4uAji" name="Alpha3Import.cpp" compile="1" resource="0"
+            file="Source/Alpha3Import.cpp"/>
+      <FILE id="A85UsT" name="Alpha3Import.h" compile="0" resource="0" file="Source/Alpha3Import.h"/>
+      <FILE id="aEGMIJ" name="AlphaOrigData.h" compile="0" resource="0" file="Source/AlphaOrigData.h"/>
+      <FILE id="fX6SC0" name="AlphaOrigEngine.h" compile="0" resource="0"
+            file="Source/AlphaOrigEngine.h"/>
+      <FILE id="YKcx5X" name="AlphaOrigPreset.h" compile="0" resource="0"
+            file="Source/AlphaOrigPreset.h"/>
+      <FILE id="XOihHe" name="AlphaOrigTemplates.h" compile="0" resource="0"
+            file="Source/AlphaOrigTemplates.h"/>
+      <FILE id="d72suz" name="CrtMatrix.cpp" compile="1" resource="0" file="Source/CrtMatrix.cpp"/>
+      <FILE id="rq8fQm" name="CrtMatrix.h" compile="0" resource="0" file="Source/CrtMatrix.h"/>
+      <FILE id="CJNzoE" name="EngineTransfer.h" compile="0" resource="0"
+            file="Source/EngineTransfer.h"/>
+      <FILE id="dgxq4D" name="InternalWaves.h" compile="0" resource="0" file="Source/InternalWaves.h"/>
+      <FILE id="UhTBaM" name="ModMatrix.h" compile="0" resource="0" file="Source/ModMatrix.h"/>
+      <FILE id="H77UxD" name="OrigPanel.cpp" compile="1" resource="0" file="Source/OrigPanel.cpp"/>
+      <FILE id="zhyTQy" name="OrigParams.h" compile="0" resource="0" file="Source/OrigParams.h"/>
+      <FILE id="d9JBxw" name="OrigPresets.h" compile="0" resource="0" file="Source/OrigPresets.h"/>
+      <FILE id="o0k7PL" name="OrigRandomData.h" compile="0" resource="0"
+            file="Source/OrigRandomData.h"/>
+      <FILE id="yJuNMo" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="B3jicY" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="DtJAN4" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="IrUjBD" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
+      <FILE id="m1W0GN" name="RandomPatch.cpp" compile="1" resource="0" file="Source/RandomPatch.cpp"/>
+      <FILE id="j6ivK3" name="RandomPatch.h" compile="0" resource="0" file="Source/RandomPatch.h"/>
+      <FILE id="AKkqL3" name="Theme.h" compile="0" resource="0" file="Source/Theme.h"/>
+      <FILE id="DiOSwa" name="Wavetable.h" compile="0" resource="0" file="Source/Wavetable.h"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_animation" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_box2d" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_javascript" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_midi_ci" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_opengl" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_osc" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_video" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <EXPORTFORMATS>
+    <VS2026 targetFolder="Builds/VisualStudio2026">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="AlphaBetaSynth" useRuntimeLibDLL="0"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="AlphaBetaSynth" useRuntimeLibDLL="0"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_animation" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_box2d" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_dsp" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_javascript" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_opengl" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_osc" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_video" path="../../../../Program Files/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2026>
+    <ANDROIDSTUDIO targetFolder="Builds/Android" androidScreenOrientation="landscape"
+                   androidMinimumSDK="23" androidTargetSDK="35" androidMicNeeded="0"
+                   androidInternetNeeded="0" androidVibratePermission="0" androidBluetoothScanNeeded="0"
+                   androidBluetoothConnectNeeded="0">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="AlphaBetaSynth"
+                       androidArchitectures="arm64-v8a"/>
+        <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="AlphaBetaSynth"
+                       androidArchitectures="arm64-v8a"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_animation" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_box2d" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_dsp" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_javascript" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_midi_ci" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_opengl" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_osc" path="../../../../Program Files/JUCE/modules"/>
+        <MODULEPATH id="juce_video" path="../../../../Program Files/JUCE/modules"/>
+      </MODULEPATHS>
+    </ANDROIDSTUDIO>
+  </EXPORTFORMATS>
+</JUCERPROJECT>
