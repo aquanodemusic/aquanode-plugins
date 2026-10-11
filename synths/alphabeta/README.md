@@ -107,9 +107,9 @@ Each preset was played as one held note at 44.1 kHz, compared over time per 1/3-
 
 | Set | Mean | Median |
 |---|---|---|
-| Your 67 presets | 0.9 dB | 0.76 dB |
+| My own presets from the aquanode-presets repository (these are also baked into the synth now) | 0.9 dB | 0.76 dB |
 | Same, at 48 kHz | 0.86 dB | 0.70 dB |
-| Your presets, per FFT bin (within 60 dB of the peak) | 1.8 dB | 1.3 dB |
+| My presets, per FFT bin (within 60 dB of the peak) | 1.8 dB | 1.3 dB |
 | 30 factory presets | 2.0 dB | 1.2 dB |
 
 The factory presets come out worse mainly because many use the noise or sample & hold LFO,
@@ -125,7 +125,7 @@ There are two generations of the format:
 
 Matrix names may contain `$` where the display wraps a name onto two lines (`Filter$Cutoff`), or
 be shortened (`Note`). Both are accepted, as they are in the original. All parameters of all 179
-factory presets and all 67 of your presets import exactly, checked against the values the
+factory presets and all 67 of the presets import exactly, checked against the values the
 original reports after loading each preset.
 
 IMPORT always fills both engines: an exact copy for ORIGINAL and the older approximate
@@ -133,16 +133,16 @@ translation for NATIVE. It doesn't change which engine is active.
 
 ## Presets and randomizer (ORIGINAL engine)
 
-* **Preset menu:** your presets, renamed and grouped by category. Exact duplicates were merged,
-  so 67 files became 57 entries. `PRESETS.md` lists which of your files became which preset.
+* **Preset menu:** My presets, renamed and grouped by category.
 * **RANDOM menu** (when ORIGINAL is active):
   * **Anything / Bass / Keys / Lead / Pad / FX / Drum:** each part of the patch (oscillators,
     filter, both envelopes, chorus, glide, LFO, matrix with volume) is drawn from a pool of
-    settings found in the factory presets and your presets for that category, plus a little
+    settings found in the factory presets and my presets for that category, plus a little
     jitter. The pools are decoupled per part, so no complete factory preset is stored in the
     plugin.
   * **Mutate current:** small random changes to the current patch.
-  * **Blend two presets:** crosses two of your presets from the same category, part by part.
+  * **Blend two presets:** crosses two of the presets from the same category, part by part.
+    You can load any type of preset (abpreset or orignal fxp's).
 
 ## What is still approximate
 
