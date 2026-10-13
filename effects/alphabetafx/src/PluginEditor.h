@@ -78,6 +78,21 @@ public:
 };
 
 // ==============================================================
+//  FXModeSwitch – NATIVE | ORIGINAL segmented toggle in the title
+//  bar, bound to the "mode" parameter (same as the synth's switch)
+// ==============================================================
+class FXModeSwitch : public juce::Component, public juce::SettableTooltipClient {
+public:
+    FXModeSwitch(juce::RangedAudioParameter& p, std::function<void(int)> onChange);
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+private:
+    juce::ParameterAttachment att;
+    std::function<void(int)> changed;
+    int value = 0;
+};
+
+// ==============================================================
 //  Editor
 // ==============================================================
 class AlphaBetaFXAudioProcessorEditor : public juce::AudioProcessorEditor {
@@ -105,6 +120,13 @@ private:
     FXLKnob hWet { "Wet" };
     FXLKnob hTime{ "Time" };
     FXLKnob hRate{ "Rate" };
+    FXLKnob hTimeO{ "Time" };   // ORIGINAL mode chorus (0.01..6 ms)
+    FXLKnob hRateO{ "Rate" };   // ORIGINAL mode chorus (0.02..4 Hz)
+
+    // ---- Mode ----
+    std::unique_ptr<FXModeSwitch> modeSwitch;
+    bool originalMode = false;
+    void showMode(int mode);
 
     // ---- Filter Envelope ----
     FXLKnob envAtk{ "Attack" };
@@ -122,7 +144,7 @@ private:
     using BA = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     std::unique_ptr<SA> att_drv, att_fcut, att_fres;
-    std::unique_ptr<SA> att_hwet, att_htim, att_hrat;
+    std::unique_ptr<SA> att_hwet, att_htim, att_hrat, att_ohtim, att_ohrat;
     std::unique_ptr<SA> att_eatk, att_edcy, att_esus, att_erel, att_eamt, att_ertg;
     std::unique_ptr<CA> att_ftyp, att_rtyp;
     std::unique_ptr<BA> att_eon, att_emid;
@@ -132,6 +154,7 @@ private:
     //       Wet(95)  | Time(95) | Rate(95)   | Sep(22) |
     //       Atk(80)  | Dcy(80)  | Sus(80)    | Rel(80) | Amt(80) | Rtg(80)
     static constexpr int TITLE_H = 34;
+    static constexpr int LABEL_H = 16;   // strip for the section titles, above the knobs
     static constexpr int NCOLS   = 15;
     static constexpr int CW[NCOLS] = { 95, 22, 95, 95, 22, 95, 95, 95, 22, 80, 80, 80, 80, 80, 80 };
     static constexpr int NROWS   = 2;

@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <cmath>
+#include "AlphaOrigFX.h"
 
 // ==============================================================
 //  Utility
@@ -344,6 +345,14 @@ namespace FXPID {
     inline const juce::String EAMT = "env_amt";
     inline const juce::String EMID = "env_midi";  // false = AUTO, true = MIDI
     inline const juce::String ERTG = "env_rtg";   // retrigger time (ms) – AUTO mode only
+
+    // Mode switch, same as the synth's engine switch: 0 = Native, 1 = Original
+    // (FreeAlpha 3.3 model drive / filter / chorus). Drive, cutoff, resonance,
+    // filter type, chorus wet and the filter envelope are shared by both modes;
+    // the original chorus has its own time / rate (its ranges are much shorter).
+    inline const juce::String MODE = "mode";
+    inline const juce::String OHTIM = "o_h_time";   // original chorus time (ms, 0.01..6)
+    inline const juce::String OHRAT = "o_h_rate";   // original chorus rate (Hz, 0.02..4)
 }
 
 // ==============================================================
@@ -358,8 +367,8 @@ public:
     void releaseResources() override {}
 
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override {
-        auto& in  = layouts.getMainInputChannelSet();
-        auto& out = layouts.getMainOutputChannelSet();
+        const auto in  = layouts.getMainInputChannelSet();
+        const auto out = layouts.getMainOutputChannelSet();
         if (out != juce::AudioChannelSet::stereo()) return false;
         if (in  != juce::AudioChannelSet::stereo() &&
             in  != juce::AudioChannelSet::mono())   return false;
@@ -393,6 +402,14 @@ private:
     SVFilter   svfL,    svfR;
     SimpleChorus chorus;
     FilterEnvelope filterEnv;
+
+    // ---- Original mode (FreeAlpha 3.3 model, see AlphaOrigFX.h) ----
+    AlphaOrigFX::Drive  origDrive;
+    AlphaOrigFX::Filter origFilt[2];
+    AlphaOrigFX::Chorus origChorus;
+    double sampleRate = 44100.0;
+    int    lastMode   = -1;
+    double lastOrigCut = -1.0, origF = 1.0;   // cached cutoff coefficient
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 

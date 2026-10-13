@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="t63PyN" name="Resonate" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="2.1"
+<JUCERPROJECT id="t63Py2" name="Resonate" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="4.0"
               companyName="aquanodemusic" companyCopyright="none" companyEmail="node.aqua@gmail.com"
+              pluginName="Resonate" pluginCode="Rs2k" pluginManufacturerCode="AqNm"
               pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginWantsMidiIn">
   <MAINGROUP id="KkrBs5" name="Resonate">
     <GROUP id="{7B07D175-44A3-C096-7C4B-F425FC23B08A}" name="Source">
@@ -13,6 +14,14 @@
       <FILE id="bfEvGJ" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="W3Jdgt" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="Rc0reH" name="ResonatorCore.h" compile="0" resource="0" file="Source/ResonatorCore.h"/>
+      <FILE id="RfTabH" name="ResFitTables.h" compile="0" resource="0" file="Source/ResFitTables.h"/>
+      <FILE id="NatEnH" name="NativeEngine.h" compile="0" resource="0" file="Source/NativeEngine.h"/>
+      <FILE id="CrsEnH" name="CrispEngine.h" compile="0" resource="0" file="Source/CrispEngine.h"/>
+      <FILE id="DrkCoH" name="ResonatorCoreDark.h" compile="0" resource="0"
+            file="Source/ResonatorCoreDark.h"/>
+      <FILE id="DrkTbH" name="ResFitTablesDark.h" compile="0" resource="0"
+            file="Source/ResFitTablesDark.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

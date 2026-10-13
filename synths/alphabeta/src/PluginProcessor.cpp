@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "AlphaOrigPreset.h"
+#include "OrigPresets.h"
 
 // ==============================================================
 //  Parameter Layout
@@ -204,6 +206,25 @@ AlphaBetaAudioProcessor::AlphaBetaAudioProcessor()
     origCache.init(apvts);
     engineP = apvts.getRawParameterValue(OrigP::ENGINE);
     (void)AlphaOrig::Tables::get();
+
+    // Startup patch for a fresh instance: Original engine with the "Liquid Bass"
+    // preset. A host that restores saved state calls setStateInformation()
+    // afterwards, which overrides this, so existing sessions are unaffected.
+    // (The ENGINE parameter's own default stays Native on purpose: it is what
+    // old presets lacking an engine value are backfilled with.)
+    if (auto* ep = apvts.getParameter(OrigP::ENGINE))
+        ep->setValueNotifyingHost(ep->convertTo0to1(1.0f));
+    for (int i = 0; i < OrigPresets::kNumPresets; ++i) {
+        const auto& e = OrigPresets::kBank[i];
+        if (juce::String(e.name) != "Liquid Bass") continue;
+        const auto r = AlphaOrig::readFxp(e.data, (size_t)e.size);
+        if (r.ok) {
+            OrigP::applyPatch(apvts, r.patch);
+            apvts.state.setProperty("patchName", e.name, nullptr);
+            apvts.state.setProperty("origPresetIndex", i, nullptr);
+        }
+        break;
+    }
 }
 
 // ==============================================================

@@ -1,1 +1,0 @@
-Resonate2 is a simplified version of Resonate with only the necessary controls, and a slightly better sound quality more closely modelled after the original. For more information, please refer to the Resonate VST project!

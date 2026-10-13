@@ -1,26 +1,7 @@
 /*
   ==============================================================================
-
-    Ableton-Style Resonator Plugin Implementation
-
-    Previous version:
-    - Center toggle (DC bias accumulation when OFF)
-    - Per-resonator decay/color parameters
-    - 4-stage all-pass input chain for Ableton "twang" attack character
-    - Membrane wobble: sample-domain LCG noise modulator (freq-scaled organically)
-
-    New in this version:
-    - Decay curve re-skewed: 90-100 now occupies ~45% of knob travel
-    - Per-resonator Pan (resN_pan). Defaults reproduce the previous hard-panned
-      routing bit-for-bit; each resonator still reads exactly ONE source channel
-      so its delay line / LPF / DC state evolves identically to before.
-    - MIDI input: up to 7 held notes, round-robin allocated to res I..VII
-    - Preset save/load to standalone .xml files
-    - Scratch buffers pre-allocated in prepareToPlay (no audio-thread malloc)
-    - Two more resonators: VI and VII (off by default, same as II-V used to be
-      before their own checkbox is switched on)
-    - Global 2x oversampling toggle (half-band IIR, ~0 added latency)
-
+    Ableton-Style Resonator Plugin -- v4 implementation (four engines)
+    See PluginProcessor.h for the overview.
   ==============================================================================
 */
 
@@ -30,321 +11,29 @@
 #include <cstring>
 
 //==============================================================================
-// State Variable Filter
-
-void ResonateAudioProcessor::StateVariableFilter::setFrequency(float normalizedFreq, float resonance)
-{
-    freq = juce::jlimit(0.0f, 0.99f, normalizedFreq);
-    q = juce::jlimit(0.1f, 10.0f, resonance);
-}
-
-float ResonateAudioProcessor::StateVariableFilter::process(float input, int channel, FilterType type)
-{
-    float fb = q + q / (1.0f - freq);
-    low[channel] += freq * band[channel];
-    float high = input - low[channel] - fb * band[channel];
-    band[channel] += freq * high;
-
-    switch (type)
-    {
-    case Lowpass:  return low[channel];
-    case Highpass: return high;
-    case Bandpass: return band[channel];
-    case Notch:    return low[channel] + high;
-    default:       return low[channel];
-    }
-}
-
-void ResonateAudioProcessor::StateVariableFilter::reset()
-{
-    low[0] = low[1] = 0.0f;
-    band[0] = band[1] = 0.0f;
-}
-
-//==============================================================================
-// Resonator helpers
-
-void ResonateAudioProcessor::Resonate::prepare(double sampleRate)
-{
-    currentSampleRate = sampleRate;
-    for (int ch = 0; ch < 2; ++ch)
-    {
-        delayBuffer[ch].resize(MAX_DELAY_SAMPLES, 0.0f);
-        writeIndex[ch] = 0;
-        lpfState[ch] = 0.0f;
-        lfoPhase[ch] = 0.0;
-        membraneFilter[ch] = 0.0f;
-        dcEnv[ch] = 0.0f;
-        expEnv[ch] = 0.0f;
-    }
-}
-
-void ResonateAudioProcessor::Resonate::reset()
-{
-    for (int ch = 0; ch < 2; ++ch)
-    {
-        std::fill(delayBuffer[ch].begin(), delayBuffer[ch].end(), 0.0f);
-        writeIndex[ch] = 0;
-        lpfState[ch] = 0.0f;
-        membraneFilter[ch] = 0.0f;
-        dcEnv[ch] = 0.0f;
-        expEnv[ch] = 0.0f;
-    }
-}
-
-void ResonateAudioProcessor::Resonate::updateParameters(
-    double sampleRate,
-    double globalDecay, double globalNote,
-    double color,
-    ProcessingMode mode, bool constMode,
-    double chorusAmount, int resonatorIndex,
-    double userLfoRate, double userLfoDepth,
-    bool   center,
-    bool   useLocal, double lDecay, double lColor, bool lConst,
-    double midiNote)
-{
-    if (!enabled || sampleRate <= 0.0)
-    {
-        feedback = 0.0;
-        return;
-    }
-
-    currentSampleRate = sampleRate;
-    centerMode = center;
-    // expDecay is set directly from the processor before updateParameters is called
-    useLocalParams = useLocal;
-    localDecay = lDecay;
-    localColor = lColor;
-    localConst = lConst;
-
-    // Effective decay, color, const (local overrides global when per-res mode on)
-    double effDecay = useLocalParams ? localDecay : globalDecay;
-    double effColor = useLocalParams ? localColor : color;
-    bool   effConst = useLocalParams ? localConst : constMode;
-
-    // ── LFO for chorus/beating ────────────────────────────────────────────
-    const double rateOffsets[7] = { 0.0, 0.13, 0.27, 0.41, 0.19, 0.05, 0.35 };
-    double baseRate = userLfoRate;
-    lfoRate = (baseRate + rateOffsets[resonatorIndex % 7] * 0.3)
-        * (chorusAmount / 100.0);
-    lfoDepthCents = userLfoDepth * (chorusAmount / 100.0);
-
-    // ── Membrane depth (sample-domain, scales with frequency naturally) ───
-    membraneSamples = (chorusAmount / 100.0) * 1.5;
-
-    // ── Frequency from MIDI note (if held) or knob note + pitch, then fine ─
-    // midiNote >= 0 replaces the (globalNote + pitchSemitones) pair entirely;
-    // fine detune still applies on top so you can still beat notes against
-    // each other while playing.
-    double totalNote = (midiNote >= 0.0)
-        ? midiNote
-        : (globalNote + static_cast<double>(pitchSemitones));
-
-    double cents = (totalNote - 69.0) * 100.0 + fineDetune;
-    targetFrequency = 440.0 * std::pow(2.0, cents / 1200.0);
-    targetFrequency = juce::jlimit(20.0, 20000.0, targetFrequency);
-
-    delayInSamples = sampleRate / targetFrequency;
-    delayInSamples = juce::jlimit(2.0,
-        static_cast<double>(MAX_DELAY_SAMPLES - 2),
-        delayInSamples);
-
-    // ── Feedback from decay ───────────────────────────────────────────────
-    // UNCHANGED mapping from decay VALUE to feedback. Only the knob-travel-to-
-    // value curve moved (see createParameterLayout), so a given displayed
-    // decay number still produces exactly the same feedback as before.
-    double decayNorm = effDecay / 100.0;
-    feedback = std::pow(decayNorm, 0.25);
-    feedback = juce::jlimit(0.0, 0.9999, feedback);
-
-    // ── Color → damping LPF coefficient ──────────────────────────────────
-    double colorNorm = effColor / 100.0;
-    lpfCoeff = static_cast<float>(0.3 + colorNorm * 0.69);
-
-    if (effConst)
-    {
-        double referenceFreq = 261.63;
-        double freqRatio = referenceFreq / targetFrequency;
-        double constCompensation = std::pow(freqRatio, 0.3);
-        feedback *= constCompensation;
-        feedback = juce::jlimit(0.0, 0.9999, feedback);
-    }
-
-    // ── Exp decay coefficient (freq-scaled, used when expDecay is on) ────────
-    {
-        double referenceFreq = 261.63;
-        double exponent = targetFrequency / referenceFreq;
-        expCoeff = static_cast<float>(
-            juce::jlimit(0.0, 0.9999, std::pow(feedback, exponent)));
-    }
-}
-
-float ResonateAudioProcessor::Resonate::readDelayLinear(int channel, double delaySamples)
-{
-    double readPos = static_cast<double>(writeIndex[channel]) - delaySamples;
-    while (readPos < 0.0)
-        readPos += static_cast<double>(MAX_DELAY_SAMPLES);
-
-    int   index1 = static_cast<int>(readPos) % MAX_DELAY_SAMPLES;
-    int   index2 = (index1 + 1) % MAX_DELAY_SAMPLES;
-    float frac = static_cast<float>(readPos - std::floor(readPos));
-
-    return delayBuffer[channel][index1] + frac * (delayBuffer[channel][index2]
-        - delayBuffer[channel][index1]);
-}
-
-float ResonateAudioProcessor::Resonate::processA(float input, int channel)
-{
-    if (!enabled || channel < 0 || channel > 1)
-        return 0.0f;
-
-    // ── 1. Compute effective delay (LFO + membrane wobble) ───────────────────
-    double actualDelay = delayInSamples;
-
-    if (lfoDepthCents > 0.001 && lfoRate > 0.0)
-    {
-        lfoPhase[channel] += lfoRate / currentSampleRate;
-        if (lfoPhase[channel] >= 1.0) lfoPhase[channel] -= 1.0;
-        double lfo = std::sin(lfoPhase[channel] * juce::MathConstants<double>::twoPi);
-        double freqRatio = std::pow(2.0, lfo * lfoDepthCents / 1200.0);
-        actualDelay = delayInSamples / freqRatio;
-    }
-
-    if (membraneSamples > 0.001)
-    {
-        float noise = fastNoise(channel);
-        membraneFilter[channel] += 0.0003f * (noise - membraneFilter[channel]);
-        actualDelay += static_cast<double>(membraneFilter[channel]) * membraneSamples;
-    }
-
-    actualDelay = juce::jlimit(2.0,
-        static_cast<double>(MAX_DELAY_SAMPLES - 2),
-        actualDelay);
-
-    // ── 3. Classic comb filter with LPF damping ───────────────────────────────
-    float delayedSample = readDelayLinear(channel, actualDelay);
-
-    lpfState[channel] += lpfCoeff * (delayedSample - lpfState[channel]);
-    float dampedFeedback = lpfState[channel];
-
-    float output = input + static_cast<float>(feedback) * dampedFeedback;
-    output = std::tanh(output);
-
-    delayBuffer[channel][writeIndex[channel]] = output;
-    if (++writeIndex[channel] >= MAX_DELAY_SAMPLES)
-        writeIndex[channel] = 0;
-
-    // ── 4. DC bias applied to OUTPUT only (not the feedback path) ────────────
-    if (!centerMode)
-    {
-        float absOut = std::abs(output);
-        float attack = 0.05f;
-        float release = 0.0002f;
-        dcEnv[channel] += (absOut > dcEnv[channel])
-            ? attack * (absOut - dcEnv[channel])
-            : release * (absOut - dcEnv[channel]);
-        output += dcEnv[channel] * 0.65f;
-    }
-
-    // ── 5. Exponential decay envelope (freq-scaled) ──────────────────────────
-    if (expDecay)
-    {
-        float absOut = std::abs(output);
-        if (absOut > expEnv[channel])
-            expEnv[channel] = absOut;
-        else
-            expEnv[channel] *= expCoeff;
-        if (expEnv[channel] < 1e-6f) expEnv[channel] = 0.0f;
-        output *= (expEnv[channel] > 0.0f) ? expEnv[channel] / (expEnv[channel] + 0.001f) : 0.0f;
-    }
-
-    float gainLinear = std::pow(10.0f, static_cast<float>(gain) / 20.0f);
-    return output * gainLinear;
-}
-
-float ResonateAudioProcessor::Resonate::processB(float input, int channel)
-{
-    if (!enabled || channel < 0 || channel > 1)
-        return 0.0f;
-
-    double baseModeDelay = delayInSamples * 0.5;
-    double actualDelay = baseModeDelay;
-
-    if (lfoDepthCents > 0.001 && lfoRate > 0.0)
-    {
-        lfoPhase[channel] += lfoRate / currentSampleRate;
-        if (lfoPhase[channel] >= 1.0) lfoPhase[channel] -= 1.0;
-        double lfo = std::sin(lfoPhase[channel] * juce::MathConstants<double>::twoPi);
-        double freqRatio = std::pow(2.0, lfo * lfoDepthCents / 1200.0);
-        actualDelay = baseModeDelay / freqRatio;
-    }
-
-    if (membraneSamples > 0.001)
-    {
-        float noise = fastNoise(channel);
-        membraneFilter[channel] += 0.0003f * (noise - membraneFilter[channel]);
-        actualDelay += static_cast<double>(membraneFilter[channel]) * membraneSamples;
-    }
-
-    actualDelay = std::max(1.0, actualDelay);
-
-    float delayedSample = readDelayLinear(channel, actualDelay);
-    lpfState[channel] += lpfCoeff * (delayedSample - lpfState[channel]);
-    float damped = lpfState[channel];
-
-    float output = std::tanh(input - static_cast<float>(feedback) * damped);
-
-    delayBuffer[channel][writeIndex[channel]] = output;
-    if (++writeIndex[channel] >= MAX_DELAY_SAMPLES)
-        writeIndex[channel] = 0;
-
-    if (!centerMode)
-    {
-        float absOut = std::abs(output);
-        float attack = 0.05f;
-        float release = 0.0002f;
-        dcEnv[channel] += (absOut > dcEnv[channel])
-            ? attack * (absOut - dcEnv[channel])
-            : release * (absOut - dcEnv[channel]);
-        output += dcEnv[channel] * 0.65f;
-    }
-
-    if (expDecay)
-    {
-        float absOut = std::abs(output);
-        if (absOut > expEnv[channel])
-            expEnv[channel] = absOut;
-        else
-            expEnv[channel] *= expCoeff;
-        if (expEnv[channel] < 1e-6f) expEnv[channel] = 0.0f;
-        output *= (expEnv[channel] > 0.0f) ? expEnv[channel] / (expEnv[channel] + 0.001f) : 0.0f;
-    }
-
-    float gainLinear = std::pow(10.0f, static_cast<float>(gain) / 20.0f);
-    return output * gainLinear;
-}
-
-//==============================================================================
-// Decay knob curve
+// Knob curves
 //
-// The mapping from decay VALUE to feedback is unchanged (feedback = v^0.25).
-// What changed is how knob travel maps onto that value, because almost all of
-// the musically useful territory lives in the top ten units:
-//
-//     decay  60 -> feedback 0.880
-//     decay  90 -> feedback 0.974
-//     decay  98 -> feedback 0.995
-//     decay 100 -> feedback 0.9999   (effectively infinite sustain)
-//
-// Breakpoints below give 90-100 about 45% of the knob, and 98-100 alone gets
-// 15% -- which is where the difference between "long" and "forever" lives.
-//
+// Modelled / Native / Dark: decay skewed so 75 sits at half travel,
+// color skewed so 40 sits at half travel (as in v2/v3).
+static juce::NormalisableRange<float> makeDecayRange()
+{
+    juce::NormalisableRange<float> r(0.0f, 100.0f, 0.1f);
+    r.setSkewForCentre(75.0f);
+    return r;
+}
+static juce::NormalisableRange<float> makeColorRange()
+{
+    juce::NormalisableRange<float> r(0.0f, 100.0f, 0.1f);
+    r.setSkewForCentre(40.0f);
+    return r;
+}
+
+// Crisp (beta): piecewise decay curve -- 90..100 gets ~45% of the knob travel.
 //     travel 0.00 - 0.30  ->  value   0 -  60
 //     travel 0.30 - 0.55  ->  value  60 -  90
 //     travel 0.55 - 0.85  ->  value  90 -  98
 //     travel 0.85 - 1.00  ->  value  98 - 100
-
-static const float kDecayNorms[5] = { 0.0f, 0.30f, 0.55f, 0.85f, 1.0f };
+static const float kDecayNorms[5]  = { 0.0f, 0.30f, 0.55f, 0.85f, 1.0f };
 static const float kDecayValues[5] = { 0.0f, 60.0f, 90.0f, 98.0f, 100.0f };
 
 static float decayNormToValue(float norm)
@@ -352,177 +41,114 @@ static float decayNormToValue(float norm)
     norm = juce::jlimit(0.0f, 1.0f, norm);
     for (int i = 0; i < 4; ++i)
         if (norm <= kDecayNorms[i + 1])
-            return juce::jmap(norm, kDecayNorms[i], kDecayNorms[i + 1],
-                kDecayValues[i], kDecayValues[i + 1]);
+            return juce::jmap(norm, kDecayNorms[i], kDecayNorms[i + 1], kDecayValues[i], kDecayValues[i + 1]);
     return 100.0f;
 }
-
 static float decayValueToNorm(float value)
 {
     value = juce::jlimit(0.0f, 100.0f, value);
     for (int i = 0; i < 4; ++i)
         if (value <= kDecayValues[i + 1])
-            return juce::jmap(value, kDecayValues[i], kDecayValues[i + 1],
-                kDecayNorms[i], kDecayNorms[i + 1]);
+            return juce::jmap(value, kDecayValues[i], kDecayValues[i + 1], kDecayNorms[i], kDecayNorms[i + 1]);
     return 1.0f;
+}
+static juce::NormalisableRange<float> makeCrispDecayRange()
+{
+    return juce::NormalisableRange<float>(0.0f, 100.0f,
+        [](float, float, float norm)  -> float { return decayNormToValue(norm); },
+        [](float, float, float value) -> float { return decayValueToNorm(value); },
+        [](float, float, float value) -> float { return juce::jlimit(0.0f, 100.0f, value); });
 }
 
 //==============================================================================
 // Parameter layout
 
+static void addEngineParameters(juce::AudioProcessorValueTreeState::ParameterLayout& layout,
+                                const juce::String& p, const juce::String& tag, bool crispStyle)
+{
+    auto name = [&](const juce::String& n) { return tag.isEmpty() ? n : (tag + " " + n); };
+
+    const auto decayRange = crispStyle ? makeCrispDecayRange() : makeDecayRange();
+    const auto colorRange = crispStyle ? juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f) : makeColorRange();
+    const float decayDefault    = crispStyle ? 80.0f : 75.0f;
+    const float colorDefault    = crispStyle ? 52.0f : 45.0f;
+    const float resDecayDefault = crispStyle ? 95.0f : 50.0f;
+    const float resColorDefault = crispStyle ? 74.2f : 50.0f;
+    const float noteDefault     = crispStyle ? 60.0f : 48.0f;
+
+    layout.add(std::make_unique<juce::AudioParameterBool>(p + "filter_enabled", name("Filter On"), false));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(p + "filter_freq", name("Filter Frequency"),
+        juce::NormalisableRange<float>(20.0f, 12000.0f, 1.0f, 0.3f), 1000.0f));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(p + "filter_type", name("Filter Type"),
+        juce::StringArray{ "Lowpass", "Highpass", "Bandpass", "Notch" }, 0));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(p + "mode", name("Shape Mode"),
+        juce::StringArray{ "Full", "Odd" }, 0));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(p + "decay", name("Decay"), decayRange, decayDefault));
+    layout.add(std::make_unique<juce::AudioParameterBool>(p + "const_mode", name("Const"), false));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(p + "color", name("Color"), colorRange, colorDefault));
+    layout.add(std::make_unique<juce::AudioParameterBool>(p + "per_res_mode", name("Res Mode"), false));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(p + "res1_note", name("Resonator 1 Note"),
+        juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), noteDefault));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(p + "width", name("Width"),
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 100.0f));
+
+    if (crispStyle)
+    {
+        layout.add(std::make_unique<juce::AudioParameterBool>(p + "center_mode", name("Center"), true));
+        layout.add(std::make_unique<juce::AudioParameterBool>(p + "exp_decay", name("Exp Decay"), false));
+        layout.add(std::make_unique<juce::AudioParameterBool>(p + "oversample_2x", name("2x Oversample"), false));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(p + "smooth", name("Smooth"),
+            juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(p + "chorus", name("Chorus"),
+            juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(p + "lfo_rate", name("LFO Rate"),
+            juce::NormalisableRange<float>(0.1f, 5.0f, 0.01f), 0.5f));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(p + "lfo_depth", name("LFO Depth"),
+            juce::NormalisableRange<float>(0.0f, 20.0f, 0.1f), 5.0f));
+    }
+
+    juce::NormalisableRange<float> panRange(-100.0f, 100.0f, 0.1f);
+    const float defaultPan[ResonateAudioProcessor::MAX_RESONATORS] =
+        { 0.0f, -100.0f, 100.0f, -100.0f, 100.0f, -100.0f, 100.0f };
+
+    for (int i = 0; i < ResonateAudioProcessor::MAX_RESONATORS; ++i)
+    {
+        const juce::String id = p + "res" + juce::String(i + 1);
+        const juce::String rn = name("Resonator " + juce::String(i + 1));
+
+        layout.add(std::make_unique<juce::AudioParameterBool>(id + "_enabled", rn + " On", i == 0));
+        if (i > 0)
+            layout.add(std::make_unique<juce::AudioParameterInt>(id + "_pitch", rn + " Pitch", -24, 24, 0));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(id + "_fine", rn + " Fine",
+            juce::NormalisableRange<float>(-50.0f, 50.0f, 0.1f), 0.0f));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(id + "_gain", rn + " Gain",
+            juce::NormalisableRange<float>(-48.0f, 12.0f, 0.1f), 0.0f));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(id + "_decay", rn + " Decay", decayRange, resDecayDefault));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(id + "_color", rn + " Color", colorRange, resColorDefault));
+        layout.add(std::make_unique<juce::AudioParameterBool>(id + "_const", rn + " Const", false));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(id + "_pan", rn + " Pan", panRange, defaultPan[i]));
+    }
+}
+
 static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    // Filter
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "filter_enabled", "Filter On", false));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "filter_freq", "Filter Frequency",
-        juce::NormalisableRange<float>(20.0f, 12000.0f, 1.0f, 0.3f), 1000.0f));
+    // ── Global ───────────────────────────────────────────────────────────────
     layout.add(std::make_unique<juce::AudioParameterChoice>(
-        "filter_type", "Filter Type",
-        juce::StringArray{ "Lowpass", "Highpass", "Bandpass", "Notch" }, 0));
-
-    // Mode (displayed to the user as "Shape Mode": Full / Odd)
-    layout.add(std::make_unique<juce::AudioParameterChoice>(
-        "mode", "Shape Mode", juce::StringArray{ "Full", "Odd" }, 0));
-
-    // ── Decay: expanded resolution in the 90-100 range ────────────────────
-    //   JUCE NormalisableRange lambda order:
-    //     1st = convertFrom0to1  (proportion 0-1  ->  value 0-100)
-    //     2nd = convertTo0to1    (value 0-100     ->  proportion 0-1)
-    //   The SliderAttachment copies these lambdas onto the knob, so the GUI
-    //   knob and host automation share the same feel automatically.
-    juce::NormalisableRange<float> decayRange(
-        0.0f, 100.0f,
-        [](float, float, float norm)  -> float { return decayNormToValue(norm); },
-        [](float, float, float value) -> float { return decayValueToNorm(value); },
-        [](float, float, float value) -> float { return juce::jlimit(0.0f, 100.0f, value); });
-
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "decay", "Decay", decayRange, 80.0f));
-
-    // Const mode
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "const_mode", "Const", false));
-
-    // Color
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "color", "Color",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 52.0f));
-
-    // Center mode
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "center_mode", "Center", true));
-
-    // Exponential decay envelope shaping
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "exp_decay", "Exp Decay", false));
-
-    // Per-resonator mode (displayed to the user as "Res Mode")
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "per_res_mode", "Res Mode", false));
-
-    // ── NEW: MIDI note input enable ───────────────────────────────────────
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "midi_enabled", "MIDI In", true));
-
-    // ── NEW: global 2x oversampling ─────────────────────────────────────────
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "oversample_2x", "2x Oversample", false));
-
-    // Smooth
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "smooth", "Smooth",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f));
-
-    // Chorus + LFO
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "chorus", "Chorus",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 0.0f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "lfo_rate", "LFO Rate",
-        juce::NormalisableRange<float>(0.1f, 5.0f, 0.01f), 0.5f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "lfo_depth", "LFO Depth",
-        juce::NormalisableRange<float>(0.0f, 20.0f, 0.1f), 5.0f));
-
-    // Resonator 1 note
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "res1_note", "Resonator 1 Note",
-        juce::NormalisableRange<float>(0.0f, 127.0f, 1.0f), 60.0f));
-
-    // Width / master gain / dry-wet / wet-only
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "width", "Width",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 100.0f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "gain", "Gain",
+        "engine", "Engine", juce::StringArray{ "Modelled", "Native", "Crisp", "Dark" }, 0));
+    layout.add(std::make_unique<juce::AudioParameterBool>("midi_enabled", "MIDI In", true));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("gain", "Gain",
         juce::NormalisableRange<float>(-48.0f, 12.0f, 0.1f), 0.0f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "drywet", "Dry/Wet",
+    layout.add(std::make_unique<juce::AudioParameterFloat>("drywet", "Dry/Wet",
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 100.0f));
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "wet_only", "Wet Only", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>("wet_only", "Wet Only", false));
 
-    juce::NormalisableRange<float> panRange(-100.0f, 100.0f, 0.1f);
-
-    // ── Resonator 1 (note-based, no pitch offset) ─────────────────────────
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "res1_enabled", "Resonator 1 On", true));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "res1_fine", "Resonator 1 Fine",
-        juce::NormalisableRange<float>(-50.0f, 50.0f, 0.1f), 0.0f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "res1_gain", "Resonator 1 Gain",
-        juce::NormalisableRange<float>(-48.0f, 12.0f, 0.1f), 0.0f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "res1_decay", "Resonator 1 Decay", decayRange, 95.0f));
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "res1_color", "Resonator 1 Color",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 74.2f));
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "res1_const", "Resonator 1 Const", false));
-    // Resonator I is a true stereo source -> pan behaves as a BALANCE.
-    // Centre (0) leaves both sides at unity, i.e. exactly the old behaviour.
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "res1_pan", "Resonator 1 Pan", panRange, 0.0f));
-
-    // ── Resonators 2-7 (2-5 existed before; 6-7 are new). Only Resonator I
-    //    is on by default -- II-VII start off, switched on via their own
-    //    checkbox at the top of the strip ─────────────────────────────────
-    // Default pans reproduce the original hard-panned routing:
-    //   II -> L, III -> R, IV -> L, V -> R, VI -> L, VII -> R
-    const float defaultPan[ResonateAudioProcessor::MAX_RESONATORS] =
-    { 0.0f, -100.0f, 100.0f, -100.0f, 100.0f, -100.0f, 100.0f };
-
-    for (int i = 1; i < ResonateAudioProcessor::MAX_RESONATORS; ++i)
-    {
-        juce::String id = "res" + juce::String(i + 1);
-        juce::String name = "Resonator " + juce::String(i + 1);
-
-        layout.add(std::make_unique<juce::AudioParameterBool>(
-            id + "_enabled", name + " On", false));
-        layout.add(std::make_unique<juce::AudioParameterInt>(
-            id + "_pitch", name + " Pitch", -24, 24, 0));
-        layout.add(std::make_unique<juce::AudioParameterFloat>(
-            id + "_fine", name + " Fine",
-            juce::NormalisableRange<float>(-50.0f, 50.0f, 0.1f), 0.0f));
-        layout.add(std::make_unique<juce::AudioParameterFloat>(
-            id + "_gain", name + " Gain",
-            juce::NormalisableRange<float>(-48.0f, 12.0f, 0.1f), 0.0f));
-        layout.add(std::make_unique<juce::AudioParameterFloat>(
-            id + "_decay", name + " Decay", decayRange, 95.0f));
-        layout.add(std::make_unique<juce::AudioParameterFloat>(
-            id + "_color", name + " Color",
-            juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 74.2f));
-        layout.add(std::make_unique<juce::AudioParameterBool>(
-            id + "_const", name + " Const", false));
-        layout.add(std::make_unique<juce::AudioParameterFloat>(
-            id + "_pan", name + " Pan", panRange, defaultPan[i]));
-    }
-
+    // ── One full parameter set per engine ────────────────────────────────────
+    addEngineParameters(layout, "",     "",        false);   // Modelled (legacy IDs)
+    addEngineParameters(layout, "nat_", "Native",  false);
+    addEngineParameters(layout, "crs_", "Crisp",   true);
+    addEngineParameters(layout, "drk_", "Dark",    false);
     return layout;
 }
 
@@ -535,9 +161,68 @@ ResonateAudioProcessor::ResonateAudioProcessor()
 {
     for (int i = 0; i < MAX_RESONATORS; ++i)
         midiDisplayNote[i].store(-1);
+    cacheRefs();
 }
 
 ResonateAudioProcessor::~ResonateAudioProcessor() {}
+
+void ResonateAudioProcessor::cacheRefs()
+{
+    for (int e = 0; e < NUM_ENGINES; ++e)
+    {
+        const juce::String p = enginePrefix(e);
+        auto get = [&](const juce::String& id) { return parameters.getRawParameterValue(p + id); };
+        auto& r = refs[e];
+        r.note = get("res1_note");      r.decay = get("decay");          r.color = get("color");
+        r.constMode = get("const_mode"); r.mode = get("mode");           r.perRes = get("per_res_mode");
+        r.filterOn = get("filter_enabled"); r.filterFreq = get("filter_freq");
+        r.filterType = get("filter_type"); r.width = get("width");
+        for (int i = 0; i < MAX_RESONATORS; ++i)
+        {
+            const juce::String id = "res" + juce::String(i + 1);
+            auto& q = r.res[i];
+            q.enabled = get(id + "_enabled");
+            q.pitch   = (i > 0) ? get(id + "_pitch") : nullptr;
+            q.fine = get(id + "_fine"); q.gain = get(id + "_gain");
+            q.decay = get(id + "_decay"); q.color = get(id + "_color");
+            q.cnst = get(id + "_const"); q.pan = get(id + "_pan");
+        }
+        if (e == EngineCrisp)
+        {
+            r.center = get("center_mode"); r.expDecay = get("exp_decay"); r.os2x = get("oversample_2x");
+            r.smooth = get("smooth"); r.chorus = get("chorus");
+            r.lfoRate = get("lfo_rate"); r.lfoDepth = get("lfo_depth");
+        }
+    }
+}
+
+ResonateAudioProcessor::Snapshot ResonateAudioProcessor::snapshot(int e) const
+{
+    const auto& r = refs[e];
+    Snapshot s;
+    s.note = r.note->load(); s.decay = r.decay->load(); s.color = r.color->load();
+    s.constMode = r.constMode->load() > 0.5f; s.perRes = r.perRes->load() > 0.5f;
+    s.filterOn = r.filterOn->load() > 0.5f; s.filterFreq = r.filterFreq->load();
+    s.filterType = static_cast<int>(r.filterType->load()); s.mode = static_cast<int>(r.mode->load());
+    s.width = r.width->load() / 100.0f;
+    for (int i = 0; i < MAX_RESONATORS; ++i)
+    {
+        const auto& q = r.res[i];
+        auto& o = s.res[i];
+        o.enabled = q.enabled->load() > 0.5f;
+        o.pitch = q.pitch ? static_cast<int>(q.pitch->load()) : 0;
+        o.fine = q.fine->load(); o.gain = q.gain->load();
+        o.decay = q.decay->load(); o.color = q.color->load();
+        o.cnst = q.cnst->load() > 0.5f; o.pan = q.pan->load();
+    }
+    return s;
+}
+
+double ResonateAudioProcessor::midiNoteFor(int idx) const
+{
+    if (!midiEnabled || heldNote[idx] < 0) return -1.0;
+    return static_cast<double>(heldNote[idx]);
+}
 
 //==============================================================================
 const juce::String ResonateAudioProcessor::getName() const { return JucePlugin_Name; }
@@ -566,7 +251,7 @@ bool ResonateAudioProcessor::isMidiEffect() const
     return false;
 #endif
 }
-double ResonateAudioProcessor::getTailLengthSeconds() const { return 0.0; }
+double ResonateAudioProcessor::getTailLengthSeconds() const { return 10.0; }
 int    ResonateAudioProcessor::getNumPrograms() { return 1; }
 int    ResonateAudioProcessor::getCurrentProgram() { return 0; }
 void   ResonateAudioProcessor::setCurrentProgram(int) {}
@@ -574,41 +259,46 @@ const  juce::String ResonateAudioProcessor::getProgramName(int) { return {}; }
 void   ResonateAudioProcessor::changeProgramName(int, const juce::String&) {}
 
 //==============================================================================
+template <class Bank>
+void ResonateAudioProcessor::prepareModelBank(Bank& b, double sr)
+{
+    for (auto& v : b.voice) { v.prepare(sr); v.reset(); }
+    for (int ch = 0; ch < 2; ++ch) { b.stage[ch].prepare(sr); b.filt[ch].reset(); }
+}
+
 void ResonateAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
-    for (int i = 0; i < MAX_RESONATORS; ++i)
-    {
-        resonators[i].prepare(sampleRate);
-        resonators[i].reset();
-    }
-    inputFilter.reset();
-
-    // Pre-allocate scratch so processBlock never touches the heap. Sized for
-    // the worst case (2x oversampled) block length so switching the OS
-    // toggle mid-session never triggers an audio-thread allocation.
     const int blockSize = juce::jmax(1, samplesPerBlock);
-    const int maxOsSamples = blockSize * 2;
-    res1Buffer.setSize(2, maxOsSamples, false, true, true);
-    res2to5Buffer.setSize(2, maxOsSamples, false, true, true);
-    wetBuffer.setSize(2, maxOsSamples, false, true, true);
-    osInputBuffer.setSize(2, blockSize, false, true, true);
 
-    // Half-band IIR: cheap and ~0 added latency, so the toggle can be
-    // flipped live without a host-side latency-compensation glitch.
-    oversampler = std::make_unique<juce::dsp::Oversampling<float>>(
-        2, 1, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
-    oversampler->initProcessing(static_cast<size_t>(blockSize));
-    oversampler->reset();
+    prepareModelBank(modelled, sampleRate);
+    prepareModelBank(dark, sampleRate);
+    for (auto& r : native.res) { r.prepare(sampleRate); r.reset(); }
+    native.filter.reset();
+    crisp.prepare(sampleRate, blockSize);
+
+    const int sel = getSelectedEngine();
+    engineIn.setSize(2, blockSize, false, true, true);
+    for (int e = 0; e < NUM_ENGINES; ++e)
+    {
+        engineOut[e].setSize(2, blockSize, false, true, true);
+        engineInGain[e].reset(sampleRate, INPUT_HANDOVER_SECONDS);
+        engineInGain[e].setCurrentAndTargetValue(e == sel ? 1.0f : 0.0f);
+        engineOutFade[e].reset(sampleRate, SAFETY_FADE_SECONDS);
+        engineOutFade[e].setCurrentAndTargetValue(1.0f);
+        engineActive[e] = (e == sel);
+        silentSamples[e] = 0;
+        ringOutSamples[e] = 0;
+    }
     setLatencySamples(0);
-
-    updateResonateParameters(sampleRate);
 }
 
 void ResonateAudioProcessor::releaseResources()
 {
-    for (int i = 0; i < MAX_RESONATORS; ++i)
-        resonators[i].reset();
+    for (auto& v : modelled.voice) v.reset();
+    for (auto& v : dark.voice) v.reset();
+    for (auto& r : native.res) r.reset();
+    crisp.reset();
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -631,13 +321,8 @@ bool ResonateAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) 
 #endif
 
 //==============================================================================
-// MIDI voice allocation
-//
-// Round robin: the first note lands in slot 0 (resonator I), the next in the
-// next FREE slot walking upwards with wraparound, and so on. Releasing a key
-// frees its slot for re-use but leaves the pitch in place, so the resonator
-// keeps ringing at the note you played rather than snapping back -- which is
-// what you want from a resonator rather than a synth voice.
+// MIDI voice allocation (round robin over the resonators that are switched on
+// in the currently selected engine; held pitches are shared by all engines)
 
 void ResonateAudioProcessor::handleMidiMessages(const juce::MidiBuffer& midiMessages)
 {
@@ -653,7 +338,7 @@ void ResonateAudioProcessor::handleMidiMessages(const juce::MidiBuffer& midiMess
             // nothing is enabled there's nowhere for it to go -- drop it.
             bool anyEnabled = false;
             for (int i = 0; i < n; ++i)
-                if (resonators[i].enabled) { anyEnabled = true; break; }
+                if (allocEnabled[i]) { anyEnabled = true; break; }
 
             if (!anyEnabled)
                 continue;
@@ -664,7 +349,7 @@ void ResonateAudioProcessor::handleMidiMessages(const juce::MidiBuffer& midiMess
             for (int k = 0; k < n; ++k)
             {
                 const int idx = (rrPointer + k) % n;
-                if (resonators[idx].enabled && !voices[idx].active) { slot = idx; break; }
+                if (allocEnabled[idx] && !voices[idx].active) { slot = idx; break; }
             }
 
             // All enabled slots held -> steal the oldest enabled one
@@ -672,7 +357,7 @@ void ResonateAudioProcessor::handleMidiMessages(const juce::MidiBuffer& midiMess
             {
                 juce::uint32 oldest = std::numeric_limits<juce::uint32>::max();
                 for (int i = 0; i < n; ++i)
-                    if (resonators[i].enabled && voices[i].order < oldest) { oldest = voices[i].order; slot = i; }
+                    if (allocEnabled[i] && voices[i].order < oldest) { oldest = voices[i].order; slot = i; }
             }
 
             voices[slot].note = msg.getNoteNumber();
@@ -701,129 +386,22 @@ void ResonateAudioProcessor::handleMidiMessages(const juce::MidiBuffer& midiMess
     }
 }
 
+
 //==============================================================================
-void ResonateAudioProcessor::updateResonateParameters(double processSampleRate)
+// Pan law (as in v2): Resonator I = balance; II-VII = constant power,
+// snapped to exactly 0/1 at the extremes.
+void ResonateAudioProcessor::computePans(const Snapshot& s, float* panL, float* panR)
 {
-    globalNote = parameters.getRawParameterValue("res1_note")->load();
-    globalDecay = parameters.getRawParameterValue("decay")->load();
-    globalColor = parameters.getRawParameterValue("color")->load();
-    globalSmooth = parameters.getRawParameterValue("smooth")->load();
-    globalChorus = parameters.getRawParameterValue("chorus")->load();
-    filterEnabled = parameters.getRawParameterValue("filter_enabled")->load() > 0.5f;
-    filterFrequency = parameters.getRawParameterValue("filter_freq")->load();
-    constMode = parameters.getRawParameterValue("const_mode")->load() > 0.5f;
-    wetOnly = parameters.getRawParameterValue("wet_only")->load() > 0.5f;
-    centerMode = parameters.getRawParameterValue("center_mode")->load() > 0.5f;
-    bool   expDecayOn = parameters.getRawParameterValue("exp_decay")->load() > 0.5f;
-    perResMode = parameters.getRawParameterValue("per_res_mode")->load() > 0.5f;
-    midiEnabled = parameters.getRawParameterValue("midi_enabled")->load() > 0.5f;
-    oversample2x = parameters.getRawParameterValue("oversample_2x")->load() > 0.5f;
-
-    double lfoRate = parameters.getRawParameterValue("lfo_rate")->load();
-    double lfoDepth = parameters.getRawParameterValue("lfo_depth")->load();
-
-    int modeIndex = static_cast<int>(parameters.getRawParameterValue("mode")->load());
-    processingMode = (modeIndex == 0) ? ModeA : ModeB;
-
-    int filterTypeIndex = static_cast<int>(parameters.getRawParameterValue("filter_type")->load());
-    filterType = static_cast<FilterType>(filterTypeIndex);
-
-    if (filterEnabled && processSampleRate > 0.0)
-    {
-        float normFreq = juce::jlimit(0.0f, 0.99f,
-            static_cast<float>(filterFrequency / (processSampleRate * 0.5)));
-        inputFilter.setFrequency(normFreq, 0.7f);
-    }
-
-    // Helper to read per-resonator local decay/color/const/pan
-    auto getLocalDecay = [&](int idx) -> double {
-        return parameters.getRawParameterValue("res" + juce::String(idx + 1) + "_decay")->load();
-        };
-    auto getLocalColor = [&](int idx) -> double {
-        return parameters.getRawParameterValue("res" + juce::String(idx + 1) + "_color")->load();
-        };
-    auto getLocalConst = [&](int idx) -> bool {
-        return parameters.getRawParameterValue("res" + juce::String(idx + 1) + "_const")->load() > 0.5f;
-        };
-
     for (int i = 0; i < MAX_RESONATORS; ++i)
-        resPan[i] = parameters.getRawParameterValue("res" + juce::String(i + 1) + "_pan")->load();
-
-    // MIDI note override per resonator (-1 = follow the knobs)
-    auto midiNoteFor = [&](int idx) -> double {
-        if (!midiEnabled || heldNote[idx] < 0) return -1.0;
-        return static_cast<double>(heldNote[idx]);
-        };
-
-    // Keep the GUI readout honest when MIDI is switched off
-    if (!midiEnabled)
-        for (int i = 0; i < MAX_RESONATORS; ++i)
-            midiDisplayNote[i].store(-1);
-    else
-        for (int i = 0; i < MAX_RESONATORS; ++i)
-            midiDisplayNote[i].store(heldNote[i]);
-
-    // Resonator 1
-    resonators[0].enabled = parameters.getRawParameterValue("res1_enabled")->load() > 0.5f;
-    resonators[0].pitchSemitones = 0;
-    resonators[0].fineDetune = parameters.getRawParameterValue("res1_fine")->load();
-    resonators[0].gain = parameters.getRawParameterValue("res1_gain")->load();
-    resonators[0].expDecay = expDecayOn;
-    resonators[0].updateParameters(processSampleRate, globalDecay, globalNote,
-        globalColor, processingMode, constMode,
-        globalChorus, 0, lfoRate, lfoDepth,
-        centerMode,
-        perResMode, getLocalDecay(0), getLocalColor(0), getLocalConst(0),
-        midiNoteFor(0));
-
-    // Resonators 2-7 (always kept current, whether or not Add 2 is on, so
-    // VI/VII start from a sensible state the instant the toggle is flipped)
-    for (int i = 1; i < MAX_RESONATORS; ++i)
     {
-        juce::String id = "res" + juce::String(i + 1);
-        resonators[i].enabled = parameters.getRawParameterValue(id + "_enabled")->load() > 0.5f;
-        resonators[i].pitchSemitones = static_cast<int>(
-            parameters.getRawParameterValue(id + "_pitch")->load());
-        resonators[i].fineDetune = parameters.getRawParameterValue(id + "_fine")->load();
-        resonators[i].gain = parameters.getRawParameterValue(id + "_gain")->load();
-        resonators[i].expDecay = expDecayOn;
-        resonators[i].updateParameters(processSampleRate, globalDecay, globalNote,
-            globalColor, processingMode, constMode,
-            globalChorus, i, lfoRate, lfoDepth,
-            centerMode,
-            perResMode, getLocalDecay(i), getLocalColor(i), getLocalConst(i),
-            midiNoteFor(i));
-    }
-}
-
-//==============================================================================
-void ResonateAudioProcessor::renderWet(const float* const inPtr[2], int numSamples, int nIn, int nOut,
-    float smoothCoeff)
-{
-    // ── Pan gains ────────────────────────────────────────────────────────────
-    // Resonator I is stereo: BALANCE law, unity on both sides at centre.
-    // Resonators II-VII are mono sources: constant-power law that reaches
-    // exactly 1.0 at the extremes, so the default hard pans are bit-identical
-    // to the previous fixed routing.
-    const int n = MAX_RESONATORS;
-    float panL[MAX_RESONATORS], panR[MAX_RESONATORS];
-    for (int i = 0; i < n; ++i)
-    {
-        const double p = juce::jlimit(-1.0, 1.0, resPan[i] / 100.0);
-
+        const double p = juce::jlimit(-1.0, 1.0, s.res[i].pan / 100.0);
         if (i == 0)
         {
             panL[0] = static_cast<float>(p <= 0.0 ? 1.0 : 1.0 - p);
             panR[0] = static_cast<float>(p >= 0.0 ? 1.0 : 1.0 + p);
         }
-        else if (p <= -0.9995)   // snap the extremes: cos(pi/2) is ~6e-17, not 0,
-        {                        // which would leak the old hard pans at -147 dB
-            panL[i] = 1.0f; panR[i] = 0.0f;
-        }
-        else if (p >= 0.9995)
-        {
-            panL[i] = 0.0f; panR[i] = 1.0f;
-        }
+        else if (p <= -0.9995) { panL[i] = 1.0f; panR[i] = 0.0f; }
+        else if (p >= 0.9995)  { panL[i] = 0.0f; panR[i] = 1.0f; }
         else
         {
             const double theta = (p + 1.0) * juce::MathConstants<double>::pi * 0.25;
@@ -831,227 +409,426 @@ void ResonateAudioProcessor::renderWet(const float* const inPtr[2], int numSampl
             panR[i] = static_cast<float>(std::sin(theta));
         }
     }
+}
 
-    // Which input channel each resonator reads. UNCHANGED from the original
-    // for I-V: keeping this fixed is what makes each resonator's internal
-    // state evolve exactly as before. VI/VII continue the same L/R alternation.
-    static const int sourceChannel[MAX_RESONATORS] = { -1, 0, 1, 0, 1, 0, 1 };
+static const int kSourceChannel[ResonateAudioProcessor::MAX_RESONATORS] = { -1, 0, 1, 0, 1, 0, 1 };
 
-    float* res1Ptr[2] = { res1Buffer.getWritePointer(0),
-                            res1Buffer.getNumChannels() > 1 ? res1Buffer.getWritePointer(1) : nullptr };
-    float* res25Ptr[2] = { res2to5Buffer.getWritePointer(0),
-                            res2to5Buffer.getNumChannels() > 1 ? res2to5Buffer.getWritePointer(1) : nullptr };
+//==============================================================================
+// Modelled / Dark engines (measured model)
 
-    for (int sample = 0; sample < numSamples; ++sample)
+template <class Bank>
+void ResonateAudioProcessor::updateModelBank(Bank& b, const Snapshot& s, double sr)
+{
+    b.filterOn = s.filterOn;
+    if (s.filterOn)
+        for (int ch = 0; ch < 2; ++ch)
+            b.filt[ch].set(s.filterType, s.filterFreq, sr);
+    b.width = s.width;
+    computePans(s, b.panL, b.panR);
+
+    for (int i = 0; i < MAX_RESONATORS; ++i)
     {
-        // ── Input conditioning, per channel (state is per-channel, so the
-        //    loop order swap versus the original is bit-exact) ──────────────
+        const auto& q = s.res[i];
+        b.resOn[i] = q.enabled;
+        b.resGain[i] = juce::Decibels::decibelsToGain(static_cast<float>(q.gain), -100.0f);
+        if (!q.enabled) continue;
+
+        const double effDecay = s.perRes ? q.decay : s.decay;
+        const double effColor = s.perRes ? q.color : s.color;
+        const bool   effConst = s.perRes ? q.cnst  : s.constMode;
+        const double mn = midiNoteFor(i);
+        const double base = (mn >= 0.0) ? mn : (s.note + (i > 0 ? q.pitch : 0));
+        const double note = juce::jlimit(0.0, 135.0, base + q.fine / 100.0);
+        b.voice[i].setParams(note, effDecay, effColor, effConst, s.mode == 1);
+    }
+}
+
+template <class Bank>
+void ResonateAudioProcessor::renderModelBank(Bank& b, const float* const in[2], int n, int nIn, int nOut,
+                                             float* outL, float* outR)
+{
+    const bool stereoWidth = (nIn >= 2 && nOut >= 2);
+    for (int t = 0; t < n; ++t)
+    {
         float sIn[2] = { 0.0f, 0.0f };
         for (int ch = 0; ch < nIn; ++ch)
         {
-            float input = inPtr[ch][sample];
-            inputSmoothing[ch] += smoothCoeff * (input - inputSmoothing[ch]);
-            float s = inputSmoothing[ch];
-            if (filterEnabled)
-                s = inputFilter.process(s, ch, filterType);
-            sIn[ch] = s;
+            float x = in[ch][t];
+            if (b.filterOn) x = b.filt[ch].process(x);
+            sIn[ch] = b.stage[ch].process(x);       // x0.25 + 327 Hz high-pass
         }
+        // Resonator I: mono sum in, same to both sides (then balance)
+        const float mono = (nIn > 1) ? 0.5f * (sIn[0] + sIn[1]) : sIn[0];
+        const float o1 = b.resOn[0] ? b.voice[0].process(mono) * b.resGain[0] : 0.0f;
+        float L = o1 * b.panL[0], R = o1 * b.panR[0];
 
-        // ── Resonator I (stereo) ─────────────────────────────────────────────
-        float r1L = 0.0f, r1R = 0.0f;
-        for (int ch = 0; ch < nIn; ++ch)
-        {
-            const float o = (processingMode == ModeA)
-                ? resonators[0].processA(sIn[ch], ch)
-                : resonators[0].processB(sIn[ch], ch);
-
-            if (ch == 0) r1L = o * panL[0];
-            else         r1R = o * panR[0];
-        }
-
-        // ── Resonators II-VII (mono sources, panned) ─────────────────────────
         float busL = 0.0f, busR = 0.0f;
-        for (int idx = 1; idx < n; ++idx)
+        for (int i = 1; i < MAX_RESONATORS; ++i)
         {
-            const int ch = sourceChannel[idx];
-            if (ch >= nIn) continue;   // mono input: odd-numbered resonators stay silent, as before
-
-            const float o = (processingMode == ModeA)
-                ? resonators[idx].processA(sIn[ch], ch)
-                : resonators[idx].processB(sIn[ch], ch);
-
-            busL += o * panL[idx];
-            busR += o * panR[idx];
+            const int ch = kSourceChannel[i];
+            if (ch >= nIn || !b.resOn[i]) continue;
+            const float o = b.voice[i].process(sIn[ch]) * b.resGain[i];
+            busL += o * b.panL[i]; busR += o * b.panR[i];
         }
-
-        res1Ptr[0][sample] = r1L;
-        res25Ptr[0][sample] = busL;
-        if (nOut > 1 && res1Ptr[1] != nullptr && res25Ptr[1] != nullptr)
+        if (stereoWidth)
         {
-            res1Ptr[1][sample] = r1R;
-            res25Ptr[1][sample] = busR;
+            const float mid = (busL + busR) * 0.5f, side = (busL - busR) * 0.5f * b.width;
+            busL = mid + side; busR = mid - side;
         }
-    }
-
-    // Stereo width on II-VII
-    if (nIn >= 2 && nOut >= 2 && res25Ptr[1] != nullptr)
-    {
-        for (int sample = 0; sample < numSamples; ++sample)
-        {
-            float left = res25Ptr[0][sample];
-            float right = res25Ptr[1][sample];
-            float mid = (left + right) * 0.5f;
-            float side = (left - right) * 0.5f * currentWidth;
-            res25Ptr[0][sample] = mid + side;
-            res25Ptr[1][sample] = mid - side;
-        }
-    }
-
-    // Combine and output-smooth
-    for (int channel = 0; channel < nOut; ++channel)
-    {
-        auto* wet = wetBuffer.getWritePointer(channel);
-        for (int sample = 0; sample < numSamples; ++sample)
-        {
-            float combined = res1Buffer.getSample(channel, sample)
-                + res2to5Buffer.getSample(channel, sample);
-            outputSmoothing[channel] += smoothCoeff * (combined - outputSmoothing[channel]);
-            wet[sample] = outputSmoothing[channel];
-        }
+        outL[t] = L + busL;
+        if (outR != nullptr) outR[t] = R + busR;
     }
 }
 
 //==============================================================================
-void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
-    juce::MidiBuffer& midiMessages)
+// Native engine (original v2 flow)
+
+void ResonateAudioProcessor::updateNative(const Snapshot& s, double sr)
+{
+    native.filterOn = s.filterOn; native.filterType = s.filterType; native.mode = s.mode;
+    native.width = s.width;
+    computePans(s, native.panL, native.panR);
+    if (s.filterOn && sr > 0.0)
+    {
+        const float normFreq = juce::jlimit(0.0f, 0.99f, static_cast<float>(s.filterFreq / (sr * 0.5)));
+        native.filter.setFrequency(normFreq, 0.7f);
+    }
+    const auto nm = (s.mode == 0) ? NativeEngine::ModeA : NativeEngine::ModeB;
+    for (int i = 0; i < MAX_RESONATORS; ++i)
+    {
+        auto& r = native.res[i];
+        const auto& q = s.res[i];
+        r.enabled = q.enabled; r.pitchSemitones = (i > 0) ? q.pitch : 0;
+        r.fineDetune = q.fine; r.gain = q.gain;
+        r.updateParameters(sr, s.decay, s.note, s.color, nm, s.constMode, i,
+                           s.perRes, q.decay, q.color, q.cnst, midiNoteFor(i));
+    }
+}
+
+void ResonateAudioProcessor::renderNative(const float* const in[2], int n, int nIn, int nOut,
+                                          float* outL, float* outR)
+{
+    const bool stereoWidth = (nIn >= 2 && nOut >= 2);
+    const auto ft = static_cast<NativeEngine::FilterType>(native.filterType);
+    const bool modeA = (native.mode == 0);
+    for (int t = 0; t < n; ++t)
+    {
+        float sIn[2] = { 0.0f, 0.0f };
+        for (int ch = 0; ch < nIn; ++ch)
+        {
+            float x = in[ch][t];
+            if (native.filterOn) x = native.filter.process(x, ch, ft);
+            sIn[ch] = x;
+        }
+        float L = 0.0f, R = 0.0f;
+        for (int ch = 0; ch < nIn; ++ch)
+        {
+            const float o = modeA ? native.res[0].processA(sIn[ch], ch) : native.res[0].processB(sIn[ch], ch);
+            if (ch == 0) L = o * native.panL[0]; else R = o * native.panR[0];
+        }
+        float busL = 0.0f, busR = 0.0f;
+        for (int i = 1; i < MAX_RESONATORS; ++i)
+        {
+            const int ch = kSourceChannel[i];
+            if (ch >= nIn) continue;
+            const float o = modeA ? native.res[i].processA(sIn[ch], ch) : native.res[i].processB(sIn[ch], ch);
+            busL += o * native.panL[i]; busR += o * native.panR[i];
+        }
+        if (stereoWidth)
+        {
+            const float mid = (busL + busR) * 0.5f, side = (busL - busR) * 0.5f * native.width;
+            busL = mid + side; busR = mid - side;
+        }
+        outL[t] = L + busL;
+        if (outR != nullptr) outR[t] = R + busR;
+    }
+}
+
+//==============================================================================
+// Crisp engine parameters
+
+CrispEngine::Params ResonateAudioProcessor::crispParams(const Snapshot& s) const
+{
+    const auto& r = refs[EngineCrisp];
+    CrispEngine::Params p;
+    p.note = s.note; p.decay = s.decay; p.color = s.color;
+    p.smooth = r.smooth->load(); p.chorus = r.chorus->load();
+    p.lfoRate = r.lfoRate->load(); p.lfoDepth = r.lfoDepth->load();
+    p.filterOn = s.filterOn; p.filterFreq = s.filterFreq; p.filterType = s.filterType;
+    p.constMode = s.constMode; p.center = r.center->load() > 0.5f;
+    p.expDecay = r.expDecay->load() > 0.5f; p.perRes = s.perRes; p.os2x = r.os2x->load() > 0.5f;
+    p.mode = s.mode; p.width = s.width;
+    for (int i = 0; i < MAX_RESONATORS; ++i)
+    {
+        const auto& q = s.res[i];
+        p.pan[i] = q.pan;
+        p.res[i].enabled = q.enabled; p.res[i].pitch = q.pitch; p.res[i].fine = q.fine;
+        p.res[i].gain = q.gain; p.res[i].decay = q.decay; p.res[i].color = q.color;
+        p.res[i].cnst = q.cnst; p.res[i].midiNote = midiNoteFor(i);
+    }
+    return p;
+}
+
+//==============================================================================
+void ResonateAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+    const int totalIn = getTotalNumInputChannels();
+    const int totalOut = getTotalNumOutputChannels();
+    for (auto i = totalIn; i < totalOut; ++i)
         buffer.clear(i, 0, buffer.getNumSamples());
 
-    handleMidiMessages(midiMessages);
-
-    const bool osEnabled = parameters.getRawParameterValue("oversample_2x")->load() > 0.5f;
-    const double processRate = osEnabled ? currentSampleRate * 2.0 : currentSampleRate;
-    updateResonateParameters(processRate);
-
-    float masterGain = std::pow(10.0f, parameters.getRawParameterValue("gain")->load() / 20.0f);
-    float dryWet = parameters.getRawParameterValue("drywet")->load() / 100.0f;
-    currentWidth = parameters.getRawParameterValue("width")->load() / 100.0f;
-
-    float smoothNorm = 1.0f - static_cast<float>(globalSmooth / 100.0);
-    float smoothCoeff = 0.01f + smoothNorm * 0.4f;
-
     const int numSamples = buffer.getNumSamples();
-    const int nIn = juce::jmin(totalNumInputChannels, 2);
-    const int nOut = juce::jmin(totalNumOutputChannels, 2);
-
+    const int nIn = juce::jmin(totalIn, 2);
+    const int nOut = juce::jmin(totalOut, 2);
     if (numSamples <= 0 || nIn <= 0 || nOut <= 0)
         return;
 
-    if (!osEnabled || oversampler == nullptr)
+    // ── Engine selection: input goes to the selected engine only ────────────
+    const int sel = getSelectedEngine();
+    for (int e = 0; e < NUM_ENGINES; ++e)
     {
-        // ── Normal path: unchanged behaviour, bit-identical to before ────────
-        if (res1Buffer.getNumSamples() < numSamples)
+        engineInGain[e].setTargetValue(e == sel ? 1.0f : 0.0f);
+        if (e == sel)
         {
-            res1Buffer.setSize(2, numSamples, false, true, true);
-            res2to5Buffer.setSize(2, numSamples, false, true, true);
-            wetBuffer.setSize(2, numSamples, false, true, true);
+            if (!engineActive[e]) { resetEngine(e); engineActive[e] = true; }  // fresh start
+            ringOutSamples[e] = 0;
+            silentSamples[e] = 0;
+            engineOutFade[e].setTargetValue(1.0f);      // in case a safety fade was running
         }
-        res1Buffer.clear();
-        res2to5Buffer.clear();
-        wetBuffer.clear();
+    }
 
-        const float* inPtr[2] = { nullptr, nullptr };
+    // ── MIDI (allocation follows the selected engine's On switches) ─────────
+    midiEnabled = parameters.getRawParameterValue("midi_enabled")->load() > 0.5f;
+    for (int i = 0; i < MAX_RESONATORS; ++i)
+        allocEnabled[i] = refs[sel].res[i].enabled->load() > 0.5f;
+    handleMidiMessages(midiMessages);
+    for (int i = 0; i < MAX_RESONATORS; ++i)
+        midiDisplayNote[i].store(midiEnabled ? heldNote[i] : -1);
+
+    if (engineIn.getNumSamples() < numSamples)
+        engineIn.setSize(2, numSamples, false, true, true);
+    for (int e = 0; e < NUM_ENGINES; ++e)
+        if (engineOut[e].getNumSamples() < numSamples)
+            engineOut[e].setSize(2, numSamples, false, true, true);
+
+    // ── Render every engine that is selected or still ringing out ───────────
+    const float* dryIn[2] = { buffer.getReadPointer(0), nIn > 1 ? buffer.getReadPointer(1) : nullptr };
+    for (int e = 0; e < NUM_ENGINES; ++e)
+    {
+        if (!engineActive[e])
+            continue;
+
+        // Input for this engine: the dry signal with the 5 ms hand-over ramp
+        // (a ringing-out engine gets silence).
+        const bool feeding = engineInGain[e].isSmoothing() || engineInGain[e].getTargetValue() > 0.0f;
         for (int ch = 0; ch < nIn; ++ch)
-            inPtr[ch] = buffer.getReadPointer(ch);
-
-        renderWet(inPtr, numSamples, nIn, nOut, smoothCoeff);
-
-        for (int channel = 0; channel < nOut; ++channel)
         {
-            auto* dryData = buffer.getWritePointer(channel);
-            auto* wetData = wetBuffer.getReadPointer(channel);
-
-            for (int sample = 0; sample < numSamples; ++sample)
+            if (!feeding) { engineIn.clear(ch, 0, numSamples); continue; }
+            engineIn.copyFrom(ch, 0, dryIn[ch], numSamples);
+        }
+        if (feeding && engineInGain[e].isSmoothing())
+        {
+            for (int t = 0; t < numSamples; ++t)
             {
-                float dry = dryData[sample];
-                float wet = wetData[sample] * masterGain;
-                dryData[sample] = wetOnly
-                    ? wet * dryWet
-                    : dry * (1.0f - dryWet) + wet * dryWet;
+                const float gIn = engineInGain[e].getNextValue();
+                for (int ch = 0; ch < nIn; ++ch)
+                    engineIn.setSample(ch, t, engineIn.getSample(ch, t) * gIn);
             }
+        }
+        else if (!feeding)
+            engineInGain[e].skip(numSamples);
+
+        const float* in[2] = { engineIn.getReadPointer(0), nIn > 1 ? engineIn.getReadPointer(1) : nullptr };
+        renderEngine(e, in, numSamples, nIn, nOut);
+
+        // Output fade before switch-off (30 ms below -70 dB, or 300 ms safety fade)
+        if (engineOutFade[e].isSmoothing() || engineOutFade[e].getTargetValue() < 1.0f)
+            for (int t = 0; t < numSamples; ++t)
+            {
+                const float g = engineOutFade[e].getNextValue();
+                for (int ch = 0; ch < nOut; ++ch)
+                    engineOut[e].setSample(ch, t, engineOut[e].getSample(ch, t) * g);
+            }
+
+        // Ring-out bookkeeping for engines that are no longer selected
+        if (e != sel)
+        {
+            float peak = 0.0f;
+            for (int ch = 0; ch < nOut; ++ch)
+                peak = juce::jmax(peak, engineOut[e].getMagnitude(ch, 0, numSamples));
+
+            silentSamples[e] = (peak < SILENCE_THRESHOLD) ? silentSamples[e] + numSamples : 0;
+            ringOutSamples[e] += numSamples;
+
+            // Start a fade-out (never a hard cut) when the tail has been below
+            // -70 dB for 100 ms (short fade), or is still ringing after 10 s
+            // (longer safety fade). Ramp length is set when the fade starts.
+            const bool fading = engineOutFade[e].getTargetValue() == 0.0f;
+            if (!fading)
+            {
+                if (silentSamples[e] >= static_cast<int>(SILENCE_HOLD_SECONDS * currentSampleRate))
+                {
+                    engineOutFade[e].reset(currentSampleRate, SILENCE_FADE_SECONDS);
+                    engineOutFade[e].setTargetValue(0.0f);
+                }
+                else if (ringOutSamples[e] > static_cast<int>(MAX_RINGOUT_SECONDS * currentSampleRate))
+                {
+                    engineOutFade[e].reset(currentSampleRate, SAFETY_FADE_SECONDS);
+                    engineOutFade[e].setTargetValue(0.0f);
+                }
+            }
+
+            const bool faded = engineOutFade[e].getTargetValue() == 0.0f && !engineOutFade[e].isSmoothing();
+            if (faded)
+            {
+                // Fully faded to silence -> reset and switch the engine off.
+                // (This block's output, which contains the end of the fade, is
+                // still summed below and cleared afterwards.)
+                engineActive[e] = false;
+                resetEngine(e, false);
+                engineOutFade[e].setCurrentAndTargetValue(1.0f);
+                silentSamples[e] = 0;
+                ringOutSamples[e] = 0;
+            }
+        }
+    }
+
+    // ── Sum + master gain + dry/wet ──────────────────────────────────────────
+    const float masterGain = juce::Decibels::decibelsToGain(parameters.getRawParameterValue("gain")->load());
+    const float dryWet = parameters.getRawParameterValue("drywet")->load() / 100.0f;
+    const bool  wetOnly = parameters.getRawParameterValue("wet_only")->load() > 0.5f;
+
+    float* out[2] = { buffer.getWritePointer(0), nOut > 1 ? buffer.getWritePointer(1) : nullptr };
+    for (int ch = 0; ch < nOut; ++ch)
+    {
+        for (int t = 0; t < numSamples; ++t)
+        {
+            float wet = 0.0f;
+            for (int e = 0; e < NUM_ENGINES; ++e)
+                wet += engineOut[e].getSample(ch, t);
+            wet *= masterGain;
+            const float dry = out[ch][t];
+            out[ch][t] = wetOnly ? wet * dryWet : dry * (1.0f - dryWet) + wet * dryWet;
+        }
+    }
+    // Engines that are off contribute nothing (their buffers are not rendered)
+    for (int e = 0; e < NUM_ENGINES; ++e)
+        if (!engineActive[e])
+            engineOut[e].clear();
+}
+
+//==============================================================================
+// Render one engine's wet signal into engineOut[e]
+void ResonateAudioProcessor::renderEngine(int e, const float* const in[2], int n, int nIn, int nOut)
+{
+    float* oL = engineOut[e].getWritePointer(0);
+    float* oR = nOut > 1 ? engineOut[e].getWritePointer(1) : nullptr;
+    switch (e)
+    {
+        case EngineModelled: updateModelBank(modelled, snapshot(e), currentSampleRate);
+                             renderModelBank(modelled, in, n, nIn, nOut, oL, oR); break;
+        case EngineDark:     updateModelBank(dark, snapshot(e), currentSampleRate);
+                             renderModelBank(dark, in, n, nIn, nOut, oL, oR); break;
+        case EngineNative:   updateNative(snapshot(e), currentSampleRate);
+                             renderNative(in, n, nIn, nOut, oL, oR); break;
+        case EngineCrisp:
+        default:
+            crisp.process(in, n, nIn, nOut, crispParams(snapshot(e)));
+            for (int ch = 0; ch < nOut; ++ch)
+                engineOut[e].copyFrom(ch, 0, crisp.getOutput(ch), n);
+            break;
+    }
+}
+
+// Clear an engine's state so it starts silent next time it is selected
+void ResonateAudioProcessor::resetEngine(int e, bool clearOutput)
+{
+    switch (e)
+    {
+        case EngineModelled:
+            for (auto& v : modelled.voice) v.reset();
+            for (int ch = 0; ch < 2; ++ch) { modelled.stage[ch].reset(); modelled.filt[ch].reset(); }
+            break;
+        case EngineDark:
+            for (auto& v : dark.voice) v.reset();
+            for (int ch = 0; ch < 2; ++ch) { dark.stage[ch].reset(); dark.filt[ch].reset(); }
+            break;
+        case EngineNative:
+            for (auto& r : native.res) r.reset();
+            native.filter.reset();
+            break;
+        case EngineCrisp:
+        default:
+            crisp.reset();
+            break;
+    }
+    if (clearOutput)
+        engineOut[e].clear();
+}
+
+//==============================================================================
+bool                        ResonateAudioProcessor::hasEditor() const { return true; }
+juce::AudioProcessorEditor* ResonateAudioProcessor::createEditor() { return new ResonateAudioProcessorEditor(*this); }
+
+//==============================================================================
+// State / presets
+//
+// upgradeStateXml() lets older files load sensibly:
+//   - beta (has "center_mode", no "engine"): its unprefixed values are the
+//     Crisp settings -> renamed to "crs_*", engine set to Crisp
+//   - v2/v3 (unprefixed, no "engine"): already the Modelled IDs -> unchanged
+//   Global IDs (gain, drywet, wet_only, midi_enabled) are never renamed.
+void ResonateAudioProcessor::upgradeStateXml(juce::XmlElement& xml) const
+{
+    bool hasEngine = false, isBeta = false;
+    for (auto* e : xml.getChildIterator())
+    {
+        const auto id = e->getStringAttribute("id");
+        if (id == "engine") hasEngine = true;
+        if (id == "center_mode" || id == "lfo_rate" || id == "oversample_2x") isBeta = true;
+    }
+    const juce::StringArray globals{ "gain", "drywet", "wet_only", "midi_enabled", "engine" };
+
+    if (hasEngine)
+    {
+        // v3.2: Modelled and Native shared the unprefixed knobs. If there is no
+        // separate Native set yet, give Native a copy so it sounds as it did.
+        bool hasNative = false;
+        for (auto* e : xml.getChildIterator())
+            if (e->getStringAttribute("id").startsWith("nat_")) { hasNative = true; break; }
+        if (hasNative)
+            return;
+
+        juce::Array<juce::XmlElement*> toCopy;
+        for (auto* e : xml.getChildIterator())
+        {
+            const auto id = e->getStringAttribute("id");
+            if (id.isNotEmpty() && !globals.contains(id)
+                && !id.startsWith("crs_") && !id.startsWith("drk_"))
+                toCopy.add(e);
+        }
+        for (auto* e : toCopy)
+        {
+            auto* c = xml.createNewChildElement("PARAM");
+            c->setAttribute("id", "nat_" + e->getStringAttribute("id"));
+            c->setAttribute("value", e->getStringAttribute("value"));
         }
         return;
     }
 
-    // ── 2x oversampled path ──────────────────────────────────────────────────
-    // `buffer` still holds the original dry signal throughout -- the
-    // oversampler works on its own internal storage, so we never touch
-    // `buffer` until the final dry/wet mix.
-    osInputBuffer.clear();
-    for (int ch = 0; ch < nIn; ++ch)
-        osInputBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
+    if (!isBeta)
+        return;
 
-    juce::dsp::AudioBlock<float> inBlock(osInputBuffer);
-    inBlock = inBlock.getSubBlock(0, static_cast<size_t>(numSamples));
-    auto upBlock = oversampler->processSamplesUp(inBlock);
-    const int osNumSamples = static_cast<int>(upBlock.getNumSamples());
-
-    if (res1Buffer.getNumSamples() < osNumSamples)
+    for (auto* e : xml.getChildIterator())
     {
-        res1Buffer.setSize(2, osNumSamples, false, true, true);
-        res2to5Buffer.setSize(2, osNumSamples, false, true, true);
-        wetBuffer.setSize(2, osNumSamples, false, true, true);
+        const auto id = e->getStringAttribute("id");
+        if (id.isNotEmpty() && !globals.contains(id))
+            e->setAttribute("id", "crs_" + id);
     }
-    res1Buffer.clear();
-    res2to5Buffer.clear();
-    wetBuffer.clear();
-
-    const float* osInPtr[2] = { upBlock.getChannelPointer(0),
-                                 upBlock.getNumChannels() > 1 ? upBlock.getChannelPointer(1) : nullptr };
-
-    renderWet(osInPtr, osNumSamples, nIn, nOut, smoothCoeff);
-
-    // Write the rendered wet signal back into the oversampler's own storage
-    // (in place) so processSamplesDown() has something to filter/decimate.
-    for (int ch = 0; ch < nOut; ++ch)
-    {
-        auto* dst = upBlock.getChannelPointer(static_cast<size_t>(ch));
-        auto* src = wetBuffer.getReadPointer(ch);
-        std::memcpy(dst, src, static_cast<size_t>(osNumSamples) * sizeof(float));
-    }
-
-    // Downsample back into res1Buffer's front (numSamples) as scratch --
-    // its oversampled contents are no longer needed at this point.
-    juce::dsp::AudioBlock<float> downBlock(res1Buffer);
-    downBlock = downBlock.getSubBlock(0, static_cast<size_t>(numSamples));
-    oversampler->processSamplesDown(downBlock);
-
-    for (int channel = 0; channel < nOut; ++channel)
-    {
-        auto* dryData = buffer.getWritePointer(channel);
-        auto* wetData = downBlock.getChannelPointer(static_cast<size_t>(channel));
-
-        for (int sample = 0; sample < numSamples; ++sample)
-        {
-            float dry = dryData[sample];
-            float wet = wetData[sample] * masterGain;
-            dryData[sample] = wetOnly
-                ? wet * dryWet
-                : dry * (1.0f - dryWet) + wet * dryWet;
-        }
-    }
-}
-
-//==============================================================================
-bool                           ResonateAudioProcessor::hasEditor() const { return true; }
-juce::AudioProcessorEditor* ResonateAudioProcessor::createEditor()
-{
-    return new ResonateAudioProcessorEditor(*this);
+    auto* eng = xml.createNewChildElement("PARAM");
+    eng->setAttribute("id", "engine");
+    eng->setAttribute("value", static_cast<double>(EngineCrisp));
 }
 
 void ResonateAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
@@ -1060,15 +837,16 @@ void ResonateAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
+
 void ResonateAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState && xmlState->hasTagName(parameters.state.getType()))
+    {
+        upgradeStateXml(*xmlState);
         parameters.replaceState(juce::ValueTree::fromXml(*xmlState));
+    }
 }
-
-//==============================================================================
-// Preset files
 
 juce::File ResonateAudioProcessor::getDefaultPresetDirectory()
 {
@@ -1080,6 +858,8 @@ juce::File ResonateAudioProcessor::getDefaultPresetDirectory()
     return dir;
 }
 
+// A preset stores the complete APVTS state: all four engines' settings plus
+// the globals and the selected engine.
 bool ResonateAudioProcessor::savePresetToFile(const juce::File& file)
 {
     auto state = parameters.copyState();
@@ -1089,7 +869,6 @@ bool ResonateAudioProcessor::savePresetToFile(const juce::File& file)
 
     xml->setAttribute("presetName", file.getFileNameWithoutExtension());
     xml->setAttribute("pluginVersion", JucePlugin_VersionString);
-
     return xml->writeTo(file, {});
 }
 
@@ -1102,6 +881,7 @@ bool ResonateAudioProcessor::loadPresetFromFile(const juce::File& file)
     if (xml == nullptr || !xml->hasTagName(parameters.state.getType()))
         return false;
 
+    upgradeStateXml(*xml);
     parameters.replaceState(juce::ValueTree::fromXml(*xml));
     return true;
 }

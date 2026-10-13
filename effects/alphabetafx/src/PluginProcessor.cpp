@@ -76,6 +76,24 @@ AlphaBetaFXAudioProcessor::createLayout()
         FXPID::ERTG, "Env Retrigger",
         juce::NormalisableRange<float>(5.0f, 500.0f, 0.0f, 0.35f), 80.0f));
 
+    // ---- Mode: Native / Original (FreeAlpha 3.3 model) ----
+    // Default Native, so existing sessions and presets keep their sound.
+    p.push_back(std::make_unique<juce::AudioParameterChoice>(
+        FXPID::MODE, "Mode", juce::StringArray{ "Native", "Original" }, 0));
+
+    // Original chorus time / rate, with the original's exponential knob laws
+    auto origLaw = [](double mn, double mx) {
+        return juce::NormalisableRange<float>((float)mn, (float)mx,
+            [](float s, float e, float v) { return (float)AlphaOrigFX::expMap(v, s, e, AlphaOrigFX::kChorusLawK); },
+            [](float s, float e, float x) { return (float)AlphaOrigFX::invExpMap(x, s, e, AlphaOrigFX::kChorusLawK); });
+    };
+    p.push_back(std::make_unique<juce::AudioParameterFloat>(
+        FXPID::OHTIM, "Orig Chorus Time",
+        origLaw(AlphaOrigFX::kChorusMsMin, AlphaOrigFX::kChorusMsMax), 2.0f));
+    p.push_back(std::make_unique<juce::AudioParameterFloat>(
+        FXPID::OHRAT, "Orig Chorus Rate",
+        origLaw(AlphaOrigFX::kChorusHzMin, AlphaOrigFX::kChorusHzMax), 0.5f));
+
     return { p.begin(), p.end() };
 }
 
@@ -102,6 +120,13 @@ void AlphaBetaFXAudioProcessor::prepareToPlay(double sr, int blockSize)
     chorus.prepare(sr, blockSize);
     filterEnv.setSampleRate(f);
     filterEnv.reset();
+
+    sampleRate = sr;
+    for (auto& fl : origFilt) fl.reset();
+    origChorus.prepare(sr);
+    origChorus.reset(*apvts.getRawParameterValue(FXPID::OHRAT));
+    lastOrigCut = -1.0;
+    lastMode = -1;
 }
 
 // ==============================================================
@@ -135,6 +160,25 @@ void AlphaBetaFXAudioProcessor::processBlock(
     bool  envMidi = *apvts.getRawParameterValue(FXPID::EMID) > 0.5f;
     float envRtg  = *apvts.getRawParameterValue(FXPID::ERTG);
 
+    const bool original = *apvts.getRawParameterValue(FXPID::MODE) > 0.5f;
+    float oTime = *apvts.getRawParameterValue(FXPID::OHTIM);
+    float oRate = *apvts.getRawParameterValue(FXPID::OHRAT);
+
+    // ---- Mode switch: start the mode we enter from a clean state ----
+    const int mode = original ? 1 : 0;
+    if (mode != lastMode) {
+        if (original) {
+            for (auto& fl : origFilt) fl.reset();
+            origChorus.reset(oRate);
+            lastOrigCut = -1.0;
+        } else {
+            ladderL.reset(); ladderR.reset();
+            svfL.reset();    svfR.reset();
+            chorus.reset();
+        }
+        lastMode = mode;
+    }
+
     // ---- Sync filter / envelope settings ----
     ladderL.resCurve = rtyp;  ladderR.resCurve = rtyp;
     svfL.resCurve    = rtyp;  svfR.resCurve    = rtyp;
@@ -145,6 +189,15 @@ void AlphaBetaFXAudioProcessor::processBlock(
     // ---- Drive gain ----
     float driveGain = 1.0f + drive * 6.0f;
     float driveComp = 1.0f / (0.4f + drive * 0.6f + 0.6f);
+
+    // ---- Original mode gain staging ----
+    // The synth feeds its drive/filter with 0.35 x the oscillator level, and the
+    // filter's low-pass state clamps at +-1. Scale a full-scale input the same
+    // way and make the level up afterwards, so the resonance limit and the
+    // drive curve behave as in the synth.
+    constexpr double kOrigIn = 0.35, kOrigOut = 1.0 / 0.35;
+    if (original) origDrive.set(drive);
+    const double origQ = AlphaOrigFX::resoDamp(fres);
 
     float* L = buffer.getWritePointer(0);
     float* R = (numChannels >= 2) ? buffer.getWritePointer(1) : buffer.getWritePointer(0);
@@ -214,6 +267,21 @@ void AlphaBetaFXAudioProcessor::processBlock(
             modCut = juce::jlimit(20.0f, 20000.0f, modCut);
         }
 
+        if (original) {
+            // FreeAlpha 3.3 model: drive -> Chamberlin SVF (LP12/LP24/LP24+/BP12/HP12)
+            if (modCut != lastOrigCut) {
+                origF = AlphaOrigFX::cutoffCoefAt(AlphaOrigFX::hzToU(modCut), sampleRate);
+                lastOrigCut = modCut;
+            }
+            const double l = origDrive.process(L[i] * kOrigIn);
+            const double r = origDrive.process(R[i] * kOrigIn);
+            const float outL = (float)(origFilt[0].process(ftyp, l, origF, origQ, fres) * kOrigOut);
+            const float outR = (float)(origFilt[1].process(ftyp, r, origF, origQ, fres) * kOrigOut);
+            L[i] = outL;
+            if (numChannels >= 2) R[i] = outR;
+            continue;
+        }
+
         // Pre-filter saturation (drive)
         float l = tanhA(L[i] * driveGain) * driveComp;
         float r = tanhA(R[i] * driveGain) * driveComp;
@@ -223,10 +291,15 @@ void AlphaBetaFXAudioProcessor::processBlock(
     }
 
     // ---- Stereo chorus ----
-    chorus.setWet(wet);
-    chorus.setTime(time);
-    chorus.setRate(rate);
-    chorus.process(buffer);
+    if (original) {
+        if (numChannels >= 2)
+            origChorus.processStereo(L, R, numSamples, wet, oTime, oRate);   // wet 0 = dry, line keeps running
+    } else {
+        chorus.setWet(wet);
+        chorus.setTime(time);
+        chorus.setRate(rate);
+        chorus.process(buffer);
+    }
 
     // Do NOT pass MIDI through (this is an FX plugin, not an instrument)
     midi.clear();

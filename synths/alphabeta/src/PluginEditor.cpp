@@ -249,7 +249,11 @@ void AlphaLAF::drawPopupMenuItem(juce::Graphics& g,
 //  LKnob
 // ================================================================
 LKnob::LKnob(const juce::String& lab) : labelText(lab) {
-    slider.setSliderStyle(juce::Slider::Rotary);
+    // Click and drag up/down: no circular motion, and no jump on click.
+    // (Still drawn as a knob by AlphaLAF::drawRotarySlider.)
+    slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    slider.setSliderSnapsToMousePosition(false);
+    slider.setMouseDragSensitivity(250);            // pixels for the full range
     slider.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
     addAndMakeVisible(slider);
 }

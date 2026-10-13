@@ -152,6 +152,10 @@ public:
     // Called from the editor's timer to reflect incoming MIDI
     void refreshMidiDisplay();
 
+    // (Re)attach all controls to one engine's parameter set ("" = Modelled,
+    // "nat_", "crs_", "drk_").
+    void bindEngine(const juce::String& prefix);
+
     static juce::String getRomanNumeral(int num);
 
     // Layout constants, shared with resized() below so the editor can
@@ -253,13 +257,23 @@ private:
     juce::ComboBox      filterOnSelector;
     AKnob              filterFreqKnob;
     juce::ComboBox     filterTypeSelector;
-    AKnob              smoothKnob;
     juce::ToggleButton midiEnableButton;
-    juce::ToggleButton oversample2xButton;
     ALabel filterLabel{ "Filter" };
     ALabel freqLabel{ "Frequency" };
     ALabel filterTypeLabel{ "Type" };
-    ALabel smoothLabel{ "Smooth" };
+
+    // Engine selector (below the branding): Modelled | Native | Crisp | Dark
+    juce::ComboBox engineSelector;
+    ALabel engineLabel{ "Engine" };
+
+    // Crisp-only controls (beta layout): Smooth in column 1, Exp Decay under
+    // Wet Only, and a right-most column with Chorus / LFO / DC Center / 2x OS.
+    AKnob              smoothKnob;
+    ALabel             smoothLabel{ "Smooth" };
+    juce::ToggleButton expDecayButton;
+    AKnob              chorusKnob, lfoRateKnob, lfoDepthKnob;
+    ALabel             chorusLabel{ "Chorus" }, lfoRateLabel{ "LFO Rate" }, lfoDepthLabel{ "LFO Depth" };
+    juce::ToggleButton centerButton, oversample2xButton;
 
     ValueDisplay freqDisplay;
 
@@ -269,7 +283,6 @@ private:
     juce::ComboBox     perResSelector;   // replaces the old Per Res toggle: Global | Individual
     AKnob              decayKnob;
     juce::ToggleButton constButton;
-    juce::ToggleButton centerButton;
     juce::TextButton   savePresetButton;
     juce::TextButton   loadPresetButton;
     ALabel modeLabel{ "Shape Mode" };
@@ -289,7 +302,6 @@ private:
     AKnob              gainKnob;
     AKnob              dryWetKnob;
     juce::ToggleButton wetOnlyButton;
-    juce::ToggleButton expDecayButton;
     ALabel widthLabel{ "Width" };
     ALabel gainLabel{ "Gain" };
     ALabel dryWetLabel{ "Dry/Wet" };
@@ -297,48 +309,46 @@ private:
     ValueDisplay gainDisplay;
     ValueDisplay dryWetDisplay;
 
-    // Column 9: Chorus / LFO
-    AKnob  chorusKnob;
-    AKnob  lfoRateKnob;
-    AKnob  lfoDepthKnob;
-    ALabel chorusLabel{ "Chorus" };
-    ALabel lfoRateLabel{ "LFO Rate" };
-    ALabel lfoDepthLabel{ "LFO Depth" };
-
     // APVTS attachments
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> filterAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   filterFreqAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> filterTypeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> engineAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   smoothAttachment, chorusAttachment,
+                                                                            lfoRateAttachment, lfoDepthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   expDecayAttachment, centerAttachment,
+                                                                            oversample2xAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   decayAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   constAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   colorAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   centerAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> perResAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   expDecayAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   midiEnableAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   oversample2xAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   smoothAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   chorusAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   widthAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   gainAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   dryWetAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   wetOnlyAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   lfoRateAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   lfoDepthAttachment;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     // Track per-res state for resize
     bool currentPerResMode = false;
+
+    // Currently displayed engine (controls are bound to its parameter set)
+    int  currentEngine = -1;
+    juce::String enginePrefix() const { return ResonateAudioProcessor::enginePrefix(currentEngine); }
+    bool isCrisp() const { return currentEngine == ResonateAudioProcessor::EngineCrisp; }
+    void bindEngine(int engine);
     void applyPerResMode(bool active);
     void updateGlobalEnablement();
     void layoutContent();
     void updateEditorSize();
     int  logicalHeight() const
     {
-        return currentPerResMode ? (BASE_HEIGHT + PER_RES_EXTRA) : BASE_HEIGHT;
+        const int base = isCrisp() ? CRISP_HEIGHT : BASE_HEIGHT;
+        return currentPerResMode ? (base + PER_RES_EXTRA) : base;
     }
+    int  logicalWidth() const { return isCrisp() ? CRISP_WIDTH : LOGICAL_WIDTH; }
 
     void showSavePresetDialog();
     void showLoadPresetDialog();
@@ -348,8 +358,13 @@ private:
     // Base layout is sized for 7 resonator columns (I-VII) at the same
     // ~119px column width the original 5-column layout used, plus one more
     // control row in Column 1 (2x OS) at the same slack the design already had.
-    static constexpr int LOGICAL_WIDTH = 1288;
+    static constexpr int LOGICAL_WIDTH = 1168;
     static constexpr int BASE_HEIGHT = 412;
+
+    // Crisp view: one extra column on the right (as in the beta) and a bit
+    // more height for the Smooth knob in column 1.
+    static constexpr int CRISP_WIDTH = 1288;
+    static constexpr int CRISP_HEIGHT = 456;
 
     // Exactly the height the resonator channel strips need for their
     // Per Res knob row -- no more, so the taller view fits its content the

@@ -4,13 +4,14 @@
     Ableton-Style Resonator UI Implementation
 
     Layout (logical coordinates -- the whole thing is scaled by a transform):
-      Col 1  - Filter (On/Off, Type, Frequency), Smooth, MIDI In
-      Col 2  - Res Mode (Global/Individual), Shape Mode (Full/Odd), Color,
-               Decay, Const, Save/Load Preset
+      Col 1  - Filter (On/Off, Type, Frequency), [Smooth], MIDI In, logo, Engine
+      Col 2  - Res Mode, Shape Mode, Color, Decay, Const, Save/Load Preset
       Col 3-9- Resonators I-VII (Decay + Const + Color + Pan expand on Per Res)
-                Only Resonator I is on by default; II-VII start off.
-      Col 8  - Width, Gain, Dry/Wet, Wet Only, Exp Decay
-      Col 9  - Chorus, LFO Rate, LFO Depth, DC Center
+      Col 8  - Width, Gain, Dry/Wet, Wet Only, [Exp Decay]
+      Col 9  - [Chorus, LFO Rate, LFO Depth, DC Center, 2x OS]
+      [..] = Crisp engine only; the window grows to fit when Crisp is selected.
+      All engine-specific controls are re-bound to the selected engine's own
+      parameter set when the engine changes.
 
   ==============================================================================
 */
@@ -98,31 +99,36 @@ ResonateChannel::ResonateChannel(ResonateAudioProcessor& proc, int index)
             return (v < 0.0 ? "L" : "R") + juce::String(std::abs(v), 0);
         };
 
-    // Attachments
-    juce::String id = "res" + juce::String(index + 1);
-    auto& params = proc.getParameters();
+    bindEngine({});
 
-    if (index == 0)
-        noteAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-            params, id + "_note", noteKnob);
+    updateDisplays();
+}
+
+void ResonateChannel::bindEngine(const juce::String& prefix)
+{
+    // Drop the old attachments first (each one must go before a new one on
+    // the same control is created).
+    noteAttachment.reset(); pitchAttachment.reset(); fineAttachment.reset(); gainAttachment.reset();
+    enableAttachment.reset(); perResDecayAttachment.reset(); perResColorAttachment.reset();
+    perResConstAttachment.reset(); perResPanAttachment.reset();
+
+    const juce::String id = prefix + "res" + juce::String(resonatorIndex + 1);
+    auto& params = processor.getParameters();
+    using SA = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using BA = juce::AudioProcessorValueTreeState::ButtonAttachment;
+
+    if (resonatorIndex == 0)
+        noteAttachment = std::make_unique<SA>(params, prefix + "res1_note", noteKnob);
     else
-        pitchAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-            params, id + "_pitch", pitchKnob);
+        pitchAttachment = std::make_unique<SA>(params, id + "_pitch", pitchKnob);
 
-    fineAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, id + "_fine", fineKnob);
-    gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, id + "_gain", gainKnob);
-    enableAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, id + "_enabled", enableButton);
-    perResDecayAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, id + "_decay", perResDecayKnob);
-    perResColorAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, id + "_color", perResColorKnob);
-    perResConstAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, id + "_const", perResConstButton);
-    perResPanAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, id + "_pan", perResPanKnob);
+    fineAttachment        = std::make_unique<SA>(params, id + "_fine", fineKnob);
+    gainAttachment        = std::make_unique<SA>(params, id + "_gain", gainKnob);
+    enableAttachment      = std::make_unique<BA>(params, id + "_enabled", enableButton);
+    perResDecayAttachment = std::make_unique<SA>(params, id + "_decay", perResDecayKnob);
+    perResColorAttachment = std::make_unique<SA>(params, id + "_color", perResColorKnob);
+    perResConstAttachment = std::make_unique<BA>(params, id + "_const", perResConstButton);
+    perResPanAttachment   = std::make_unique<SA>(params, id + "_pan", perResPanKnob);
 
     updateDisplays();
 }
@@ -293,13 +299,15 @@ ResonateAudioProcessorEditor::ResonateAudioProcessorEditor(ResonateAudioProcesso
     filterTypeSelector.addItem("Bandpass", 3);
     filterTypeSelector.addItem("Notch", 4);
     content.addAndMakeVisible(filterTypeLabel);
-    content.addAndMakeVisible(smoothKnob);
-    content.addAndMakeVisible(smoothLabel);
-    smoothKnob.setRange(0.0, 100.0, 0.1);
-    smoothKnob.addListener(this);
 
     midiEnableButton.setButtonText("MIDI In");
     content.addAndMakeVisible(midiEnableButton);
+
+    // Engine selector, under the branding: Modelled (default) / Native / Crisp / Dark
+    content.addAndMakeVisible(engineSelector);
+    content.addAndMakeVisible(engineLabel);
+    engineSelector.addItem("Modelled", 1);
+    engineSelector.addItem("Native", 2);
 
     // ── Column 2: Res Mode / Shape Mode / Color / Decay / Const / Presets ──
     content.addAndMakeVisible(modeSelector);
@@ -362,86 +370,51 @@ ResonateAudioProcessorEditor::ResonateAudioProcessorEditor(ResonateAudioProcesso
     wetOnlyButton.setButtonText("Wet Only");
     content.addAndMakeVisible(wetOnlyButton);
 
-    expDecayButton.setButtonText("Exp Decay");
-    content.addAndMakeVisible(expDecayButton);
-
-    // ── Column 9: Chorus / LFO / DC Center / 2x OS ────────────────────────────
-    content.addAndMakeVisible(chorusKnob);
-    content.addAndMakeVisible(chorusLabel);
-    chorusKnob.setRange(0.0, 100.0, 0.1);
+    // ── Crisp-only controls (beta layout) ─────────────────────────────────────
+    content.addChildComponent(smoothKnob);   content.addChildComponent(smoothLabel);
+    content.addChildComponent(chorusKnob);   content.addChildComponent(chorusLabel);
+    content.addChildComponent(lfoRateKnob);  content.addChildComponent(lfoRateLabel);
+    content.addChildComponent(lfoDepthKnob); content.addChildComponent(lfoDepthLabel);
+    content.addChildComponent(expDecayButton);
+    content.addChildComponent(centerButton);
+    content.addChildComponent(oversample2xButton);
     chorusKnob.setTextValueSuffix(" %");
-    chorusKnob.addListener(this);
-    content.addAndMakeVisible(lfoRateKnob);
-    content.addAndMakeVisible(lfoRateLabel);
-    lfoRateKnob.setRange(0.1, 5.0, 0.01);
     lfoRateKnob.setTextValueSuffix(" Hz");
-    lfoRateKnob.addListener(this);
-    content.addAndMakeVisible(lfoDepthKnob);
-    content.addAndMakeVisible(lfoDepthLabel);
-    lfoDepthKnob.setRange(0.0, 20.0, 0.1);
     lfoDepthKnob.setTextValueSuffix(" c");
-    lfoDepthKnob.addListener(this);
-
+    expDecayButton.setButtonText("Exp Decay");
     centerButton.setButtonText("DC Center");
-    content.addAndMakeVisible(centerButton);
-
     oversample2xButton.setButtonText("2x OS");
-    content.addAndMakeVisible(oversample2xButton);
 
-    // ── APVTS Attachments ─────────────────────────────────────────────────────
+    engineSelector.addItem("Crisp", 3);
+    engineSelector.addItem("Dark", 4);
+
+    // ── APVTS Attachments: globals (shared by all engines) ────────────────────
     auto& params = audioProcessor.getParameters();
+    using SA = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using BA = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using CA = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
-    filterAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        params, "filter_enabled", filterOnSelector);   // Off=id1 -> false, On=id2 -> true
-    filterFreqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "filter_freq", filterFreqKnob);
-    filterTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        params, "filter_type", filterTypeSelector);
-    modeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        params, "mode", modeSelector);
-    decayAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "decay", decayKnob);
-    constAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, "const_mode", constButton);
-    colorAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "color", colorKnob);
-    centerAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, "center_mode", centerButton);
-    smoothAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "smooth", smoothKnob);
-    chorusAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "chorus", chorusKnob);
-    widthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "width", widthKnob);
-    gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "gain", gainKnob);
-    dryWetAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "drywet", dryWetKnob);
-    wetOnlyAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, "wet_only", wetOnlyButton);
-    lfoRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "lfo_rate", lfoRateKnob);
-    lfoDepthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        params, "lfo_depth", lfoDepthKnob);
-    perResAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        params, "per_res_mode", perResSelector);   // Global=id1 -> false, Individual=id2 -> true
-    expDecayAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, "exp_decay", expDecayButton);
-    midiEnableAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, "midi_enabled", midiEnableButton);
-    oversample2xAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        params, "oversample_2x", oversample2xButton);
+    engineAttachment     = std::make_unique<CA>(params, "engine", engineSelector);   // id = index + 1
+    gainAttachment       = std::make_unique<SA>(params, "gain", gainKnob);
+    dryWetAttachment     = std::make_unique<SA>(params, "drywet", dryWetKnob);
+    wetOnlyAttachment    = std::make_unique<BA>(params, "wet_only", wetOnlyButton);
+    midiEnableAttachment = std::make_unique<BA>(params, "midi_enabled", midiEnableButton);
 
     perResSelector.onChange = [this]()
         {
             applyPerResMode(perResSelector.getSelectedId() == 2);
         };
+    engineSelector.onChange = [this]()
+        {
+            const int e = engineSelector.getSelectedId() - 1;
+            if (e >= 0 && e != currentEngine)
+                bindEngine(e);
+        };
+
+    // Engine-specific controls are bound to the selected engine's parameters
+    bindEngine(audioProcessor.getSelectedEngine());
 
     // ── Resizing ──────────────────────────────────────────────────────────────
-    currentPerResMode = params.getRawParameterValue("per_res_mode")->load() > 0.5f;
-    for (int i = 0; i < ResonateAudioProcessor::MAX_RESONATORS; ++i)
-        channels[i]->setPerResMode(currentPerResMode);
-    updateGlobalEnablement();
 
     uiScale = static_cast<double>(params.state.getProperty("ui_scale", 1.0));
     uiScale = juce::jlimit(MIN_SCALE, MAX_SCALE, uiScale);
@@ -463,15 +436,71 @@ ResonateAudioProcessorEditor::~ResonateAudioProcessorEditor()
 void ResonateAudioProcessorEditor::updateEditorSize()
 {
     const int lh = logicalHeight();
+    const int lw = logicalWidth();
 
-    constrainer.setFixedAspectRatio(static_cast<double>(LOGICAL_WIDTH)
-        / static_cast<double>(lh));
+    constrainer.setFixedAspectRatio(static_cast<double>(lw) / static_cast<double>(lh));
     constrainer.setSizeLimits(
-        juce::roundToInt(LOGICAL_WIDTH * MIN_SCALE), juce::roundToInt(lh * MIN_SCALE),
-        juce::roundToInt(LOGICAL_WIDTH * MAX_SCALE), juce::roundToInt(lh * MAX_SCALE));
+        juce::roundToInt(lw * MIN_SCALE), juce::roundToInt(lh * MIN_SCALE),
+        juce::roundToInt(lw * MAX_SCALE), juce::roundToInt(lh * MAX_SCALE));
 
-    setSize(juce::roundToInt(LOGICAL_WIDTH * uiScale),
-        juce::roundToInt(lh * uiScale));
+    setSize(juce::roundToInt(lw * uiScale), juce::roundToInt(lh * uiScale));
+}
+
+//==============================================================================
+// Point every engine-specific control at the chosen engine's parameter set.
+// Ranges (e.g. Crisp's own decay curve) come along with the attachments.
+void ResonateAudioProcessorEditor::bindEngine(int engine)
+{
+    currentEngine = juce::jlimit(0, ResonateAudioProcessor::NUM_ENGINES - 1, engine);
+    const juce::String p = enginePrefix();
+    auto& params = audioProcessor.getParameters();
+    using SA = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using BA = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using CA = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+
+    filterAttachment.reset(); filterFreqAttachment.reset(); filterTypeAttachment.reset();
+    modeAttachment.reset(); decayAttachment.reset(); constAttachment.reset();
+    colorAttachment.reset(); widthAttachment.reset(); perResAttachment.reset();
+    smoothAttachment.reset(); chorusAttachment.reset(); lfoRateAttachment.reset();
+    lfoDepthAttachment.reset(); expDecayAttachment.reset(); centerAttachment.reset();
+    oversample2xAttachment.reset();
+
+    filterAttachment     = std::make_unique<CA>(params, p + "filter_enabled", filterOnSelector);
+    filterFreqAttachment = std::make_unique<SA>(params, p + "filter_freq", filterFreqKnob);
+    filterTypeAttachment = std::make_unique<CA>(params, p + "filter_type", filterTypeSelector);
+    modeAttachment       = std::make_unique<CA>(params, p + "mode", modeSelector);
+    decayAttachment      = std::make_unique<SA>(params, p + "decay", decayKnob);
+    constAttachment      = std::make_unique<BA>(params, p + "const_mode", constButton);
+    colorAttachment      = std::make_unique<SA>(params, p + "color", colorKnob);
+    widthAttachment      = std::make_unique<SA>(params, p + "width", widthKnob);
+    perResAttachment     = std::make_unique<CA>(params, p + "per_res_mode", perResSelector);
+
+    const bool crisp = isCrisp();
+    if (crisp)
+    {
+        smoothAttachment       = std::make_unique<SA>(params, p + "smooth", smoothKnob);
+        chorusAttachment       = std::make_unique<SA>(params, p + "chorus", chorusKnob);
+        lfoRateAttachment      = std::make_unique<SA>(params, p + "lfo_rate", lfoRateKnob);
+        lfoDepthAttachment     = std::make_unique<SA>(params, p + "lfo_depth", lfoDepthKnob);
+        expDecayAttachment     = std::make_unique<BA>(params, p + "exp_decay", expDecayButton);
+        centerAttachment       = std::make_unique<BA>(params, p + "center_mode", centerButton);
+        oversample2xAttachment = std::make_unique<BA>(params, p + "oversample_2x", oversample2xButton);
+    }
+    for (juce::Component* comp : { (juce::Component*) &smoothKnob, (juce::Component*) &smoothLabel,
+                                   (juce::Component*) &chorusKnob, (juce::Component*) &chorusLabel,
+                                   (juce::Component*) &lfoRateKnob, (juce::Component*) &lfoRateLabel,
+                                   (juce::Component*) &lfoDepthKnob, (juce::Component*) &lfoDepthLabel,
+                                   (juce::Component*) &expDecayButton, (juce::Component*) &centerButton,
+                                   (juce::Component*) &oversample2xButton })
+        comp->setVisible(crisp);
+
+    for (int i = 0; i < ResonateAudioProcessor::MAX_RESONATORS; ++i)
+        channels[i]->bindEngine(p);
+
+    // Res Mode is per engine as well -> re-apply it (also resizes the window)
+    const bool perRes = params.getRawParameterValue(p + "per_res_mode")->load() > 0.5f;
+    currentPerResMode = !perRes;   // force the update below
+    applyPerResMode(perRes);
 }
 
 void ResonateAudioProcessorEditor::applyPerResMode(bool active)
@@ -489,8 +518,7 @@ void ResonateAudioProcessorEditor::applyPerResMode(bool active)
 //
 // In updateParameters() only three values are swapped for their local
 // equivalents -- effDecay, effColor and effConst. Everything else (Mode,
-// Filter, Smooth, Chorus/LFO, Width, Gain, Dry/Wet, DC Center, Exp Decay)
-// stays global and stays live.
+// Filter, Width, Gain, Dry/Wet) stays global and stays live.
 void ResonateAudioProcessorEditor::updateGlobalEnablement()
 {
     const bool globalsLive = !currentPerResMode;
@@ -560,24 +588,28 @@ void ResonateAudioProcessorEditor::showLoadPresetDialog()
 
             flashPresetMessage("Loaded");
 
-            // Re-sync the parts of the UI that aren't plain attachments.
-            const bool perResNow = audioProcessor.getParameters()
-                .getRawParameterValue("per_res_mode")->load() > 0.5f;
-            applyPerResMode(perResNow);
+            // Re-sync the parts of the UI that aren't plain attachments
+            // (the preset may also have switched the engine).
+            bindEngine(audioProcessor.getSelectedEngine());
         });
 }
 
 //==============================================================================
 void ResonateAudioProcessorEditor::timerCallback()
 {
+    // Engine changed from outside (automation, preset, host state)?
+    const int engineNow = audioProcessor.getSelectedEngine();
+    if (engineNow != currentEngine)
+        bindEngine(engineNow);
+
     // Sync mode combo
     int modeIndex = static_cast<int>(
-        audioProcessor.getParameters().getRawParameterValue("mode")->load());
+        audioProcessor.getParameters().getRawParameterValue(enginePrefix() + "mode")->load());
     modeSelector.setSelectedId(modeIndex + 1, juce::dontSendNotification);
 
     // Sync per-res mode (host automation, preset load, undo, ...)
     bool perResNow = audioProcessor.getParameters()
-        .getRawParameterValue("per_res_mode")->load() > 0.5f;
+        .getRawParameterValue(enginePrefix() + "per_res_mode")->load() > 0.5f;
     if (perResNow != currentPerResMode)
         applyPerResMode(perResNow);
 
@@ -610,10 +642,10 @@ void ResonateAudioProcessorEditor::resized()
     // Scale factor derived from the window width; the constrainer keeps the
     // aspect ratio fixed so height follows automatically.
     uiScale = juce::jlimit(MIN_SCALE, MAX_SCALE,
-        static_cast<double>(getWidth()) / static_cast<double>(LOGICAL_WIDTH));
+        static_cast<double>(getWidth()) / static_cast<double>(logicalWidth()));
 
     content.setTransform(juce::AffineTransform::scale(static_cast<float>(uiScale)));
-    content.setBounds(0, 0, LOGICAL_WIDTH, lh);
+    content.setBounds(0, 0, logicalWidth(), lh);
 
     layoutContent();
 
@@ -622,15 +654,17 @@ void ResonateAudioProcessorEditor::resized()
 }
 
 //==============================================================================
-// Laid out in LOGICAL coordinates -- unchanged pixel maths, just scaled.
+// Laid out in LOGICAL coordinates -- unchanged pixel maths, only scaled.
 void ResonateAudioProcessorEditor::layoutContent()
 {
     auto bounds = content.getLocalBounds().reduced(10);
     int knobSize = 90;
     int labelH = 14;
     int spacing = 8;
+    const bool crisp = isCrisp();
 
-    // ── Column 1: Filter + Smooth + MIDI ──────────────────────────────────────
+    // ── Column 1: Filter -> (Smooth) -> MIDI -> Branding -> Engine ───────────
+    //    (beta layout; Smooth only exists in Crisp)
     auto col1 = bounds.removeFromLeft(100);
     filterLabel.setBounds(col1.removeFromTop(labelH));
     filterOnSelector.setBounds(col1.removeFromTop(24));
@@ -641,15 +675,22 @@ void ResonateAudioProcessorEditor::layoutContent()
     freqLabel.setBounds(col1.removeFromTop(labelH));
     filterFreqKnob.setBounds(col1.removeFromTop(knobSize));
     col1.removeFromTop(spacing);
-    smoothLabel.setBounds(col1.removeFromTop(labelH));
-    smoothKnob.setBounds(col1.removeFromTop(knobSize));
-    col1.removeFromTop(spacing);
+    if (crisp)
+    {
+        smoothLabel.setBounds(col1.removeFromTop(labelH));
+        smoothKnob.setBounds(col1.removeFromTop(knobSize));
+        col1.removeFromTop(spacing);
+    }
     midiEnableButton.setBounds(col1.removeFromTop(24));
     col1.removeFromTop(spacing);
-    branding.setBounds(col1.removeFromTop(40));
+    auto brandingArea = col1.removeFromTop(44);
+    branding.setBounds(brandingArea.withSizeKeepingCentre(80, 40));
+    col1.removeFromTop(4);
+    engineLabel.setBounds(col1.removeFromTop(labelH));
+    engineSelector.setBounds(col1.removeFromTop(24));
     bounds.removeFromLeft(spacing);
 
-    // ── Column 2: Res Mode / Shape Mode / Color / Decay / Const / Presets ──
+    // ── Column 2: Res Mode / Shape Mode / Color / Decay / Const / Presets ────
     auto col2 = bounds.removeFromLeft(100);
     perResLabel.setBounds(col2.removeFromTop(labelH));
     perResSelector.setBounds(col2.removeFromTop(24));
@@ -674,23 +715,26 @@ void ResonateAudioProcessorEditor::layoutContent()
     }
     bounds.removeFromLeft(spacing);
 
-    // ── Column 9 (right-most): Chorus / LFO / DC Center / 2x OS ──────────────
-    auto col9 = bounds.removeFromRight(100);
-    chorusLabel.setBounds(col9.removeFromTop(labelH));
-    chorusKnob.setBounds(col9.removeFromTop(knobSize));
-    col9.removeFromTop(spacing);
-    lfoRateLabel.setBounds(col9.removeFromTop(labelH));
-    lfoRateKnob.setBounds(col9.removeFromTop(knobSize));
-    col9.removeFromTop(spacing);
-    lfoDepthLabel.setBounds(col9.removeFromTop(labelH));
-    lfoDepthKnob.setBounds(col9.removeFromTop(knobSize));
-    col9.removeFromTop(spacing);
-    centerButton.setBounds(col9.removeFromTop(24));
-    col9.removeFromTop(spacing);
-    oversample2xButton.setBounds(col9.removeFromTop(24));
-    bounds.removeFromRight(spacing);
+    // ── Column 9 (Crisp only, right-most): Chorus / LFO / DC Center / 2x OS ──
+    if (crisp)
+    {
+        auto col9 = bounds.removeFromRight(100);
+        chorusLabel.setBounds(col9.removeFromTop(labelH));
+        chorusKnob.setBounds(col9.removeFromTop(knobSize));
+        col9.removeFromTop(spacing);
+        lfoRateLabel.setBounds(col9.removeFromTop(labelH));
+        lfoRateKnob.setBounds(col9.removeFromTop(knobSize));
+        col9.removeFromTop(spacing);
+        lfoDepthLabel.setBounds(col9.removeFromTop(labelH));
+        lfoDepthKnob.setBounds(col9.removeFromTop(knobSize));
+        col9.removeFromTop(spacing);
+        centerButton.setBounds(col9.removeFromTop(24));
+        col9.removeFromTop(spacing);
+        oversample2xButton.setBounds(col9.removeFromTop(24));
+        bounds.removeFromRight(spacing);
+    }
 
-    // ── Column 8: Width / Gain / Dry-Wet / Wet Only / Exp Decay ──────────────
+    // ── Column 8: Width / Gain / Dry-Wet / Wet Only / (Exp Decay) ────────────
     auto col8 = bounds.removeFromRight(100);
     widthLabel.setBounds(col8.removeFromTop(labelH));
     widthKnob.setBounds(col8.removeFromTop(knobSize));
@@ -702,11 +746,14 @@ void ResonateAudioProcessorEditor::layoutContent()
     dryWetKnob.setBounds(col8.removeFromTop(knobSize));
     col8.removeFromTop(spacing);
     wetOnlyButton.setBounds(col8.removeFromTop(24));
-    col8.removeFromTop(spacing);
-    expDecayButton.setBounds(col8.removeFromTop(24));
+    if (crisp)
+    {
+        col8.removeFromTop(spacing);
+        expDecayButton.setBounds(col8.removeFromTop(24));
+    }
     bounds.removeFromRight(spacing);
 
-    // ── Columns 3-9: Resonator channel strips I-VII ───────────────────────────
+    // ── Resonator channel strips I-VII ────────────────────────────────────────
     int channelWidth = bounds.getWidth() / ResonateAudioProcessor::MAX_RESONATORS;
     for (int i = 0; i < ResonateAudioProcessor::MAX_RESONATORS; ++i)
     {

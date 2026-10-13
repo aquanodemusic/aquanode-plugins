@@ -277,6 +277,49 @@ void FXLKnob::paint(juce::Graphics& g) {
 }
 
 // ================================================================
+//  FXModeSwitch
+// ================================================================
+FXModeSwitch::FXModeSwitch(juce::RangedAudioParameter& p, std::function<void(int)> onChange)
+    : att(p, [this](float v) {
+          value = juce::roundToInt(v);
+          repaint();
+          if (changed) changed(value);
+      }),
+      changed(std::move(onChange))
+{
+    setTooltip("NATIVE: the AlphaBeta drive, filters and chorus.  ORIGINAL: the model of the "
+               "LinPlug FreeAlpha 3.3 drive, filters and chorus, as in the synth's ORIGINAL engine.");
+    setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    att.sendInitialUpdate();
+}
+
+void FXModeSwitch::paint(juce::Graphics& g) {
+    auto r = getLocalBounds().toFloat().reduced(0.5f);
+    g.setColour(juce::Colour(0xFF0B0E14));
+    g.fillRoundedRectangle(r, 5.0f);
+    const char* labels[2] = { "NATIVE", "ORIGINAL" };
+    for (int i = 0; i < 2; ++i) {
+        auto seg = r.withWidth(r.getWidth() * 0.5f).translated(r.getWidth() * 0.5f * (float)i, 0.0f).reduced(2.0f);
+        const bool on = value == i;
+        if (on) {
+            juce::ColourGradient body(FXPal::blue, seg.getX(), seg.getY(), FXPal::blueDark, seg.getX(), seg.getBottom(), false);
+            g.setGradientFill(body);
+            g.fillRoundedRectangle(seg, 4.0f);
+        }
+        g.setFont(juce::Font(juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::bold));
+        g.setColour(on ? juce::Colours::white : FXPal::textBright.withAlpha(0.7f));
+        g.drawText(labels[i], seg, juce::Justification::centred, false);
+    }
+    g.setColour(FXPal::blueDark.withAlpha(0.9f));
+    g.drawRoundedRectangle(r, 5.0f, 1.2f);
+}
+
+void FXModeSwitch::mouseDown(const juce::MouseEvent& e) {
+    const int v = e.x < getWidth() / 2 ? 0 : 1;
+    if (v != value) att.setValueAsCompleteGesture((float)v);
+}
+
+// ================================================================
 //  Constructor
 // ================================================================
 AlphaBetaFXAudioProcessorEditor::AlphaBetaFXAudioProcessorEditor(
@@ -285,10 +328,6 @@ AlphaBetaFXAudioProcessorEditor::AlphaBetaFXAudioProcessorEditor(
 {
     setLookAndFeel(&laf);
 
-    int totalW = 0;
-    for (int c : CW) totalW += c;
-    int totalH = TITLE_H + NROWS * 95;
-    setSize(totalW, totalH);
 
     // ---- Knobs ----
     addAndMakeVisible(knobDrive);
@@ -297,6 +336,8 @@ AlphaBetaFXAudioProcessorEditor::AlphaBetaFXAudioProcessorEditor(
     addAndMakeVisible(hWet);
     addAndMakeVisible(hTime);
     addAndMakeVisible(hRate);
+    addChildComponent(hTimeO);
+    addChildComponent(hRateO);
     addAndMakeVisible(envAtk);
     addAndMakeVisible(envDcy);
     addAndMakeVisible(envSus);
@@ -344,6 +385,34 @@ AlphaBetaFXAudioProcessorEditor::AlphaBetaFXAudioProcessorEditor(
     att_rtyp = std::make_unique<CA>(apvts, FXPID::RTYP, resType);
     att_eon = std::make_unique<BA>(apvts, FXPID::EON, envToggle);
     att_emid = std::make_unique<BA>(apvts, FXPID::EMID, midiToggle);
+    att_ohtim = std::make_unique<SA>(apvts, FXPID::OHTIM, hTimeO.slider);
+    att_ohrat = std::make_unique<SA>(apvts, FXPID::OHRAT, hRateO.slider);
+
+    // ---- Mode switch (created last: its initial update calls showMode) ----
+    if (auto* mp = apvts.getParameter(FXPID::MODE)) {
+        modeSwitch = std::make_unique<FXModeSwitch>(*mp, [this](int m) { showMode(m); });
+        addAndMakeVisible(*modeSwitch);
+    }
+
+    // Set the size last: setSize() runs resized(), which needs every child
+    // (including the mode switch above) to exist already.
+    int totalW = 0;
+    for (int c : CW) totalW += c;
+    setSize(totalW, TITLE_H + LABEL_H + NROWS * 95);
+}
+
+// Swap the chorus Time / Rate knobs and grey out the native-only Res Curve
+void AlphaBetaFXAudioProcessorEditor::showMode(int mode) {
+    originalMode = mode == 1;
+    hTime.setVisible(!originalMode);
+    hRate.setVisible(!originalMode);
+    hTimeO.setVisible(originalMode);
+    hRateO.setVisible(originalMode);
+    resType.setEnabled(!originalMode);
+    resType.setAlpha(originalMode ? 0.35f : 1.0f);
+    resType.setTooltip(originalMode ? "Native mode only: the original filter has its own resonance law" : "");
+    fType.setTooltip(originalMode ? "Original mode: Chamberlin SVF; LP24+ is the original's 'alternative' 24 dB low-pass" : "");
+    repaint();
 }
 
 AlphaBetaFXAudioProcessorEditor::~AlphaBetaFXAudioProcessorEditor() {
@@ -357,8 +426,9 @@ juce::Rectangle<int>
 AlphaBetaFXAudioProcessorEditor::cell(int col, int row) const {
     int x = 0;
     for (int c = 0; c < col; ++c) x += CW[c];
-    int rowH = (getHeight() - TITLE_H) / NROWS;
-    return { x, TITLE_H + row * rowH, CW[col], rowH };
+    const int top = TITLE_H + LABEL_H;
+    int rowH = (getHeight() - top) / NROWS;
+    return { x, top + row * rowH, CW[col], rowH };
 }
 
 void AlphaBetaFXAudioProcessorEditor::placeCB(juce::ComboBox& cb, int col, int row) {
@@ -378,6 +448,8 @@ void AlphaBetaFXAudioProcessorEditor::resized()
     hWet.setBounds(cell(5, 0));
     hTime.setBounds(cell(6, 0));
     hRate.setBounds(cell(7, 0));
+    hTimeO.setBounds(cell(6, 0));
+    hRateO.setBounds(cell(7, 0));
     envAtk.setBounds(cell(9, 0));
     envDcy.setBounds(cell(10, 0));
     envSus.setBounds(cell(11, 0));
@@ -401,6 +473,9 @@ void AlphaBetaFXAudioProcessorEditor::resized()
 
     envToggle.setBounds(pillStartX, rowMidY - pillH / 2, pillW, pillH);
     midiToggle.setBounds(pillStartX + pillW + pillGap, rowMidY - pillH / 2, pillW, pillH);
+
+    // Title bar — mode switch right after the "ALPHABETA FX" logo
+    if (modeSwitch != nullptr) modeSwitch->setBounds(140, (TITLE_H - 22) / 2, 156, 22);
 }
 
 // ================================================================
@@ -442,27 +517,26 @@ void AlphaBetaFXAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(FXPal::envOn.withAlpha(0.045f));
     g.fillRect(envSectionX, TITLE_H, envSectionW, H - TITLE_H);
 
-    // ---- Section labels ----
-    const int rowH = (H - TITLE_H) / NROWS;
-    g.setFont(juce::Font(juce::Font::getDefaultMonospacedFontName(), 8.5f, juce::Font::plain));
-    g.setColour(FXPal::textBright.withAlpha(0.55f));
+    // ---- Section labels (own strip above the knobs, so nothing covers them) ----
+    g.setFont(juce::Font(juce::Font::getDefaultMonospacedFontName(), 9.5f, juce::Font::bold));
+    g.setColour(FXPal::textDim);
 
     g.drawText("DRIVE",
-        juce::Rectangle<int>(0, TITLE_H + 2, CW[0], 12),
+        juce::Rectangle<int>(0, TITLE_H + 3, CW[0], 12),
         juce::Justification::centred, false);
 
-    g.drawText("FILTER",
-        juce::Rectangle<int>(x1 + CW[1], TITLE_H + 2, CW[2] + CW[3], 12),
+    g.drawText(originalMode ? "FILTER  (ORIGINAL)" : "FILTER",
+        juce::Rectangle<int>(x1 + CW[1], TITLE_H + 3, CW[2] + CW[3], 12),
         juce::Justification::centred, false);
 
-    g.drawText("CHORUS",
-        juce::Rectangle<int>(x4 + CW[4], TITLE_H + 2, CW[5] + CW[6] + CW[7], 12),
+    g.drawText(originalMode ? "CHORUS  (ORIGINAL)" : "CHORUS",
+        juce::Rectangle<int>(x4 + CW[4], TITLE_H + 3, CW[5] + CW[6] + CW[7], 12),
         juce::Justification::centred, false);
 
     // Envelope section label — use the teal accent colour
-    g.setColour(FXPal::envOn.withAlpha(0.70f));
+    g.setColour(FXPal::envOn.darker(0.9f));
     g.drawText("FILTER ENVELOPE",
-        juce::Rectangle<int>(envSectionX, TITLE_H + 2, envSectionW, 12),
+        juce::Rectangle<int>(envSectionX, TITLE_H + 3, envSectionW, 12),
         juce::Justification::centred, false);
 
     // ---- Title bar ----
@@ -488,6 +562,7 @@ void AlphaBetaFXAudioProcessorEditor::paint(juce::Graphics& g)
     // Subtitle
     g.setFont(juce::Font(juce::Font::getDefaultMonospacedFontName(), 8.5f, juce::Font::plain));
     g.setColour(FXPal::textBright.withAlpha(0.6f));
-    g.drawText("Stereo Drive + Filter + Chorus  |  Filter Envelope",
-        juce::Rectangle<int>(145, 0, W - 155, TITLE_H), juce::Justification::centredLeft);
+    g.drawText(originalMode ? "Stereo Drive + Filter + Chorus  |  Filter Envelope  |  FreeAlpha 3.3 model"
+                            : "Stereo Drive + Filter + Chorus  |  Filter Envelope",
+        juce::Rectangle<int>(310, 0, W - 320, TITLE_H), juce::Justification::centredLeft);
 }

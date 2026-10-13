@@ -2,16 +2,18 @@
 
 <JUCERPROJECT id="IXEDB0" name="AlphaBetaFX" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" companyName="aquanodemusic"
-              companyCopyright="none" companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3">
+              companyCopyright="none" companyEmail="node.aqua@gmail.com" pluginFormats="buildStandalone,buildVST3"
+              version="3.2.1">
   <MAINGROUP id="ULru2p" name="AlphaBetaFX">
     <GROUP id="{28E7ECA0-FA5F-6B8A-8806-27DF7FFE0297}" name="Source">
       <FILE id="zSptQL" name="PluginProcessor.cpp" compile="1" resource="0"
-            file="PluginProcessor.cpp"/>
+            file="Source/PluginProcessor.cpp"/>
       <FILE id="xEJHwB" name="PluginProcessor.h" compile="0" resource="0"
-            file="PluginProcessor.h"/>
+            file="Source/PluginProcessor.h"/>
       <FILE id="VJvwSD" name="PluginEditor.cpp" compile="1" resource="0"
-            file="PluginEditor.cpp"/>
-      <FILE id="rtqohU" name="PluginEditor.h" compile="0" resource="0" file="PluginEditor.h"/>
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="rtqohU" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="aOfx01" name="AlphaOrigFX.h" compile="0" resource="0" file="Source/AlphaOrigFX.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
