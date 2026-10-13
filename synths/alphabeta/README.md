@@ -2,8 +2,7 @@
 
 ![AlphaBetaSynth banner](assets/GUI.png)
 
-**Latest version:** 3.1.4 - download builds from the [Releases](../../../../releases) page.
-In the Downloads you will find AlphaBeta.vst3, an older / simpler version, and AlphaBetaSynth.vst3, the "full" version.
+**Latest version:** 3.2.1 - download builds from the [Releases](../../../../releases) page.
 
 ## About AlphaBeta
 
@@ -19,7 +18,7 @@ AlphaBeta has a CRT-like screen with a modulation matrix that lets you easily li
 
 Per Oscillator, you have two voices you can morph between. Other controls are pretty standard, but the most important ones are the fade and depth knobs: Fade sets the depth at which the filters cutoff frequency moves from the sustain value to either the cutoff parameters value when the dial is turned completely counter-clockwise or envelope depth when the dial is turned completely clockwise. The depth dial is used to set the degree to which the filter's envelope effects the signal. -100% means that the envelope has full negative effect on the filter. A middle position means that it has no effect on the filter. 100% (i.e. turning the dial completely clockwise) means that the filter is modulated by the envelope's full range. FM from Oscillator 2 to Oscillator 1 is active when it has values higher than 0.
 
-I provided a few simple presets in the download as well, these are generally made for the older versions of the synth though - both versions are in the download.
+I provided a few simple presets in the download as well, these are generally made for the older versions of the synth though.
 
 Thanks for checking it out!
 
