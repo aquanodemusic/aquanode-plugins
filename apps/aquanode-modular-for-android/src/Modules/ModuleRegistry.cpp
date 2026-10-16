@@ -115,6 +115,34 @@ extern "C" bool FormantFilterModule_aqRegistered;
 extern "C" bool TapeWobbleModule_aqRegistered;
 extern "C" bool AquaFilterModule_aqRegistered;
 extern "C" bool DropletsModule_aqRegistered;
+extern "C" bool ChordWavetableModule_aqRegistered;
+extern "C" bool MultiLFOModule_aqRegistered;
+extern "C" bool ThreeBandCompModule_aqRegistered;
+extern "C" bool DXPitchEGModule_aqRegistered;
+extern "C" bool DXLFOModule_aqRegistered;
+extern "C" bool DXEnvelopeModule_aqRegistered;
+extern "C" bool ResonateBankModule_aqRegistered;
+extern "C" bool SpectralLockModule_aqRegistered;
+extern "C" bool IRForgeModule_aqRegistered;
+extern "C" bool FeltPianoModule_aqRegistered;
+extern "C" bool MidPianoModule_aqRegistered;
+extern "C" bool HardPianoModule_aqRegistered;
+extern "C" bool WarpOscModule_aqRegistered;
+extern "C" bool CurveEnvModule_aqRegistered;
+extern "C" bool RandomLFOModule_aqRegistered;
+extern "C" bool EchoModule_aqRegistered;
+extern "C" bool ShelfEQModule_aqRegistered;
+// Vintage family (analog-synth style modules)
+extern "C" bool DualVcoModule_aqRegistered;
+extern "C" bool DualFilterModule_aqRegistered;
+extern "C" bool SkewLFOModule_aqRegistered;
+extern "C" bool AnalogEGModule_aqRegistered;
+extern "C" bool PWMOscModule_aqRegistered;
+extern "C" bool WarmLadderModule_aqRegistered;
+extern "C" bool EnsembleModule_aqRegistered;
+extern "C" bool StereoPhaserModule_aqRegistered;
+extern "C" bool CrossDelayModule_aqRegistered;
+extern "C" bool SmoothHallModule_aqRegistered;
 
 namespace aquanode
 {
@@ -231,6 +259,33 @@ int forceLinkAllModules()
     sink ^= AquaFilterModule_aqRegistered;
     sink ^= DropletsModule_aqRegistered;
     sink ^= PolySumModule_aqRegistered;
+    sink ^= ChordWavetableModule_aqRegistered;
+    sink ^= MultiLFOModule_aqRegistered;
+    sink ^= ThreeBandCompModule_aqRegistered;
+    sink ^= DXPitchEGModule_aqRegistered;
+    sink ^= DXLFOModule_aqRegistered;
+    sink ^= DXEnvelopeModule_aqRegistered;
+    sink ^= ResonateBankModule_aqRegistered;
+    sink ^= SpectralLockModule_aqRegistered;
+    sink ^= IRForgeModule_aqRegistered;
+    sink ^= FeltPianoModule_aqRegistered;
+    sink ^= MidPianoModule_aqRegistered;
+    sink ^= HardPianoModule_aqRegistered;
+    sink ^= WarpOscModule_aqRegistered;
+    sink ^= CurveEnvModule_aqRegistered;
+    sink ^= RandomLFOModule_aqRegistered;
+    sink ^= EchoModule_aqRegistered;
+    sink ^= ShelfEQModule_aqRegistered;
+    sink ^= DualVcoModule_aqRegistered;
+    sink ^= DualFilterModule_aqRegistered;
+    sink ^= SkewLFOModule_aqRegistered;
+    sink ^= AnalogEGModule_aqRegistered;
+    sink ^= PWMOscModule_aqRegistered;
+    sink ^= WarmLadderModule_aqRegistered;
+    sink ^= EnsembleModule_aqRegistered;
+    sink ^= StereoPhaserModule_aqRegistered;
+    sink ^= CrossDelayModule_aqRegistered;
+    sink ^= SmoothHallModule_aqRegistered;
 
     return sink ? 1 : 0;
 }

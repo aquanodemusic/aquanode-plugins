@@ -499,10 +499,9 @@ void AquanodeModularAudioProcessor::startVoice (const ProcessGraph& graph, int n
 
     // 1) the same pitch from the same stream is still HELD -> retrigger it.
     //    A note that has been released keeps its voice for its release tail
-    //    and the new note gets a fresh voice, the way a polysynth (and the
-    //    Virtual DX7 engine) does it: re-striking a key during its release
-    //    starts a clean note instead of picking up the old one's envelopes
-    //    mid-release.
+    //    and the new note gets a fresh voice, the way a polysynth (and a
+    //    DX7) does it: re-striking a key during its release starts a clean
+    //    note instead of picking up the old one's envelopes mid-release.
     int v = -1;
     bool retrigger = false;
     for (int i = 0; i < kMaxVoices; ++i)
@@ -953,6 +952,7 @@ ModuleInstance* AquanodeModularAudioProcessor::getInstance (int instanceId) cons
 void AquanodeModularAudioProcessor::initializePatch()
 {
     clearPatch();
+    patchName = "Init";
 
    #if AQUANODE_FX_BUILD
     // Effect build: a blank slate is the host's own signal passed straight
@@ -985,6 +985,18 @@ void AquanodeModularAudioProcessor::initializePatch()
 
     resetAllPending.store (true, std::memory_order_release);   // wipe voices + DSP state
     rebuildGraph();
+}
+
+juce::String AquanodeModularAudioProcessor::generatePatch (
+    const std::function<juce::String (AquanodeModularAudioProcessor&)>& build)
+{
+    clearPatch();
+    const auto name = build != nullptr ? build (*this) : juce::String();
+    patchName = name.isNotEmpty() ? name : juce::String ("Generated");
+    resetAllPending.store (true, std::memory_order_release);   // wipe voices + DSP state
+    rebuildGraph();
+    uiFitOnOpen = true;
+    return patchName;
 }
 
 void AquanodeModularAudioProcessor::clearPatch()
@@ -1604,6 +1616,7 @@ void AquanodeModularAudioProcessor::applyPatchXml (const juce::XmlElement& xml,
         return;
 
     clearPatch();
+    patchName = "Patch";   // a patch never stores a name; importPatchFrom* name it after its file
 
     int maxId = 0;
 
@@ -1809,20 +1822,30 @@ bool AquanodeModularAudioProcessor::importFromZipObject (juce::ZipFile& zip)
     return true;
 }
 
-bool AquanodeModularAudioProcessor::importPatchFromStream (juce::InputStream& in)
+bool AquanodeModularAudioProcessor::importPatchFromStream (juce::InputStream& in, const juce::String& fileName)
 {
     // ZipFile needs random access, so buffer the picked document into memory.
     juce::MemoryBlock mb;
     in.readIntoMemoryBlock (mb);
 
     juce::ZipFile zip (new juce::MemoryInputStream (mb, true), true);   // owns + frees the stream
-    return importFromZipObject (zip);
+    const bool ok = importFromZipObject (zip);
+
+    // the patch is called after the file it came from
+    if (ok && fileName.isNotEmpty())
+        patchName = fileName;
+    return ok;
 }
 
 bool AquanodeModularAudioProcessor::importPatchFromZip (const juce::File& zipFile)
 {
     juce::ZipFile zip (zipFile);
-    return importFromZipObject (zip);
+    const bool ok = importFromZipObject (zip);
+
+    // the patch is called after the file it came from
+    if (ok)
+        patchName = zipFile.getFileNameWithoutExtension();
+    return ok;
 }
 
 //==============================================================================

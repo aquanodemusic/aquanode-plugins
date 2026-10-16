@@ -1,4 +1,6 @@
 #include "PluginEditor.h"
+#include "Presets/EffectAdders.h"
+#include "Presets/PresetGenerators.h"
 
 using namespace aquanode;
 
@@ -13,6 +15,7 @@ namespace layout
     constexpr int headerMinH = 52;     // minimum header height (title area)
     constexpr int knobRowH = 82;       // taller -> bigger knobs
     constexpr int wideRowH = 32;       // rows containing only combos/buttons
+    constexpr int barRowH = 40;        // rows of horizontal bars (no knobs)
     constexpr int unitsPerRow = 5;
     constexpr int socketSize = 15;
     constexpr int gridSpacing = 24;
@@ -112,11 +115,35 @@ void ModuleComponent::buildControls()
                     if (spec.logarithmic && spec.minValue < 0.1f)
                         dp = 3;   // e.g. FM Ratio 0.001..100 needs fine resolution near the bottom
                     slider->setNumDecimalPlacesToDisplay (dp);
+
+                    // frequencies: "1.80k" fits the box where "1800 Hz" did not
+                    if (spec.unitSuffix == "Hz")
+                    {
+                        slider->setTextValueSuffix ({});
+                        slider->textFromValueFunction = [] (double v)
+                        {
+                            if (v >= 10000.0) return juce::String (v / 1000.0, 1) + "k";
+                            if (v >= 1000.0)  return juce::String (v / 1000.0, 2) + "k";
+                            return juce::String (v, v < 10.0 ? 2 : (v < 100.0 ? 1 : 0)) + " Hz";
+                        };
+                        slider->valueFromTextFunction = [] (const juce::String& t)
+                        {
+                            const auto s = t.trim().toLowerCase();
+                            const double x = s.getDoubleValue();
+                            return s.containsChar ('k') ? x * 1000.0 : x;
+                        };
+                    }
                 }
 
                 slider->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 52, 17);
                 slider->setDoubleClickReturnValue (true, spec.defaultValue);   // double-click resets
                 slider->setValue (dsp->getParameter (spec.id), juce::dontSendNotification);
+
+                // setValue() does not redraw the text when the value is unchanged,
+                // and the box was filled in by setRange() before the choice names
+                // existed - a stepped knob sitting on its first choice used to
+                // read "0" instead of "-LIN"
+                slider->updateText();
 
                 // does any other parameter's visibility depend on this knob?
                 // (e.g. Glide only exists while Voices == 1) - if so the knob
@@ -148,9 +175,12 @@ void ModuleComponent::buildControls()
                 slider->setRange (spec.minValue, spec.maxValue, spec.interval);
                 if (spec.unitSuffix.isNotEmpty())
                     slider->setTextValueSuffix (" " + spec.unitSuffix);
+                if (spec.logarithmic && spec.minValue > 0.0f)
+                    slider->setSkewFactorFromMidPoint (std::sqrt ((double) spec.minValue * spec.maxValue));
                 const float hrange = spec.maxValue - spec.minValue;
-                slider->setNumDecimalPlacesToDisplay (hrange > 20.0f ? 1 : 2);
-                slider->setTextBoxStyle (juce::Slider::TextBoxRight, false, 46, 16);
+                slider->setNumDecimalPlacesToDisplay (spec.interval == 1.0f || hrange > 1000.0f ? 0
+                                                      : hrange > 20.0f ? 1 : 2);
+                slider->setTextBoxStyle (juce::Slider::TextBoxRight, false, 58, 16);
                 slider->setDoubleClickReturnValue (true, spec.defaultValue);
                 slider->setValue (dsp->getParameter (spec.id), juce::dontSendNotification);
                 slider->onValueChange = [weakDsp, paramId = spec.id, sl = slider.get()]
@@ -305,7 +335,7 @@ int ModuleComponent::layoutEverything (bool apply)
         juce::ignoreUnused (rowIt, first);
 
         std::vector<ControlEntry*> rowControls;
-        bool hasKnob = false;
+        bool hasKnob = false, hasBar = false;
         for (auto& c : controls)
         {
             const bool visible = isParamVisible (*c.spec);
@@ -319,9 +349,10 @@ int ModuleComponent::layoutEverything (bool apply)
                 if (visible)
                 {
                     rowControls.push_back (&c);
-                    if (c.spec->type == ParamType::Rotary || c.spec->type == ParamType::RotarySteppedList
-                        || c.spec->type == ParamType::HBar)
+                    if (c.spec->type == ParamType::Rotary || c.spec->type == ParamType::RotarySteppedList)
                         hasKnob = true;
+                    else if (c.spec->type == ParamType::HBar)
+                        hasBar = true;
                 }
             }
         }
@@ -329,7 +360,8 @@ int ModuleComponent::layoutEverything (bool apply)
         if (rowControls.empty())
             continue;
 
-        const int rowH = hasKnob ? layout::knobRowH : layout::wideRowH;
+        // a row of horizontal bars only needs a label and the bar itself
+        const int rowH = hasKnob ? layout::knobRowH : hasBar ? layout::barRowH : layout::wideRowH;
         const int unitW = innerW / layout::unitsPerRow;
 
         if (apply)
@@ -496,7 +528,7 @@ void ModuleComponent::paint (juce::Graphics& g)
         return;
 
     const auto& desc = inst->descriptor();
-    const auto body = sectionColour (desc.section);
+    const auto body = desc.colour();
     const auto bounds = getLocalBounds().toFloat();
 
     g.setColour (body);
@@ -531,10 +563,12 @@ void ModuleComponent::paint (juce::Graphics& g)
     // module title, centred in the header column between the socket columns
     g.setColour (juce::Colours::black);
     g.setFont (juce::Font (juce::FontOptions (14.0f, juce::Font::bold)));
-    g.drawText (desc.displayName + inst->dsp->titleSuffix(),
-                layout::socketColW, layout::pad,
-                getWidth() - 2 * layout::socketColW, headerHeight,
-                juce::Justification::centred, true);
+    // longer names ("Chord Wavetable", "3-Band Compressor") wrap onto a
+    // second line rather than being cut short between the socket columns
+    g.drawFittedText (desc.displayName + inst->dsp->titleSuffix(),
+                      layout::socketColW, layout::pad,
+                      getWidth() - 2 * layout::socketColW, headerHeight,
+                      juce::Justification::centred, 2, 0.9f);
 
     // sockets: circular = Audio, square = Modulation, round = MIDI
     for (const auto& s : sockets)
@@ -1134,8 +1168,8 @@ void PatchCanvas::paintOverChildren (juce::Graphics& g)
         if (src == nullptr || dst == nullptr)
             continue;
 
-        // cable colour always follows the source module's section colour
-        auto colour = sectionColour (src->descriptor().section);
+        // cable colour always follows the source module's card colour
+        auto colour = src->descriptor().colour();
         if (i == selectedCableIndex)
             colour = juce::Colours::white;
 
@@ -1268,6 +1302,37 @@ void PatchCanvas::mouseMagnify (const juce::MouseEvent& e, float scaleFactor)
     // exists rather than being a convenience.
     if (scaleFactor > 0.0f)
         setZoom (zoom * scaleFactor, e.position);
+}
+
+void PatchCanvas::fitToContent()
+{
+    // the union of every module card, in world coordinates
+    juce::Rectangle<int> world;
+    for (auto& mc : moduleComponents)
+        world = world.isEmpty() ? mc->getBounds() : world.getUnion (mc->getBounds());
+    if (world.isEmpty() || getWidth() <= 0 || getHeight() <= 0)
+    {
+        resetView();
+        return;
+    }
+
+    // leave room for the toolbar across the top of the patch area
+    const int topMargin = 46, margin = 16;
+    const float availW = (float) juce::jmax (100, getWidth() - 2 * margin);
+    const float availH = (float) juce::jmax (100, getHeight() - topMargin - margin);
+    zoom = juce::jlimit (minZoom, 1.0f, juce::jmin (availW / (float) world.getWidth(),
+                                                    availH / (float) world.getHeight()));
+
+    const float usedW = (float) world.getWidth() * zoom;
+    panOffset = { juce::roundToInt ((float) margin + (availW - usedW) * 0.5f - (float) world.getX() * zoom),
+                  juce::roundToInt ((float) topMargin - (float) world.getY() * zoom) };
+    panning = false;
+    applyViewToChildren();
+    rebuildGrid();
+    repaint();
+
+    if (auto* parent = getParentComponent())
+        parent->resized();
 }
 
 void PatchCanvas::resetView()
@@ -1460,7 +1525,7 @@ void SidebarTooltip::paint (juce::Graphics& g)
 //==============================================================================
 // SidebarComponent
 //==============================================================================
-SidebarComponent::SidebarComponent (std::function<void (const juce::String&)> onModuleClicked)
+SidebarComponent::SidebarComponent (std::function<void (const juce::String&, bool)> onModuleClicked)
     : moduleClicked (std::move (onModuleClicked))
 {
     buildRows();
@@ -1522,7 +1587,7 @@ void SidebarComponent::timerCallback()
         return;
 
     for (const auto& row : rows)
-        if (row.typeId == hoveredTypeId)
+        if (row.typeId == hoveredTypeId && row.area.contains (hoverPos))
         {
             showTooltipFor (row);
             return;
@@ -1531,17 +1596,39 @@ void SidebarComponent::timerCallback()
 
 void SidebarComponent::showTooltipFor (const Row& row)
 {
-    auto* reg = ModuleFactory::instance().find (row.typeId);
-    if (reg == nullptr || reg->descriptor.description.isEmpty())
-        return;
+    juce::String title, body;
+    if (row.isToggle)
+    {
+        title = "With Mutation";
+        body = "When on, every patch Random Preset builds is then run through the Mutator: five "
+               "mutations in a row at 50 %, so the sound wanders further from the engine's own. The "
+               "Mutator's Undo brings back the patch as it was built.";
+    }
+    else if (const auto* gen = aquanode::presets::findGenerator (row.typeId))
+    {
+        title = gen->tooltipTitle;
+        body = gen->tooltipBody;
+    }
+    else if (const auto* adder = aquanode::presets::findEffectAdder (row.typeId))
+    {
+        title = "Add " + adder->label;
+        body = adder->tooltipBody;
+    }
+    else
+    {
+        auto* reg = ModuleFactory::instance().find (row.typeId);
+        if (reg == nullptr || reg->descriptor.description.isEmpty())
+            return;
+        title = reg->descriptor.displayName;
+        body = reg->descriptor.description;
+    }
 
     auto* top = getTopLevelComponent();
     if (top == nullptr)
         return;
 
     tooltip = std::make_unique<SidebarTooltip>();
-    tooltip->setText (reg->descriptor.displayName, reg->descriptor.description,
-                      juce::jmin (340, juce::jmax (200, top->getWidth() - sidebarWidth - 24)));
+    tooltip->setText (title, body, juce::jmin (340, juce::jmax (200, top->getWidth() - sidebarWidth - 24)));
 
     // sit just right of the sidebar, vertically centred on the row, and keep
     // the whole panel on screen - the long entries are taller than a row
@@ -1615,6 +1702,53 @@ void SidebarComponent::buildRows()
         y += 10;
     }
 
+    // Preset Generation: one row per patch generator. Each REPLACES the whole
+    // patch; the instrument and the FX build both offer them (an FX build
+    // plays a generated patch from the on-screen keys or the track's MIDI).
+    rows.push_back ({ { 10, y, contentWidth - 20, 20 },
+                      "Random Preset", {}, presetSectionColour() });
+    {
+        // the With Mutation toggle, at the right end of the title row
+        Row toggle { { contentWidth - 14 - 72, y + 1, 72, 18 }, "With Mutation", "toggle.withMutation",
+                     presetSectionColour() };
+        toggle.isToggle = true;
+        rows.push_back (toggle);
+    }
+    y += 26;
+
+    const auto& gens = aquanode::presets::generators();
+    for (size_t i = 0; i < gens.size(); ++i)
+    {
+        // the last row (Random) stands a little apart, as a button of its own
+        const bool last = i + 1 == gens.size();
+        if (last)
+        {
+            // Add Effect: rows that ADD to the loaded patch instead of
+            // replacing it - effects in front of Audio Out, Midi Add at the start
+            y += 4;
+            rows.push_back ({ { 10, y, contentWidth - 20, 20 }, "Add Effect", {}, presetSectionColour() });
+            y += 26;
+            for (const auto& adder : aquanode::presets::effectAdders())
+            {
+                Row add { { 14, y, contentWidth - 28, 24 }, adder.label, adder.id, presetSectionColour() };
+                add.isGenerator = true;
+                add.centreFullWidth = true;
+                rows.push_back (add);
+                y += 29;
+            }
+            y += 6;
+        }
+
+        Row row { { 14, y, contentWidth - 28, 24 }, gens[i].label, gens[i].id, presetSectionColour() };
+        row.isGenerator = true;
+        row.hasMenu = gens[i].hasMenu();
+        row.centreFullWidth = last;
+        rows.push_back (row);
+        y += 29;
+    }
+
+    y += 10;
+
     // size ourselves to fit every row; the parent Viewport takes care of clipping + scrolling
     setSize (contentWidth, y);
 }
@@ -1625,6 +1759,70 @@ void SidebarComponent::paint (juce::Graphics& g)
 
     for (const auto& row : rows)
     {
+        if (row.isToggle)
+        {
+            const auto r = row.area.toFloat().reduced (0.5f);
+            if (withMutation)
+            {
+                g.setColour (row.colour);
+                g.fillRoundedRectangle (r, r.getHeight() * 0.5f);
+                g.setColour (juce::Colours::black);
+            }
+            else
+            {
+                g.setColour (row.colour.withAlpha (0.55f));
+                g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.6f));
+            }
+            g.setFont (juce::Font (juce::FontOptions (10.5f, withMutation ? juce::Font::bold : juce::Font::plain)));
+            g.drawText (row.text, row.area, juce::Justification::centred);
+            continue;
+        }
+
+        if (row.isGenerator)
+        {
+            auto r = row.area.toFloat();
+            g.setColour (row.colour.withAlpha (0.20f));
+            g.fillRoundedRectangle (r, 6.0f);
+            g.setColour (row.colour);
+            g.drawRoundedRectangle (r.reduced (0.5f), 6.0f, 1.2f);
+
+            // the menu arrow, set off by a thin divider (rows with a choice only)
+            auto textArea = row.area.withTrimmedLeft (6);
+            if (row.hasMenu)
+            {
+                const auto arrowArea = generatorMenuArea (row).toFloat();
+                g.setColour (row.colour.withAlpha (0.55f));
+                g.drawVerticalLine ((int) arrowArea.getX(), r.getY() + 5.0f, r.getBottom() - 5.0f);
+                juce::Path tri;
+                const auto c = arrowArea.getCentre();
+                tri.addTriangle (c.x - 5.0f, c.y - 2.5f, c.x + 5.0f, c.y - 2.5f, c.x, c.y + 3.5f);
+                g.setColour (juce::Colours::white.withAlpha (0.85f));
+                g.fillPath (tri);
+                textArea = textArea.withTrimmedRight (30);
+            }
+            else
+            {
+                // keep the names of the category rows lined up, menu or not
+                textArea = textArea.withTrimmedRight (row.centreFullWidth ? 6 : 30);
+            }
+
+            // the name, and the ticked engine (if any) small and dim after it
+            juce::String ticked;
+            if (const auto* gen = aquanode::presets::findGenerator (row.typeId))
+                if (gen->selection != nullptr)
+                    ticked = gen->selection();
+
+            juce::AttributedString text;
+            text.setJustification (juce::Justification::centred);
+            text.setWordWrap (juce::AttributedString::none);
+            text.append (row.text, juce::Font (juce::FontOptions (12.5f, juce::Font::bold)), juce::Colours::white);
+            if (ticked.isNotEmpty())
+                text.append ("  " + ticked, juce::Font (juce::FontOptions (11.0f)), juce::Colours::white.withAlpha (0.55f));
+            text.draw (g, textArea.toFloat());
+            continue;
+        }
+
         const bool isTitle = row.typeId.isEmpty();
         g.setColour (row.colour);
         g.setFont (juce::Font (juce::FontOptions (isTitle ? 14.0f : 12.5f,
@@ -1643,8 +1841,20 @@ void SidebarComponent::mouseUp (const juce::MouseEvent& e)
             hideTooltip();
             hoverStartMs = juce::Time::getMillisecondCounter();
 
+            if (row.isToggle)
+            {
+                withMutation = ! withMutation;
+                repaint();
+                if (onWithMutationChanged != nullptr)
+                    onWithMutationChanged (withMutation);
+                return;
+            }
+
+            const bool openMenu = row.isGenerator && row.hasMenu
+                && (generatorMenuArea (row).contains (e.getPosition()) || e.mods.isPopupMenu());
+
             if (moduleClicked != nullptr)
-                moduleClicked (row.typeId);
+                moduleClicked (row.typeId, openMenu);
             return;
         }
     }
@@ -1796,8 +2006,20 @@ float MutatorPanel::mutateValue (const ParamSpec& p, float v, float amount)
 void MutatorPanel::doMutate()
 {
     pushHistory();
-    const float amount = (float) amountSlider.getValue() * 0.01f;
+    mutateOnce ((float) amountSlider.getValue() * 0.01f);
+    canvas.refreshAllModuleValues();
+}
 
+void MutatorPanel::mutateSeveral (float amount, int times)
+{
+    pushHistory();
+    for (int i = 0; i < times; ++i)
+        mutateOnce (amount);
+    canvas.refreshAllModuleValues();
+}
+
+void MutatorPanel::mutateOnce (float amount)
+{
     for (const int id : processor.getModuleIds())
     {
         auto* inst = processor.getInstance (id);
@@ -1826,8 +2048,6 @@ void MutatorPanel::doMutate()
             inst->dsp->setParameter (p.id, mutateValue (p, v, amount));
         }
     }
-
-    canvas.refreshAllModuleValues();
 }
 
 void MutatorPanel::doBreed()
@@ -1889,8 +2109,25 @@ void MutatorPanel::doRecall (const Snapshot& snap, bool exists)
 AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (AquanodeModularAudioProcessor& p)
     : AudioProcessorEditor (&p),
       processor (p),
-      sidebar ([this] (const juce::String& typeId)
+      sidebar ([this] (const juce::String& typeId, bool openMenu)
       {
+          if (aquanode::presets::findGenerator (typeId) != nullptr)
+          {
+              runGenerator (typeId, openMenu);
+              return;
+          }
+
+          if (const auto* adder = aquanode::presets::findEffectAdder (typeId))
+          {
+              auto seed = (juce::uint32) juce::Random::getSystemRandom().nextInt();
+              const auto note = adder->apply (processor, seed == 0 ? 1u : seed);
+              if (note.isNotEmpty() && ! processor.patchName.contains ("+ " + note))
+                  processor.patchName = processor.patchName + " + " + note;
+              canvas.rebuild();
+              canvas.fitToContent();
+              return;
+          }
+
           // clicking a sidebar name opens one instance in the patch map
           // spawn into the currently visible area, regardless of pan
           const auto viewSpawn = juce::Point<int> (40 + (placementCounter % 4) * 36,
@@ -1905,6 +2142,8 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
       mutatorPanel (p, canvas)
 {
     addAndMakeVisible (sidebarViewport);
+    sidebar.setWithMutation (processor.generateWithMutation);
+    sidebar.onWithMutationChanged = [this] (bool on) { processor.generateWithMutation = on; };
     sidebarViewport.setViewedComponent (&sidebar, false);   // false: sidebar is a member, viewport must not delete it
     sidebarViewport.setScrollBarsShown (true, false);        // vertical only
     addAndMakeVisible (canvas);
@@ -1933,6 +2172,7 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
     for (auto* b : { &zoomOutButton, &zoomInButton })
         addAndMakeVisible (b);
     addAndMakeVisible (zoomReadout);
+    addAndMakeVisible (patchNameLabel);
 
     sidebarButton.onClick = [this]
     {
@@ -2032,7 +2272,8 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
                 {
                     if (auto in = doc.createInputStream())
                     {
-                        processor.importPatchFromStream (*in);
+                        processor.importPatchFromStream (*in,
+                            doc.getInfo().getName().upToLastOccurrenceOf (".", false, false));
                         canvas.rebuild();
                     }
                 }
@@ -2063,6 +2304,18 @@ AquanodeModularAudioProcessorEditor::AquanodeModularAudioProcessorEditor (Aquano
    #endif
 
     canvas.rebuild();
+
+    // a generated patch is bigger than the window: show all of it the first
+    // time the editor opens on it (async, once the layout has settled)
+    if (processor.uiFitOnOpen)
+    {
+        processor.uiFitOnOpen = false;
+        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<AquanodeModularAudioProcessorEditor> (this)]
+        {
+            if (safe != nullptr)
+                safe->canvas.fitToContent();
+        });
+    }
 }
 
 AquanodeModularAudioProcessorEditor::~AquanodeModularAudioProcessorEditor()
@@ -2166,11 +2419,103 @@ void AquanodeModularAudioProcessorEditor::resized()
     // area, lifted clear of the mutator strip so the two can never collide
     // when the Mutator is open.
     {
-        const int lw = 34, lh = 16, lgap = 4;
+        const int lw = 34, lh = 16;
         zoomReadout.setBounds(area.getRight() - lw - 8, 45, lw, lh);
+
+        // the patch name sits at the same height on the left of the patch area
+        patchNameLabel.setBounds (area.getX() + 10, 45, juce::jmax (60, area.getWidth() / 2), lh);
     }
 
     updateZoomReadout();
+}
+
+void AquanodeModularAudioProcessorEditor::applyGenerated (std::function<juce::String (AquanodeModularAudioProcessor&)> build)
+{
+    if (build == nullptr)
+        return;
+    processor.generatePatch (build);
+    processor.uiFitOnOpen = false;
+    canvas.rebuild();
+
+    // With Mutation: five mutations at 50 % on top, as one Undo step
+    if (processor.generateWithMutation)
+    {
+        mutatorPanel.mutateSeveral (0.5f, 5);
+        processor.patchName = processor.patchName + " (mutated)";
+    }
+
+    canvas.fitToContent();
+}
+
+void AquanodeModularAudioProcessorEditor::runGenerator (const juce::String& generatorId, bool openMenu)
+{
+    const auto* gen = aquanode::presets::findGenerator (generatorId);
+    if (gen == nullptr)
+        return;
+
+    if (! openMenu || ! gen->hasMenu())
+    {
+        // a whole new patch per tap; the seed comes from the system RNG so
+        // every tap is different
+        auto seed = (juce::uint32) juce::Random::getSystemRandom().nextInt();
+        applyGenerated (gen->random (seed == 0 ? 1u : seed));
+        return;
+    }
+
+    juce::Component::SafePointer<AquanodeModularAudioProcessorEditor> safeThis (this);
+
+    aquanode::presets::MenuContext ctx;
+    ctx.anchor = &sidebarViewport;
+    ctx.selectionChanged = [safeThis]
+    {
+        if (safeThis != nullptr)
+            safeThis->sidebar.repaint();
+    };
+    ctx.apply = [safeThis] (aquanode::presets::BuildFn build)
+    {
+        if (safeThis != nullptr)
+            safeThis->applyGenerated (std::move (build));
+    };
+    ctx.pickFile = [safeThis] (const juce::String& title, const juce::String& patterns,
+                               std::function<void (juce::MemoryBlock, juce::String)> onLoaded)
+    {
+        if (safeThis == nullptr)
+            return;
+
+        safeThis->fileChooser = std::make_unique<juce::FileChooser> (title, juce::File(), patterns);
+        safeThis->fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                            | juce::FileBrowserComponent::canSelectFiles,
+            [onLoaded] (const juce::FileChooser& fc)
+            {
+                juce::MemoryBlock data;
+                juce::String name;
+               #if JUCE_ANDROID
+                // a content:// document has no path: read it as a stream
+                const auto url = fc.getURLResult();
+                if (url.isEmpty())
+                    return;
+                auto doc = juce::AndroidDocument::fromDocument (url);
+                if (! doc.hasValue())
+                    return;
+                if (auto in = doc.createInputStream())
+                    in->readIntoMemoryBlock (data);
+                name = doc.getInfo().getName().upToLastOccurrenceOf (".", false, false);
+               #else
+                const auto file = fc.getResult();
+                if (! file.existsAsFile())
+                    return;
+                file.loadFileAsData (data);
+                name = file.getFileNameWithoutExtension();
+               #endif
+                if (data.getSize() > 0 && onLoaded != nullptr)
+                    onLoaded (std::move (data), name);
+            });
+    };
+
+    juce::PopupMenu menu;
+    gen->fillMenu (menu, ctx);
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&sidebarViewport)
+                                                  .withMousePosition());
 }
 
 void AquanodeModularAudioProcessorEditor::updateZoomReadout()

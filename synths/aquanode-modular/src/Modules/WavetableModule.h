@@ -9,7 +9,7 @@
 // cannot do: it only ever reads the first cycle.
 //
 // Frame Size must match how the file was made (2048 is the near-universal
-// convention for wavetable files; Serum-style tables are 2048). Warp bends the
+// convention for wavetable files). Warp bends the
 // read phase inside each frame - a cheap formant/pulse-width-ish twist.
 // Position In is the socket to reach for first: an ADSR or LFO here is what
 // makes a wavetable patch move.

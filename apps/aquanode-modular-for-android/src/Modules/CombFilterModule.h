@@ -2,7 +2,7 @@
 
 #include "ModuleCore.h"
 
-// Comb Filter - an actual delay-line comb filter, the Vital kind: a delay one
+// Comb Filter - an actual delay-line comb filter: a delay one
 // wavelength long, fed back on itself, so the peaks land on the harmonic
 // series of Freq and the thing rings at a pitch. (The older "Center Comb"
 // module is a bank of peaking EQs around a centre - useful, but no delay

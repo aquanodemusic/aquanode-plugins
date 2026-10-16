@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="GZWYPf" name="Aquanode Modular" projectType="audioplug" useAppConfig="0"
               pluginName="Aquanode Modular" pluginManufacturerCode="Aqnd" pluginCode="Aqmo"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="4.0"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" version="4.5"
               companyName="aquanodemusic" companyCopyright="none" companyEmail="node.aqua@gmail.com"
               pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn">
   <MAINGROUP id="m2RO6u" name="Aquanode Modular">
@@ -14,6 +14,36 @@
       <FILE id="Uy66Bg" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="pg6vbu" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+    </GROUP>
+    <GROUP id="{7A3C2E51-5B1D-4C0E-9F7A-2E5E7A0C0001}" name="Presets">
+      <FILE id="f8cfba" name="ChordWavetableGenerator.cpp" compile="1" resource="0"
+            file="Source/Presets/ChordWavetableGenerator.cpp"/>
+      <FILE id="268706" name="ChordWavetableGenerator.h" compile="0" resource="0"
+            file="Source/Presets/ChordWavetableGenerator.h"/>
+      <FILE id="a0e37b" name="PresetCommon.cpp" compile="1" resource="0"
+            file="Source/Presets/PresetCommon.cpp"/>
+      <FILE id="b3c172" name="PresetCommon.h" compile="0" resource="0" file="Source/Presets/PresetCommon.h"/>
+      <FILE id="ea1425" name="PresetGenerators.cpp" compile="1" resource="0"
+            file="Source/Presets/PresetGenerators.cpp"/>
+      <FILE id="1d7759" name="PresetGenerators.h" compile="0" resource="0"
+            file="Source/Presets/PresetGenerators.h"/>
+      <FILE id="ec6595" name="EffectAdders.cpp" compile="1" resource="0"
+            file="Source/Presets/EffectAdders.cpp"/>
+      <FILE id="b7328f" name="EffectAdders.h" compile="0" resource="0" file="Source/Presets/EffectAdders.h"/>
+      <FILE id="7328d4" name="VaporizationPatch.cpp" compile="1" resource="0"
+            file="Source/Presets/VaporizationPatch.cpp"/>
+      <FILE id="48e55c" name="VaporizationPatch.h" compile="0" resource="0"
+            file="Source/Presets/VaporizationPatch.h"/>
+      <FILE id="e9f503" name="DX7Generator.cpp" compile="1" resource="0"
+            file="Source/Presets/DX7Generator.cpp"/>
+      <FILE id="c91106" name="DX7Generator.h" compile="0" resource="0" file="Source/Presets/DX7Generator.h"/>
+      <FILE id="f3a1c7" name="FMVoices.cpp" compile="1" resource="0" file="Source/Presets/FMVoices.cpp"/>
+      <FILE id="fafba2" name="GenreGenerator.cpp" compile="1" resource="0"
+            file="Source/Presets/GenreGenerator.cpp"/>
+      <FILE id="5f9659" name="GenreGenerator.h" compile="0" resource="0"
+            file="Source/Presets/GenreGenerator.h"/>
+      <FILE id="1fdf13" name="GenreRecipes.cpp" compile="1" resource="0"
+            file="Source/Presets/GenreRecipes.cpp"/>
     </GROUP>
     <GROUP id="{8997C715-FA54-DCDC-1266-75DFE96E139A}" name="Modules">
       <FILE id="cp98ne" name="ADSRModule.cpp" compile="1" resource="0" file="Source/Modules/ADSRModule.cpp"/>
@@ -263,9 +293,9 @@
             file="Source/Modules/AdditiveModule.h"/>
       <FILE id="aqn09c" name="ArpModule.cpp" compile="1" resource="0" file="Source/Modules/ArpModule.cpp"/>
       <FILE id="aqn09h" name="ArpModule.h" compile="0" resource="0" file="Source/Modules/ArpModule.h"/>
-      <FILE id="aqb00c" name="DiscardMidiModule.cpp" compile="1" resource="0"
+      <FILE id="457ddf" name="DiscardMidiModule.cpp" compile="1" resource="0"
             file="Source/Modules/DiscardMidiModule.cpp"/>
-      <FILE id="aqb00h" name="DiscardMidiModule.h" compile="0" resource="0"
+      <FILE id="c3d32c" name="DiscardMidiModule.h" compile="0" resource="0"
             file="Source/Modules/DiscardMidiModule.h"/>
       <FILE id="aqk01c" name="KeyboardMidiModule.cpp" compile="1" resource="0"
             file="Source/Modules/KeyboardMidiModule.cpp"/>
@@ -290,14 +320,26 @@
             file="Source/Modules/TranswaveModule.cpp"/>
       <FILE id="aqt02h" name="TranswaveModule.h" compile="0" resource="0"
             file="Source/Modules/TranswaveModule.h"/>
+      <FILE id="cbm00c" name="ChordWavetableModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ChordWavetableModule.cpp"/>
+      <FILE id="cbm00h" name="ChordWavetableModule.h" compile="0" resource="0"
+            file="Source/Modules/ChordWavetableModule.h"/>
+      <FILE id="cbm10c" name="MultiLFOModule.cpp" compile="1" resource="0"
+            file="Source/Modules/MultiLFOModule.cpp"/>
+      <FILE id="cbm10h" name="MultiLFOModule.h" compile="0" resource="0"
+            file="Source/Modules/MultiLFOModule.h"/>
+      <FILE id="cbm20c" name="ThreeBandCompModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ThreeBandCompModule.cpp"/>
+      <FILE id="cbm20h" name="ThreeBandCompModule.h" compile="0" resource="0"
+            file="Source/Modules/ThreeBandCompModule.h"/>
       <FILE id="aqd02c" name="DXOperatorModule.cpp" compile="1" resource="0"
             file="Source/Modules/DXOperatorModule.cpp"/>
       <FILE id="aqd02h" name="DXOperatorModule.h" compile="0" resource="0"
             file="Source/Modules/DXOperatorModule.h"/>
-      <FILE id="aqn02h" name="DXNativeFM.h" compile="0" resource="0" file="Source/Modules/DXNativeFM.h"/>
-      <FILE id="aqb01c" name="DrawLFOModule.cpp" compile="1" resource="0"
+      <FILE id="e32e30" name="DXNativeFM.h" compile="0" resource="0" file="Source/Modules/DXNativeFM.h"/>
+      <FILE id="89d9f6" name="DrawLFOModule.cpp" compile="1" resource="0"
             file="Source/Modules/DrawLFOModule.cpp"/>
-      <FILE id="aqb01h" name="DrawLFOModule.h" compile="0" resource="0" file="Source/Modules/DrawLFOModule.h"/>
+      <FILE id="651c18" name="DrawLFOModule.h" compile="0" resource="0" file="Source/Modules/DrawLFOModule.h"/>
       <FILE id="aqb02c" name="BellEQModule.cpp" compile="1" resource="0"
             file="Source/Modules/BellEQModule.cpp"/>
       <FILE id="aqb02h" name="BellEQModule.h" compile="0" resource="0" file="Source/Modules/BellEQModule.h"/>
@@ -340,6 +382,100 @@
             file="Source/Modules/AlwaysMidiModule.cpp"/>
       <FILE id="aqa00h" name="AlwaysMidiModule.h" compile="0" resource="0"
             file="Source/Modules/AlwaysMidiModule.h"/>
+      <FILE id="d05e79" name="DXPitchEGModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DXPitchEGModule.cpp"/>
+      <FILE id="5ba745" name="DXPitchEGModule.h" compile="0" resource="0"
+            file="Source/Modules/DXPitchEGModule.h"/>
+      <FILE id="7a3924" name="DXLFOModule.cpp" compile="1" resource="0" file="Source/Modules/DXLFOModule.cpp"/>
+      <FILE id="ed2428" name="DXLFOModule.h" compile="0" resource="0" file="Source/Modules/DXLFOModule.h"/>
+      <FILE id="793620" name="DXEnvelopeModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DXEnvelopeModule.cpp"/>
+      <FILE id="af462d" name="DXEnvelopeModule.h" compile="0" resource="0"
+            file="Source/Modules/DXEnvelopeModule.h"/>
+      <FILE id="1b45ef" name="ResonateBankModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ResonateBankModule.cpp"/>
+      <FILE id="b73a22" name="ResonateBankModule.h" compile="0" resource="0"
+            file="Source/Modules/ResonateBankModule.h"/>
+      <FILE id="27a261" name="SpectralLockModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SpectralLockModule.cpp"/>
+      <FILE id="ea5570" name="SpectralLockModule.h" compile="0" resource="0"
+            file="Source/Modules/SpectralLockModule.h"/>
+      <FILE id="94324d" name="IRForgeModule.cpp" compile="1" resource="0"
+            file="Source/Modules/IRForgeModule.cpp"/>
+      <FILE id="5a8dac" name="IRForgeModule.h" compile="0" resource="0" file="Source/Modules/IRForgeModule.h"/>
+      <FILE id="e54e4b" name="FeltPianoModule.cpp" compile="1" resource="0"
+            file="Source/Modules/FeltPianoModule.cpp"/>
+      <FILE id="7cac8e" name="FeltPianoModule.h" compile="0" resource="0"
+            file="Source/Modules/FeltPianoModule.h"/>
+      <FILE id="2ae930" name="WarpOscModule.cpp" compile="1" resource="0"
+            file="Source/Modules/WarpOscModule.cpp"/>
+      <FILE id="26594a" name="WarpOscModule.h" compile="0" resource="0" file="Source/Modules/WarpOscModule.h"/>
+      <FILE id="713cdc" name="CurveEnvModule.cpp" compile="1" resource="0"
+            file="Source/Modules/CurveEnvModule.cpp"/>
+      <FILE id="74777c" name="CurveEnvModule.h" compile="0" resource="0"
+            file="Source/Modules/CurveEnvModule.h"/>
+      <FILE id="1f22e7" name="RandomLFOModule.cpp" compile="1" resource="0"
+            file="Source/Modules/RandomLFOModule.cpp"/>
+      <FILE id="7cc11d" name="RandomLFOModule.h" compile="0" resource="0"
+            file="Source/Modules/RandomLFOModule.h"/>
+      <FILE id="b58786" name="EchoModule.cpp" compile="1" resource="0" file="Source/Modules/EchoModule.cpp"/>
+      <FILE id="d32585" name="EchoModule.h" compile="0" resource="0" file="Source/Modules/EchoModule.h"/>
+      <FILE id="5222e2" name="ShelfEQModule.cpp" compile="1" resource="0"
+            file="Source/Modules/ShelfEQModule.cpp"/>
+      <FILE id="86b21b" name="ShelfEQModule.h" compile="0" resource="0" file="Source/Modules/ShelfEQModule.h"/>
+      <FILE id="3950ce" name="VintageDSP.h" compile="0" resource="0" file="Source/Modules/VintageDSP.h"/>
+      <FILE id="97b0bf" name="DualVcoModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DualVcoModule.cpp"/>
+      <FILE id="198e33" name="DualVcoModule.h" compile="0" resource="0" file="Source/Modules/DualVcoModule.h"/>
+      <FILE id="642aa9" name="DualFilterModule.cpp" compile="1" resource="0"
+            file="Source/Modules/DualFilterModule.cpp"/>
+      <FILE id="8a9bef" name="DualFilterModule.h" compile="0" resource="0"
+            file="Source/Modules/DualFilterModule.h"/>
+      <FILE id="313bc5" name="SkewLFOModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SkewLFOModule.cpp"/>
+      <FILE id="4c395c" name="SkewLFOModule.h" compile="0" resource="0" file="Source/Modules/SkewLFOModule.h"/>
+      <FILE id="b6532b" name="AnalogEGModule.cpp" compile="1" resource="0"
+            file="Source/Modules/AnalogEGModule.cpp"/>
+      <FILE id="15353e" name="AnalogEGModule.h" compile="0" resource="0"
+            file="Source/Modules/AnalogEGModule.h"/>
+      <FILE id="c31e63" name="PWMOscModule.cpp" compile="1" resource="0"
+            file="Source/Modules/PWMOscModule.cpp"/>
+      <FILE id="efaba5" name="PWMOscModule.h" compile="0" resource="0" file="Source/Modules/PWMOscModule.h"/>
+      <FILE id="7d7f4a" name="WarmLadderModule.cpp" compile="1" resource="0"
+            file="Source/Modules/WarmLadderModule.cpp"/>
+      <FILE id="f75e51" name="WarmLadderModule.h" compile="0" resource="0"
+            file="Source/Modules/WarmLadderModule.h"/>
+      <FILE id="d05691" name="EnsembleModule.cpp" compile="1" resource="0"
+            file="Source/Modules/EnsembleModule.cpp"/>
+      <FILE id="c46be7" name="EnsembleModule.h" compile="0" resource="0"
+            file="Source/Modules/EnsembleModule.h"/>
+      <FILE id="0b8fcd" name="StereoPhaserModule.cpp" compile="1" resource="0"
+            file="Source/Modules/StereoPhaserModule.cpp"/>
+      <FILE id="8c0754" name="StereoPhaserModule.h" compile="0" resource="0"
+            file="Source/Modules/StereoPhaserModule.h"/>
+      <FILE id="129c6d" name="CrossDelayModule.cpp" compile="1" resource="0"
+            file="Source/Modules/CrossDelayModule.cpp"/>
+      <FILE id="df2b6f" name="CrossDelayModule.h" compile="0" resource="0"
+            file="Source/Modules/CrossDelayModule.h"/>
+      <FILE id="315b54" name="SmoothHallModule.cpp" compile="1" resource="0"
+            file="Source/Modules/SmoothHallModule.cpp"/>
+      <FILE id="6a4d51" name="SmoothHallModule.h" compile="0" resource="0"
+            file="Source/Modules/SmoothHallModule.h"/>
+      <FILE id="9c3774" name="DXDisplays.h" compile="0" resource="0" file="Source/Modules/DXDisplays.h"/>
+      <FILE id="95db04" name="ResonateModelCore.h" compile="0" resource="0"
+            file="Source/Modules/ResonateModelCore.h"/>
+      <FILE id="6b8b00" name="PianoModelCore.cpp" compile="1" resource="0"
+            file="Source/Modules/PianoModelCore.cpp"/>
+      <FILE id="c1fc0f" name="PianoModelCore.h" compile="0" resource="0"
+            file="Source/Modules/PianoModelCore.h"/>
+      <FILE id="fd4c46" name="MidPianoModule.cpp" compile="1" resource="0"
+            file="Source/Modules/MidPianoModule.cpp"/>
+      <FILE id="fd5d8c" name="MidPianoModule.h" compile="0" resource="0"
+            file="Source/Modules/MidPianoModule.h"/>
+      <FILE id="49faae" name="HardPianoModule.cpp" compile="1" resource="0"
+            file="Source/Modules/HardPianoModule.cpp"/>
+      <FILE id="b99797" name="HardPianoModule.h" compile="0" resource="0"
+            file="Source/Modules/HardPianoModule.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
@@ -399,37 +535,5 @@
         <MODULEPATH id="juce_video" path="../../../../Program Files/JUCE/modules"/>
       </MODULEPATHS>
     </VS2026>
-    <ANDROIDSTUDIO targetFolder="Builds/Android" androidScreenOrientation="landscape"
-                   androidMinimumSDK="23" androidTargetSDK="35" androidMicNeeded="1"
-                   androidInternetNeeded="0" androidVibratePermission="0" androidBluetoothScanNeeded="0"
-                   androidBluetoothConnectNeeded="0">
-      <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="Aquanode Modular"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="Aquanode Modular"/>
-      </CONFIGURATIONS>
-      <MODULEPATHS>
-        <MODULEPATH id="juce_animation" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_basics" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_plugin_client" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors_headless" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_box2d" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_dsp" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_javascript" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_midi_ci" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_opengl" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_osc" path="../../../../Program Files/JUCE/modules"/>
-        <MODULEPATH id="juce_video" path="../../../../Program Files/JUCE/modules"/>
-      </MODULEPATHS>
-    </ANDROIDSTUDIO>
   </EXPORTFORMATS>
 </JUCERPROJECT>

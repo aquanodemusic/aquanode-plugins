@@ -2,9 +2,9 @@
 
 <JUCERPROJECT id="AqVb01" name="AquaVibrio" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="0" jucerFormatVersion="1"
-              companyName="aquanodemusic" companyCopyright="none" version="2.0.0"
+              companyName="aquanodemusic" companyCopyright="none" version="3.0.3"
               pluginFormats="buildStandalone,buildVST3" pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
-              pluginName="Aqua Vibrio" pluginDesc="Virus-architecture synthesiser on Aquanode DSP"
+              pluginName="Aqua Vibrio" pluginDesc="Classic virtual-analogue synthesiser on Aquanode DSP"
               pluginManufacturer="Aquanode" pluginManufacturerCode="Aqnd" pluginCode="AqVb"
               pluginVST3Category="Instrument,Synth" pluginAUMainType="'aumu'"
               cppLanguageStandard="17" defines="JUCE_WEB_BROWSER=0&#10;JUCE_USE_CURL=0&#10;JUCE_DISPLAY_SPLASH_SCREEN=0"
@@ -12,6 +12,12 @@
   <MAINGROUP id="AqVbMain" name="AquaVibrio">
     <FILE id="ChqrHr" name="AquaVibrioEngine.cpp" compile="1" resource="0"
           file="Source/AquaVibrioEngine.cpp"/>
+    <FILE id="AvOrg1" name="AquaVibrioOriginalEngine.cpp" compile="1" resource="0"
+          file="Source/AquaVibrioOriginalEngine.cpp"/>
+    <FILE id="AvOrg2" name="AquaVibrioOriginalEngine.h" compile="0" resource="0"
+          file="Source/AquaVibrioOriginalEngine.h"/>
+    <FILE id="AvOrg3" name="AquaVibrioOriginalDSP.h" compile="0" resource="0"
+          file="Source/AquaVibrioOriginalDSP.h"/>
     <FILE id="TaC9NZ" name="AquaVibrioEngine.h" compile="0" resource="0"
           file="Source/AquaVibrioEngine.h"/>
     <FILE id="XVzCJz" name="AquaVibrioExtras.h" compile="0" resource="0"
@@ -144,22 +150,26 @@
             file="Source/Aquanode/WavetableModule.h"/>
     </GROUP>
     <GROUP id="{E967BD6C-C915-6200-3329-39103340DD4C}" name="Modules">
-      <FILE id="h50rLZ" name="VirusDistortionModule.cpp" compile="1" resource="0"
-            file="Source/Modules/VirusDistortionModule.cpp"/>
-      <FILE id="dQrSv2" name="VirusDistortionModule.h" compile="0" resource="0"
-            file="Source/Modules/VirusDistortionModule.h"/>
-      <FILE id="DSENSx" name="VirusEnvModule.cpp" compile="1" resource="0"
-            file="Source/Modules/VirusEnvModule.cpp"/>
-      <FILE id="FkDqaL" name="VirusEnvModule.h" compile="0" resource="0"
-            file="Source/Modules/VirusEnvModule.h"/>
-      <FILE id="AwHVPp" name="VirusLfoModule.cpp" compile="1" resource="0"
-            file="Source/Modules/VirusLfoModule.cpp"/>
-      <FILE id="UGSxGm" name="VirusLfoModule.h" compile="0" resource="0"
-            file="Source/Modules/VirusLfoModule.h"/>
-      <FILE id="w3GmJS" name="VirusOscModule.cpp" compile="1" resource="0"
-            file="Source/Modules/VirusOscModule.cpp"/>
-      <FILE id="Tk7xGX" name="VirusOscModule.h" compile="0" resource="0"
-            file="Source/Modules/VirusOscModule.h"/>
+      <FILE id="h50rLZ" name="VibrioDistortionModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VibrioDistortionModule.cpp"/>
+      <FILE id="dQrSv2" name="VibrioDistortionModule.h" compile="0" resource="0"
+            file="Source/Modules/VibrioDistortionModule.h"/>
+      <FILE id="DSENSx" name="VibrioEnvModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VibrioEnvModule.cpp"/>
+      <FILE id="AvVpe1" name="MeasuredEnvModule.cpp" compile="1" resource="0"
+            file="Source/Modules/MeasuredEnvModule.cpp"/>
+      <FILE id="AvVpe2" name="MeasuredEnvModule.h" compile="0" resource="0"
+            file="Source/Modules/MeasuredEnvModule.h"/>
+      <FILE id="FkDqaL" name="VibrioEnvModule.h" compile="0" resource="0"
+            file="Source/Modules/VibrioEnvModule.h"/>
+      <FILE id="AwHVPp" name="VibrioLfoModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VibrioLfoModule.cpp"/>
+      <FILE id="UGSxGm" name="VibrioLfoModule.h" compile="0" resource="0"
+            file="Source/Modules/VibrioLfoModule.h"/>
+      <FILE id="w3GmJS" name="VibrioOscModule.cpp" compile="1" resource="0"
+            file="Source/Modules/VibrioOscModule.cpp"/>
+      <FILE id="Tk7xGX" name="VibrioOscModule.h" compile="0" resource="0"
+            file="Source/Modules/VibrioOscModule.h"/>
     </GROUP>
     <FILE id="raJOtS" name="AquaVibrioDisplay.h" compile="0" resource="0"
           file="Source/AquaVibrioDisplay.h"/>

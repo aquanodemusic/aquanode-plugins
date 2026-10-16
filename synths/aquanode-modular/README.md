@@ -2,7 +2,7 @@
 
 ![Aquanode Modular banner](assets/Banner.webp)
 
-**Latest version:** 4.0 — download builds from the [Releases](../../../../releases) page.
+**Latest version:** 4.5 - download builds from the [Releases](../../../../releases) page.
 
 ---
 
@@ -17,7 +17,8 @@ Inspired by classic hardware and digital modular environments like the Nord Modu
 * **Zoomable Canvas:** The patch area zooms from 30% to 200%, so a large patch fits on screen and a fiddly corner can be magnified. Zoom is a pure view transform — nothing is re-laid-out, so knobs, cable drags and module dragging all keep working exactly as they do at 100%.
 * **Preset Mutation:** The built-in Mutator can gently (or wildly) randomize your patch's knob settings to spark instant inspiration, complete with a one-click Undo button.
 * **Self-Contained Patches:** Export your creations as `.zip` files that package all routings, module coordinates, and custom audio samples together.
-* **97 modules**, from plain utilities to FFT-based spectral processors.
+* **124 modules**, from plain utilities to FFT-based spectral processors, three simple physically modelled pianos and an impulse-response foundry.
+* **Preset generation:** At the bottom of the sidebar: One tap builds a whole new patch of a sound category - Bass, Pad, Pluck, Chord, Bell, FM and more, or completely at random - and every tap is a new one. You can also add FX to existing or generated presets.
 
 > Recommendation: Always use the Poly Sum Module which the default patch provides directly. The reason: Aquanode Modular is loud by default, and it will clip hard if you let it, which especially on Android may sound really harsh since an Android Device's output stage often distorts on top of clipping. This is deliberate to make more quiet patches sound loud enough by default which is how I like to use the synth myself, but it means the first thing to do in a new patch is pull the **Audio Out** module's **Level** knob down especially if you want to have high polyphony. So, **the default patch already guards against this** using the **Polyphony Sum** module that sits between the source and Audio Out, scaling by 1/sqrt(N) as voices come and go.
 
@@ -91,10 +92,47 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 
 ---
 
+## 🎛️ Random Preset
+
+The **Preset Generation** section at the bottom of the sidebar builds whole patches. Each row is a sound category, A-Z: **Arp, Bass, Bell, Chord, FM, FX, Growl, Keys, Kick, Lead, Pad, Perc, Pluck, Synth**, and **Random**. A tap **replaces the whole patch** with a freshly built one of that category (a new one with every tap), then zooms out so you see all of it. Every generated patch is an ordinary patch: edit it, export it, mutate it. All rows work in the instrument, the FX build and on Android.
+
+**Engines.** Most categories are made by several engines, and a tap picks one of them at random. The small arrow at the row's right edge lists them; tick one and every tap of that row comes from it. Picking the ticked engine again unticks it, and the row draws from all of them again. The ticked engine shows small next to the row's name.
+
+| Engine | What it builds | Categories |
+| :--- | :--- | :--- |
+| **Ambient** | Slow pads, bells, flutes, organic sines and soft textures. | Arp, Bass, Bell, Chord, FX, Keys, Lead, Pad, Perc, Pluck, Synth |
+| **Colorbass** | Colour-bass patches: chord-stacked Chord Wavetable layers, tempo chops and shimmer sweeps from Multi LFOs, a comb tuned to the played note, drive, filter, modulation effects, the 3-Band Compressor and a limiter. Hold a low note (C1-C2). | Chord, Growl, Pad, Pluck |
+| **DnB** | Reese and sine basses, rollers, kicks, lush pads, bells and chords. | Bass, Bell, Chord, FX, Keys, Kick, Lead, Pad, Perc, Synth |
+| **Dub Techno** | Chord stabs and pings drowned in echo, deep pads, kicks and noise. | Bass, Chord, FX, Keys, Kick, Pad, Perc, Pluck, Synth |
+| **Psychill** | Acid and squelch basses, bells, leads, plucks and FX. | Arp, Bass, Bell, Chord, FX, Kick, Lead, Pad, Perc, Pluck, Synth |
+
+The genre engines (Ambient, DnB, Dub Techno, Psychill) rebuild a sound from a recipe of Aquanode modules: **Warp Osc** layers (with their unison, phase warps and, where a basic shape will not do, a custom harmonic spectrum), filters with key tracking, **Curve Env** amplitude and modulation envelopes, LFOs and **Random LFO**s on cutoff, pitch, wave position, level and pan, and an effect chain (**Echo**, **Shelf EQ**, AquaChorus, Flanger, Phaser, Reverb, Waveshaper, 3-Band Compressor). Levels are matched so every sound arrives at about the same loudness, and each tap varies the sound a little (cutoffs, envelope times, detune, effect amounts), so no two taps are quite the same.
+
+**FM** builds a 6-operator FM voice from modules: six DX Operators wired to the voice's algorithm and laid out like the DX7's algorithm chart (operators folded - tap a card's top tab to open it), plus DX Pitch EG and DX LFO for the pitch envelope, transpose, vibrato and mod-wheel depth. Its arrow ticks a sub-category (Bass, Bell, FX, Keys, Lead, Pad, Pluck) the same way, and **Load DX7 SysEx (.syx)...** opens any DX7 voice file and lists its voices; loaded files stay in the menu for the session.
+
+**Random** builds anything: any category, any engine, FM included (the ticks do not apply).
+
+**With Mutation**, the switch beside the section title, runs every generated patch through the Mutator as well: five mutations in a row at 50 %, so each patch wanders further from its engine. The Mutator's Undo brings back the patch as it was built.
+
+The generated patch's name shows at the top left of the patch area and is saved with it.
+
+---
+
+## 🧩 Module Families
+
+Three groups of modules belong together. They are listed by name in their ordinary sidebar sections like every module, but their cards keep their own colour, so a set reads as one on the canvas:
+
+* **Violet - Colorbass:** Chord Wavetable (Sound Generation), Multi LFO (Utility), 3-Band Compressor (Effect).
+* **Brown - DX:** DX Operator (Sound Generation), DX Envelope, DX LFO and DX Pitch EG (Utility).
+* **Terracotta - Vintage:** Dual VCO and PWM Osc (Sound Generation), Dual Filter and Warm Ladder (Filter), Skew LFO and Analog EG (Utility), Ensemble, Stereo Phaser, Cross Delay and Smooth Hall (Effect).
+* Everything else takes its section's colour.
+
+---
+
 ## 📦 Module List
 
 <details>
-<summary><strong>Click to expand: All 97 modules by category</strong></summary>
+<summary><strong>Click to expand: All 124 modules by category</strong></summary>
 
 | Category | Module | Description |
 | :--- | :--- | :--- |
@@ -105,14 +143,18 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Sound Generation** | Additive | Builds a tone by drawing up to 64 harmonic bars directly, shaped further by Tilt, Odd/Even and Stretch. |
 | **Sound Generation** | Analog Drift | The FM Oscillator with the precision sanded off - per-voice pitch/phase drift, random start phases and up to 7-way unison. |
 | **Sound Generation** | Bowed | Physically-modelled bowed/blown string that sustains for as long as a note is held, patch Pressure In for expression. |
+| **Sound Generation** | Chord Wavetable | *(violet, Colorbass)* Generated chord wavetables (sparse harmonics on Minor 9 / Major 9 / ... chords) with chord-stacked 16-voice unison, pre-rendered spectral morph (Random Amp, Low Pass, High Pass, Phase Disp), Level In for chops and Pitch In. Roll for new tables; presets store the seed. |
 | **Sound Generation** | Clap | Classic 808 clap made of three quick noise bursts plus a diffuse tail, fires from Trig In, or from notes on its Midi In (Keyboard Midi, Piano Roll, Arp...). |
 | **Sound Generation** | Complex Osc | Buchla-style FM-into-wavefolder voice with no filter, Timbre controls the fold amount instead of a cutoff. |
 | **Sound Generation** | Droplets | Randomised sine pings whose pitch, chirp and decay follow real bubble acoustics, drip-clocked at Rate with per-drop stereo spread. Runs while a note is held or Gate In is high; notes on its Midi In each run their own drip stream. |
-| **Sound Generation** | DX Operator | One operator of the Virtual DX7 native FM engine with all 21 DX7 operator controls (EG rates/levels, level, ratio/fixed, coarse/fine/detune, key scaling, rate scaling, AMS, velocity) plus self-feedback, and an envelope display. Patch one into another's FM In to build any DX algorithm - two chained modules match the same two operators in Virtual DX7. |
+| **Sound Generation** | DX Operator | *(brown, DX)* One operator of a six-operator FM engine with all 21 DX7 operator controls (EG rates/levels, level, ratio/fixed, coarse/fine/detune, key scaling, rate scaling, AMS, velocity) plus self-feedback, and an envelope display. Patch one into another's FM In to build any DX algorithm. |
+| **Sound Generation** | Felt Piano | Physical model of a muted felt upright: felt hammer, stiff coupled unison strings, soundboard, case thump, sympathetic bed and felt dampers, all in real time with physical controls (Hardness, Brightness, Strike, Inharm, Unison, Aftersound, Damper...) and Env In. |
 | **Sound Generation** | Formant | Singing oscillator that morphs through vowels A-E-I-O-U via the Vowel In socket, no modulator signal needed. |
 | **Sound Generation** | Granulator | Granular sampler playing a cloud of pitched grains per note, patch an ADSR into Env In for note-level shaping. |
+| **Sound Generation** | Hard Piano | The piano model voiced after a piano with hard hammers: bright, ringing, with a wooden knock and undamped top keys. Same controls as Felt Piano. |
 | **Sound Generation** | Hats | 606/808-style metallic hi-hats from six detuned square oscillators, Decay sets closed vs. open hat. Fires from Trig In or from notes on its Midi In. |
 | **Sound Generation** | Kick | 808-style kick drum with a pitch-drop envelope and drive, triggered by Trig In, or from notes on its Midi In (Keyboard Midi, Piano Roll, Arp...). |
+| **Sound Generation** | Mid Piano | The piano model voiced after a brighter felt piano: warm, with more hammer and air than Felt Piano. Same controls as Felt Piano. |
 | **Sound Generation** | Modal Drum | Physically-modelled percussion (marimba to bell-like tones) via Inharm and Bright, with Pitch In for melodic tuning. Notes on its Midi In strike it at their own pitch. |
 | **Sound Generation** | Noise | Per-voice white/pink noise source, useful as a percussion excitation gated by an ADSR (try feeding it into a Resonator). An optional Midi In makes it answer only to the notes patched there. |
 | **Sound Generation** | Oscillator | The core polyphonic FM operator (DX7-style phase modulation) with FM In and Env In sockets for per-note modulation. |
@@ -122,7 +164,10 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Sound Generation** | Snare | Two detuned "shell" tones plus a band-passed noise burst for the wires, Snap balances the two. Fires from Trig In or from notes on its Midi In. |
 | **Sound Generation** | Transwave | Wavetable oscillator whose table is generated from a seed and one of twelve archetypes, using Phizmo's transwave generator. Roll for new seeds; Position, self-Scan and Pos In move through the table; band-limited playback. Presets store the seed, not the audio. |
 | **Sound Generation** | Unison | Supersaw-style stack of up to nine detuned, panned copies of one note - thickens a single note. |
+| **Sound Generation** | Warp Osc | Band-limited morphing oscillator (Sine > Tri > Saw > Square > Pulse, or two custom spectra) with seven phase warps and up to 16 unison copies; Pitch In, FM In, Shape In. |
 | **Sound Generation** | Wavetable | Loads a sample as single-cycle frames and scans through them with Position, morphing timbre without changing pitch. |
+| **Sound Generation** | Dual VCO | *(terracotta, Vintage)* Two VCOs and mixer - Triangle/Saw/Pulse/Noise and Saw/Pulse/Ring Mod, feet like the panel, VCO 2 Pitch. Runs ungated; put the VCA after the filter. |
+| **Sound Generation** | PWM Osc | *(terracotta, Vintage)* A polysynth VCO: Saw/PW/PWM with its own PWM LFO, and the divider-locked square sub-oscillator. Runs ungated. |
 | **Filter** | 3-Bell EQ | Three peaking bells over a graphic curve - drag the dots for frequency and gain, wheel for Q, and every knob takes modulation. |
 | **Filter** | AquaFilter | A tanh-stage ladder in 12/24 dB lowpass plus an extra-saturated 24+ mode, and an SVF for bandpass and highpass, with Drive saturating before the filter. Res Curve reshapes the resonance knob rather than the sound. |
 | **Filter** | Bell | Single peaking EQ band (Freq, Gain, Q) on a stable TPT core, per voice when fed per voice. |
@@ -134,7 +179,11 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Filter** | Lowpass | Clean, stable lowpass, 12 or 24 dB/oct, with resonance and a cutoff Mod In. |
 | **Filter** | Notch | Narrow band cut with Width in octaves; sweep it with Mod In. |
 | **Filter** | Pitch Lock Filter | Dampens every note NOT on the chosen pitch classes (and can boost the ones that are), musically "re-tuning" the signal. |
+| **Filter** | Shelf EQ | Three broad bands: low shelf or low cut, mid peak or notch, high shelf or high cut, with a response curve. |
 | **Filter** | SVF Filter | State-variable filter offering LP/BP/HP, running one instance per voice when fed a per-voice signal. |
+| **Filter** | Dual Filter | *(terracotta, Vintage)* An HPF > LPF pair with screaming, self-oscillating Peaks and MG/Ext CV inputs per filter. |
+| **Filter** | Warm Ladder | *(terracotta, Vintage)* A warm 24 dB ladder with EG Int, Kbd Track and MG Level. |
+| **Effect** | 3-Band Compressor | *(violet, Colorbass)* Three-band upward and downward compressor with per-band gains, Depth and Time. |
 | **Effect** | ADSR Delay | Creative delay/resonator with a shapeable per-cycle envelope and four routing modes including hard ping-pong. |
 | **Effect** | Align | Sub-sample per-channel delay, volume and polarity invert, for phase alignment and Haas-style stereo tricks. |
 | **Effect** | AquaChorus | Liquid chorus/flanger using two LFO-swept delay lines with tunable L/R phase offset and feedback. |
@@ -144,12 +193,15 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Effect** | Chorus | Modulated delay line per channel with an LFO phase offset between channels for stereo width. |
 | **Effect** | Compressor | Feedforward stereo-linked compressor with attack/release smoothing and makeup gain. |
 | **Effect** | Delay | Stereo tempo-synced delay with independent times per channel and a filtered feedback loop. |
+| **Effect** | Echo | Tape-style delay in ms or tempo, Stereo / PingPong / Mono, band-pass in the feedback loop, gliding time changes, Wobble. |
 | **Effect** | FM | Cross-modulates two arbitrary signals via phase modulation, ring modulation or self-feedback, patch cables define the routing. |
 | **Effect** | Flanger | Short modulated delay with switchable positive/negative feedback for classic jet-swoosh effects. |
 | **Effect** | Granulator | FX Version of the Granulator Synth Engine so you can directly granulate what you produce live. |
+| **Effect** | IRForge | Records Rec In or loads a file, forges it into an impulse response (Character = how much harmonic detail survives) and convolves Audio In with it; the IR is saved with the patch. |
 | **Effect** | Limiter | Fast stereo-linked peak limiter with instant attack and zero latency, for catching a patch before it clips. |
 | **Effect** | Phaser | 2 to 12-stage allpass phaser swept by an internal LFO around a centre frequency, with feedback. |
 | **Effect** | Resonator | Tuned comb resonator with two feedback modes, pitch is set directly in MIDI note numbers. |
+| **Effect** | Resonate | Five modelled tuned resonators (default G3, +2, +9, +9, +2) with per-resonator tuning, gain and pan, Decay/Color, Const and Odd modes; Midi In retunes them. |
 | **Effect** | Reverb | Simple pre-delay plus algorithmic reverb core with decay time and room size controls. |
 | **Effect** | SR Reduce | Sample-rate reduction (decimator) that aliases the highs into inharmonic digital shimmer. |
 | **Effect** | Spring Reverb | Physically-modelled spring reverb with up to 7 parallel "coils" and a Chirp control for the springy character. |
@@ -157,7 +209,12 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Effect** | Tape Wobble | A worn tape machine: wow, flutter, gain-compensated saturation, dropouts and ducked hiss - Analog Drift for finished signals. |
 | **Effect** | Vocoder | Classic vocoder: the Mod In signal's spectral envelope shapes Carrier In (voice into Mod, saw into Carrier = robot voice). |
 | **Effect** | Waveshaper | Drive-based distortion with a choice of curves - Tanh, Sine Fold, Hard Clip, Rectify. |
+| **Effect** | Ensemble | *(terracotta, Vintage)* Chorus / Phase / three-phase Ensemble. |
+| **Effect** | Stereo Phaser | *(terracotta, Vintage)* Stereo phaser with L-R LFO phase, Manual, bipolar Resonance, High Damp. |
+| **Effect** | Cross Delay | *(terracotta, Vintage)* Stereo / Cross delay with separate times and feedback, damping and Spread. |
+| **Effect** | Smooth Hall | *(terracotta, Vintage)* Smooth FDN hall with pre-EQ; Reverb Time is the RT60. |
 | **Effect - Spectral** | Cepstral Morph | Cross-synthesis at 4096-point resolution: Carrier keeps its own fine structure and phase while its spectral envelope is bent toward Modulator's. Speech into a pad makes the pad talk. Clarity is the knob that matters - low reads broad formant shapes, 100% is the classic setting, 200% replaces the carrier entirely. Adds 3072 samples of unreported latency, so keep it in series rather than parallel with a dry path. |
+| **Effect - Spectral** | Spectral Lock | Filterbank resynthesis retuned by a 12 x 12 note matrix (or the notes on Midi In), with Amount, Isolate, Glide, Shimmer, Spray and Freeze. |
 | **Effect - Spectral** | Spectral Delay | Gives each FFT bin its own delay time drawn as a curve, so highs and lows arrive at different times. |
 | **Effect - Spectral** | Spectral Enhance | Boosts quiet bins up to a drawn target curve, or caps loud ones down to it, for spectral exciting or soft limiting. |
 | **Effect - Spectral** | Spectral Filter | A per-bin gain curve drawn freehand - notches, brick walls, or comb shapes. |
@@ -171,8 +228,12 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Utility** | Clock | Tempo-synced pulse generator with swing and gate width, for driving Step Seq, Euclid, S&H and other Trig/Clock inputs. |
 | **Utility** | Crossfade | Equal-power A/B mixer with a modulation input for auto-morphing or hard-switching between two sources. |
 | **Utility** | Curve CV | A drawn control curve: place and bend points, choose Curved/Smooth/Step, play in Hz or tempo-synced bars, Loop/Once/Ping-Pong, restart by gate or note. Patch it into any knob - e.g. a Transwave's Position. |
+| **Utility** | Curve Env | Per-voice DAHDSR envelope with curves on attack, decay and release, bipolar Amount and Velocity, with a shape display. |
 | **Utility** | DAW Mod | Exposes a host-automatable parameter as a modulation source, up to twelve instances can be active at once. One DAW Mod can be cabled to as many knobs as you like - round knobs, stepped knobs (Note, Rate, Delay Time...) and bar sliders all take it. |
 | **Utility** | DC Offset | Shifts and scales a signal (Out = In x Gain + Offset), handy for turning a bipolar LFO into a unipolar one or inverting a mod signal. |
+| **Utility** | DX Envelope | *(brown, DX)* The DX7 4-rate / 4-level envelope as a modulation source. |
+| **Utility** | DX LFO | *(brown, DX)* The DX7 LFO with pitch and amplitude outputs and mod-wheel depth. |
+| **Utility** | DX Pitch EG | *(brown, DX)* The DX7 pitch envelope and transpose as a Pitch In signal. |
 | **Utility** | Discard Midi | Twelve toggle boxes, one per note class - every class switched on never sounds, so wrong notes stop existing for a listening generator. Filters the played keys, or any stream patched into its Midi In. |
 | **Utility** | Draw LFO | An LFO whose 1024-point shape you draw by hand, with a stepped read mode that turns it into a step sequencer for modulation. |
 | **Utility** | Env Follow | Turns any audio signal into a modulation signal by rectifying and smoothing it - the basis for sidechain-style ducking. |
@@ -184,16 +245,20 @@ The same instrument also builds as **Aquanode Modular FX**, an effect-plugin ver
 | **Utility** | Logic | Combines two gate/modulation signals with boolean or comparison operators (AND, OR, XOR, etc.) for generative triggers. |
 | **Utility** | Midi Add | For any note it hears (the played keys, or any stream on its Midi In), emits the note plus four extra notes at chosen semitone offsets. Chains freely. |
 | **Utility** | Mixer | Four audio inputs each with its own level knob, summed to a master output. |
+| **Utility** | Multi LFO | *(violet, Colorbass)* Tempo-synced shape LFO with twelve colour-bass shapes plus Rolled random shapes, Retrigger or One Shot, Min/Max range and an inverted output. |
 | **Utility** | Panning | Stereo balance control with an additive bipolar modulation input. |
 | **Utility** | Piano Roll | Looping note sequencer you draw into, right inside its resizable card (time across, pitch up, up to 256 bars). Play/Pause, Tempo or lock to the host tempo (falls back safely when there is none), MIDI file import/export. Its Midi Out feeds any Midi In. |
 | **Utility** | Polyphony Sum | Counts the voices actually sounding and scales the level to match, so a chord does not arrive several times louder than one note. Amount sets the law: 0.5 = 1/sqrt(N) for ordinary chords, 1.0 = 1/N for unison stacks, 0 = bypass. Smooth ramps the gain so voice-count steps don't click. Released voices keep counting until their tail finishes. Voices Out reports the live count as modulation. |
 | **Utility** | Quantize | Snaps a pitch-scaled modulation signal to the nearest note of a chosen scale - pair a random S&H and a Pluck with this for instant melodies. |
 | **Utility** | Record | Start and Stop to Record whatever sound this module reaches, and save it as audio file to your system. The take is stored with the patch (preset files and DAW sessions) until Delete throws it away. |
+| **Utility** | Random LFO | Smooth, Sine, Steps or Chaos (Lorenz) random modulation per voice, in Hz or tempo-synced. |
 | **Utility** | Ring Mod | Multiplies two audio signals together, with Depth blending from clean input A to full ring modulation. |
 | **Utility** | S&H | Clocked sample & hold, samples an internal random source when nothing is patched into Signal In, giving the classic burbling random voltage. |
 | **Utility** | Slew Limiter | Rate-limits how fast a signal can rise and fall, useful for portamento, custom AR shapes, or softening a square LFO into a trapezoid. |
 | **Utility** | Step Seq | G2-style 16-step pitch/gate sequencer, edited directly in its own step display and running from the host tempo or an external clock. |
 | **Utility** | Velocity | Outputs each voice's note-on velocity as a modulation signal, e.g. for touch-sensitive volume or brightness. |
 | **Utility** | Volume | Level control with a multiplicative modulation input that reads as 1.0 when unpatched, so an ADSR into Mod In becomes a per-voice amplitude envelope. |
+| **Utility** | Analog EG | *(terracotta, Vintage)* RC envelope with Delay and Hold, curved segments, and a Rev Out. |
+| **Utility** | Skew LFO | *(terracotta, Vintage)* Skew-morph LFO, Tri and Pulse outs, global, free or tempo-locked. |
 
 </details>

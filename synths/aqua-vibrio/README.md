@@ -6,8 +6,13 @@ A Virus-style virtual analog / wavetable polysynth in JUCE. Not a 1:1 emulation 
 the aim is the same possibility space and the same character, with every control
 on one scrollable panel and every knob doing exactly what its label says.
 
-The sound engine is built from the Aquanode Modular Synth modules, molded into the
+Aqua Vibrio has two engines:
+- A "native" engine that is built from the Aquanode Modular Synth modules, molded into the
 shape of the Virus's signal flow.
+- An "original" engine that is much closer modelled after the original from measuring its
+sound outputs, but no copyrighted material is copied.
+
+Aqua Vibrio can load original presets, however they will sound a bit different from the original.
 
 Almost every parameter in `Source/AquaVibrioParameters.h` is generated from the
 hardware's own specification — 430+ program parameters with their ranges, defaults,

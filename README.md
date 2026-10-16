@@ -148,6 +148,7 @@ The apps should work fine, but I for example had some problems with sound output
 | ~<br />**[AudioStretcher for Android](apps/audiostretcher-for-android/)** | A port of the simple AudioStrecher using the Rubberband Library for Android. |
 | <img src="synths/alphabeta/assets/GUI.png" width="64" align="center" /><br />**[AlphaBeta for Android](apps/alphabeta-for-android/)** | A port of AlphaBeta for Android. Contains a MIDI keyboard in the bottom to play with your fingers on your phone's touchscreen. Patches are compatible with the Windows version. |
 | <img src="synths/aquanode-modular/assets/Icon.png" width="64" align="center" /><br />**[Aquanode Modular for Android](apps/aquanode-modular-for-android/)** | A port of Aquanode Modular for Android. Contains all the modules from the original and a MIDI keyboard in the bottom to play with your fingers. Patches are compatible with the Windows version. External MIDI Device highly recommended! |
+| <img src="synths/aqua-vibrio/assets/GUI.png" width="64" align="center" /><br />**[Aqua Vibrio](apps/aqua-vibrio-for-android/)** | A synth modelled after the Access Virus TI with automatic preset generation capabilities. Same workflow, sound from scratch re-using the DSP from the modules from Aquanode Modular. |
 | <img src="synths/virtual-dx7/assets/GUI.png" width="64" align="center" /><br />**[VirtualDX7 for Android](apps/virtual-dx7-for-android/)** | An Android port of VirtualDX7 with some effects borrowed from my Aquanode Modular VST. |
 
 ## Repository Structure

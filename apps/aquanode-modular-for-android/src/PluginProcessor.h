@@ -134,11 +134,21 @@ public:
     // document the user picked via the system file dialog (Storage Access
     // Framework). Same .zip container as the File versions -> fully compatible.
     bool exportPatchToStream (juce::OutputStream& out);
-    bool importPatchFromStream (juce::InputStream& in);
+    bool importPatchFromStream (juce::InputStream& in, const juce::String& fileName = {});
 
     // Blank slate. Instrument build: one default Oscillator -> Audio Out.
     // Effect build (AQUANODE_FX_BUILD): Audio In -> Audio Out pass-through.
     void initializePatch();
+
+    // Clears the patch and lets a patch generator (src/Presets) build a new
+    // one into it - the Preset Generation rows (Colorbass, FM, genres). The builder
+    // returns the patch's display name, which becomes patchName.
+    juce::String generatePatch (const std::function<juce::String (AquanodeModularAudioProcessor&)>& build);
+
+    // A short name for what is loaded ("DnB Bass 07", "Init"), shown in the
+    // patch area. Never saved in a patch: an imported patch is called after
+    // its file. Message thread only.
+    juce::String patchName { "Init" };
 
     // On-screen keyboard (the bottom keyboard every build shows, toggled by
     // the Keys button). The editor attaches a MidiKeyboardComponent to this
@@ -151,6 +161,15 @@ public:
     // closing and reopening a plugin window keeps them as they were left.
     bool uiSidebarVisible { true };
     bool uiKeyboardVisible { true };
+
+    // set by generatePatch: the next editor to open zooms to fit the whole
+    // patch (a generated patch never fits the window at 100 %)
+    bool uiFitOnOpen { false };
+
+    // Preset Generation's "With Mutation" toggle: every generated patch is
+    // then mutated (Mutator, 50 %, five times). A session setting of the
+    // editor, not part of the patch. Message thread only.
+    bool generateWithMutation { false };
 
 private:
     //=== compiled process graph (published to the audio thread) ==============

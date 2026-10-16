@@ -1,0 +1,1 @@
+This is the Aqua Vibrio Synthesizer ported to Android. For more information, please visit the synths directory!

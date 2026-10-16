@@ -3,7 +3,7 @@
 #include "ModuleCore.h"
 #include "DXNativeFM.h"
 
-// DX Operator - one operator of the Virtual DX7 native FM engine, as a module.
+// DX Operator - one operator of a six-operator FM engine, as a module.
 // It carries exactly the 21 controls a DX7 operator has (the eight-stage
 // envelope R1-R4 / L1-L4, output level, ratio or fixed frequency with coarse,
 // fine and detune, keyboard level scaling with break point, depths and
@@ -16,11 +16,26 @@
 // so stacking DX Operators reproduces any of the 32 algorithms and lots more.
 // Feedback is the DX7's operator self-feedback (0-7).
 //
-// AM In takes a 0..1 signal (an LFO) and pulls the level down by up to the
-// AMS depth - the DX7's amplitude modulation. Its envelope is built in, so no
-// ADSR is needed; its tail follows R4.
-// Inputs: 0 = FM In (audio), 1 = AM In (mod), 2 = Add Midi In.
-// Output: 0 = Audio Out.
+// AM In takes a 0..1 signal (a DX LFO's AM Out) and pulls the level down by
+// up to the AMS depth - the DX7's amplitude modulation. Pitch In moves the
+// pitch in the KeyTrack convention (semitones / 60): a DX Pitch EG and a DX
+// LFO's Pitch Out go here. Its envelope is built in, so no ADSR is needed; its
+// tail follows R4.
+//
+// Fb In replaces the operator's self-feedback with another operator's output,
+// for the two DX7 algorithms (4 and 6) whose feedback loop runs through
+// several operators: OP4 or OP5 into OP6's Fb In, with OP6's Feedback knob
+// setting the amount exactly as the DX7 does (the last two samples
+// averaged, scaled by 2^(fb-7)).
+//
+// Out / is the OPS's carrier attenuation: a DX7 divides each carrier by the
+// number of carriers in the algorithm, inside the operator - so it applies
+// to the feedback tap too. Set it to the carrier count on every carrier.
+// Key Sync Off lets the oscillator run free, so each note starts at an
+// arbitrary phase instead of at zero.
+//
+// Inputs: 0 = FM In (audio), 1 = Fb In (audio), 2 = AM In (mod),
+//         3 = Pitch In (mod), 4 = Add Midi In.  Output: 0 = Audio Out.
 class DXOperatorModule : public aquanode::SynthModule
 {
 public:
@@ -30,8 +45,10 @@ public:
         pLevel, pFeedback, pVelSens, pAms, pRateScale,
         pR1, pR2, pR3, pR4, pL1, pL2, pL3, pL4,
         pBreakPoint, pLeftDepth, pRightDepth, pLeftCurve, pRightCurve,
-        pVoices, pGlide
+        pVoices, pGlide, pCom, pKeySync, pOpNumber
     };
+
+    enum InputIndex { inFm = 0, inFb, inAm, inPitch };
 
     // A carrier at full level comes out at this amplitude; FM In scales by the
     // inverse, so one DX Operator into another modulates exactly as the
@@ -52,8 +69,8 @@ public:
 
     void processVoiceSample (int v, const aquanode::StereoFrame* inputs, aquanode::StereoFrame* outputs) override;
 
-    // for the envelope display
-    void envelopeSettings (uint8_t rates[4], uint8_t levels[4]) const;
+    // "DX Operator 3" when a generator has numbered it (hidden Op param)
+    juce::String titleSuffix() const override;
 
     std::unique_ptr<juce::Component> createExtraContentComponent() override;
     int extraContentHeight() const override { return 86; }
@@ -64,10 +81,12 @@ private:
     aquanode::ModuleVoicePool pool;
     aquanode::ModuleGlide glide;
 
-    vdx7native::OperatorEnv env[aquanode::kMaxVoices];
+    dxnative::OperatorEnv env[aquanode::kMaxVoices];
     double phase[aquanode::kMaxVoices] {};
     float gain[aquanode::kMaxVoices] {}, gainStep[aquanode::kMaxVoices] {};
     float fb1[aquanode::kMaxVoices] {}, fb2[aquanode::kMaxVoices] {};
+    float extFbPrev[aquanode::kMaxVoices] {};   // last Fb In sample, for the two-sample average
+    juce::Random phaseRandom;
     int ctrlLeft[aquanode::kMaxVoices] {};
     int noteOf[aquanode::kMaxVoices] {};
     int velocity[aquanode::kMaxVoices] {};

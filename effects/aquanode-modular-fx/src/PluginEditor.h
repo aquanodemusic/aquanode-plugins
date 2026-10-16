@@ -138,6 +138,7 @@ public:
 
     juce::Point<int> getPanOffset() const { return panOffset; }
     void resetView();              // recentre the patch (pan back to origin, zoom to 100%)
+    void fitToContent();           // zoom and pan so every module is visible (after a generated patch)
 
     //=== view zoom ============================================================
     // Zoom is a pure VIEW transform, never a re-layout: module bounds stay in
@@ -246,13 +247,21 @@ class SidebarComponent : public juce::Component,
                          private juce::Timer
 {
 public:
-    explicit SidebarComponent (std::function<void (const juce::String& typeId)> onModuleClicked);
+    // typeId is a module type, or a patch generator's id (Preset Generation
+    // rows); openMenu is true when a generator row's arrow was tapped (rows
+    // with a menu only)
+    explicit SidebarComponent (std::function<void (const juce::String& typeId, bool openMenu)> onModuleClicked);
     ~SidebarComponent() override;
 
     void paint (juce::Graphics& g) override;
     void mouseUp (const juce::MouseEvent& e) override;
     void mouseMove (const juce::MouseEvent& e) override;
     void mouseExit (const juce::MouseEvent& e) override;
+
+    // the "With Mutation" toggle beside the Preset Generation title
+    void setWithMutation (bool on)   { withMutation = on; repaint(); }
+    bool getWithMutation() const     { return withMutation; }
+    std::function<void (bool)> onWithMutationChanged;
 
     static constexpr int sidebarWidth = 220;
     static constexpr int scrollBarWidth = 12;   // reserved so the Viewport's scrollbar never covers text
@@ -264,7 +273,17 @@ private:
         juce::String text;
         juce::String typeId;       // empty for section titles
         juce::Colour colour;
+        bool isGenerator { false };
+        bool hasMenu { false };    // generator rows: an arrow opens a menu
+        bool centreFullWidth { false };   // the Random row: name centred on the whole row
+        bool isToggle { false };          // the With Mutation toggle
     };
+
+    // the arrow at the right end of a generator row, which opens its menu
+    static juce::Rectangle<int> generatorMenuArea (const Row& row)
+    {
+        return row.area.withLeft (row.area.getRight() - 30);
+    }
 
     void buildRows();
 
@@ -278,7 +297,8 @@ private:
     const Row* rowAt (juce::Point<int> pos) const;
 
     std::vector<Row> rows;
-    std::function<void (const juce::String&)> moduleClicked;
+    std::function<void (const juce::String&, bool)> moduleClicked;
+    bool withMutation { false };
 
     std::unique_ptr<SidebarTooltip> tooltip;
     juce::String hoveredTypeId;
@@ -298,6 +318,11 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    // Mutates the whole patch `times` times in a row at `amount` (0..1) as ONE
+    // step: Undo brings back the patch as it was before. Used by Preset
+    // Generation's "With Mutation".
+    void mutateSeveral (float amount, int times);
+
 private:
     // instanceId -> (paramId -> value): a "genome" of the current patch
     using Snapshot = std::map<int, std::map<juce::String, float>>;
@@ -306,6 +331,7 @@ private:
     void apply (const Snapshot&);
     void pushHistory();
     void doMutate();
+    void mutateOnce (float amount);
     void doBreed();
     void doRecall (const Snapshot&, bool exists);
     float mutateValue (const aquanode::ParamSpec&, float current, float amount);
@@ -403,6 +429,41 @@ private:
     void updateZoomReadout();
 
     MutatorPanel mutatorPanel;
+
+    // the name of what is loaded ("Init", "DnB Bass 07"), bottom left of
+    // the patch area; follows the processor by itself
+    struct PatchNameLabel : public juce::Component, private juce::Timer
+    {
+        explicit PatchNameLabel (AquanodeModularAudioProcessor& p) : proc (p)
+        {
+            setInterceptsMouseClicks (false, false);
+            startTimerHz (4);
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.5f));
+            g.setFont (juce::Font (juce::FontOptions (11.0f)));
+            g.drawText (shown, getLocalBounds(), juce::Justification::centredLeft, true);
+        }
+
+        void timerCallback() override
+        {
+            if (proc.patchName != shown)
+            {
+                shown = proc.patchName;
+                repaint();
+            }
+        }
+
+        AquanodeModularAudioProcessor& proc;
+        juce::String shown;
+    };
+    PatchNameLabel patchNameLabel { processor };
+
+    // generator rows: a fresh random patch, or the generator's menu
+    void runGenerator (const juce::String& generatorId, bool openMenu);
+    void applyGenerated (std::function<juce::String (AquanodeModularAudioProcessor&)> build);
 
     // Bottom on-screen keyboard, on every build: the Keys button shows and
     // hides it (hidden, the patch area gets its height back). Host and

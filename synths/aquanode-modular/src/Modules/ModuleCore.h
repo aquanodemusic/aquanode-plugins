@@ -22,6 +22,13 @@ enum class SocketKind { Audio, Modulation, Midi };
 enum class SocketDirection { Input, Output };
 enum class ModuleSection { InputOutput = 0, Oscillator, Filter, Effect, Utility };
 
+// A module family is an accent on top of the section: the module is listed in
+// its ordinary section (by name, in white, like every module), but its card
+// carries the colour of the set it belongs to - the Colorbass modules stay violet,
+// the DX ones are brown, the Vintage ones (analog-synth style
+// modules) terracotta - so they read as a set across the sections.
+enum class ModuleFamily { Standard = 0, Colorbass, DX, Vintage };
+
 inline const char* sectionName (ModuleSection s)
 {
     switch (s)
@@ -48,7 +55,23 @@ inline juce::Colour sectionColour (ModuleSection s)
     return juce::Colours::grey;
 }
 
-// Fixed sidebar section order
+inline juce::Colour familyColour (ModuleFamily f, ModuleSection fallback)
+{
+    switch (f)
+    {
+        case ModuleFamily::Colorbass:  return juce::Colour (0xff9b7cf0); // violet
+        case ModuleFamily::DX:         return juce::Colour (0xffb8864a); // DX brown
+        case ModuleFamily::Vintage:     return juce::Colour (0xffc9705a); // Vintage terracotta
+        case ModuleFamily::Standard:   break;
+    }
+    return sectionColour (fallback);
+}
+
+// The colour the Preset Generation section and its buttons use
+inline juce::Colour presetSectionColour() { return juce::Colour (0xff6fc7c9); }   // aqua
+
+// Fixed sidebar section order. The Preset Generation section (the patch
+// generators) is drawn after these by the sidebar itself.
 inline const std::array<ModuleSection, 5>& allSections()
 {
     static const std::array<ModuleSection, 5> s {
@@ -225,7 +248,11 @@ struct ModuleDescriptor
     // looks ordinary, or works somewhere you would not think to try.
     juce::String description;
     ModuleSection section { ModuleSection::Utility };
+    ModuleFamily family { ModuleFamily::Standard };
     int sidebarOrder { 0 };     // explicit position inside its section
+
+    // card colour: the family accent if there is one, else the section's
+    juce::Colour colour() const { return familyColour (family, section); }
     std::vector<SocketSpec> sockets;
     std::vector<ParamSpec> params;
 

@@ -1,21 +1,13 @@
-// DXNativeFM.h - copied verbatim from synths/virtual-dx7/src/Source/NativeFM.h.
-// The DX Operator module uses its curves (level, key scaling, rate scaling,
+// DXNativeFM.h - a six-operator FM engine with the DX7 feature set. The DX
+// Operator module uses its curves (level, key scaling, rate scaling,
 // velocity, frequency) and its OperatorEnv, so one Aquanode DX Operator
-// behaves exactly like one operator of the Virtual DX7 native engine. Keep it
-// in step with that file rather than editing it here.
+// behaves exactly like one operator of this engine.
 
 /*
-    NativeFM.h  -  a ROM-free, six-operator FM engine with the DX7 feature set.
-
-    Why this exists
-    ---------------
-    The bit-accurate path in External/ needs Yamaha's firmware ROM to run: it
-    boots an emulated HD6303 and lets the original code drive the EGS/OPS. That
-    ROM cannot be redistributed, so if the user has no ROM file the plugin would
-    otherwise be silent. This file is the fallback: an independent
-    implementation of the same synthesis architecture, written from the public
-    DX7 parameter specification, that consumes exactly the same 155-byte VCED
-    patch data and supports every function the panel exposes.
+    A ROM-free, six-operator FM engine with the DX7 feature set: an
+    implementation of the synthesis architecture written from the public DX7
+    parameter specification, that consumes the 155-byte VCED patch data and
+    supports every function of the voice.
 
     It is deliberately NOT a bit-accurate model. It runs in floating point at
     the host sample rate, so there is no 49.096 kHz resampling stage and none of
@@ -25,12 +17,11 @@
 
     What IS taken from the hardware, because it is structural rather than
     tonal, is the algorithm table. The 32 algorithms are not stored in the DX7
-    as a modulation matrix; they live in the OPS as per-timeslot control bits
-    (see External/OPS.h, `algoROM`). Running that little register machine
-    symbolically recovers the familiar chart, including which operator carries
-    the feedback tap and how many carriers each algorithm sums. The table below
-    was generated that way rather than typed from a manual, so it agrees with
-    the emulator by construction.
+    as a modulation matrix; they live in the OPS as per-timeslot control bits.
+    Running that little register machine symbolically recovers the familiar
+    chart, including which operator carries the feedback tap and how many
+    carriers each algorithm sums; the table below was generated that way rather
+    than typed from a manual.
 
     Structure of this file:
 
@@ -40,7 +31,7 @@
       4. NoteState     - one of 16 concurrent notes
       5. NativeEngine  - voice allocation, MIDI, LFO, block rendering
 
-    GPLv3, same as the rest of the project.
+    License: GPLv3.
 */
 #pragma once
 
@@ -52,7 +43,7 @@
 #include <algorithm>
 #include <functional>
 
-namespace vdx7native {
+namespace dxnative {
 
 // ============================================================================
 //  0.  Constants
@@ -747,7 +738,7 @@ private:
 // feedback path is deliberately NOT in that mask: it is scaled by the patch's
 // feedback amount and averaged over two samples, so it is applied separately.
 //
-// Generated from External/OPS.h's `algoROM` by simulating the OPS register
+// Generated from the OPS's algorithm control bits by simulating the OPS register
 // machine symbolically - see the note at the top of this file.
 struct AlgoDef
 {
@@ -1854,8 +1845,8 @@ private:
     float dcHz_ { 0.0f };   // DC blocker corner, 0 = off
     float dc_   { 0.0f };   // its running DC estimate
 
-    char lcd1_[24] { "VDX7 NATIVE FM" };
+    char lcd1_[24] { "DX NATIVE FM" };
     char lcd2_[24] { "NO ROM LOADED" };
 };
 
-} // namespace vdx7native
+} // namespace dxnative
