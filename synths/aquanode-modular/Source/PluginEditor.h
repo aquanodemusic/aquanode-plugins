@@ -1,0 +1,575 @@
+#pragma once
+
+#include <JuceHeader.h>
+#include "PluginProcessor.h"
+
+class PatchCanvas;
+
+//==============================================================================
+// Generic module rectangle - built entirely from the instance's
+// ModuleDescriptor. No module-specific UI code lives here.
+class ModuleComponent : public juce::Component
+{
+public:
+    ModuleComponent (AquanodeModularAudioProcessor& proc, PatchCanvas& canvas, int instanceId);
+
+    int getInstanceId() const { return instanceId; }
+
+    struct SocketRef
+    {
+        juce::String socketId;
+        bool isInput { false };
+        aquanode::SocketKind kind { aquanode::SocketKind::Audio };
+        juce::Point<int> centre;   // local coords
+    };
+
+    // returns nullptr if no socket is near the given local point
+    const SocketRef* findSocketNear (juce::Point<int> localPos, int radius = 14) const;
+    juce::Point<int> socketCentreInParent (const juce::String& socketId, bool isInput) const;
+
+    // knob modulation: hit-test rotary knobs that accept param cables
+    const aquanode::ParamSpec* findModulatableKnobNear (juce::Point<int> localPos) const;
+    juce::Point<int> knobCentreInParent (const juce::String& paramId) const;
+    void showKnobModMenu (const juce::String& paramId);   // right-click: depth / remove
+    bool knobHasModulation (const juce::String& paramId) const;
+
+    // touch-only long-press state (desktop uses right-click and never arms these)
+    juce::String longPressParamId;
+    bool longPressMoved { false };
+
+    void paintOverChildren (juce::Graphics& g) override;   // modulation rings
+
+    void refreshLayout();          // recompute (visibility may have changed) and resize
+    void refreshFromModel();       // pull all knob/combo values from the DSP (mutator etc.)
+    void refreshControlValues();   // knob values only, no relayout
+
+    //=== collapse (hide the controls, keep the header and its sockets) ========
+    // Collapsed modules shrink to their header, so a big patch stays readable
+    // without losing any routing: every socket is still there and every audio
+    // cable still lands. Knob-modulation cables are the one thing that cannot
+    // survive, since their target has no on-screen position while hidden - so
+    // they are simply not drawn, and reappear untouched on the same knob when
+    // the module is opened again. The cable itself is never removed.
+    bool isCollapsed() const;
+    void toggleCollapsed();
+
+    // GUI cards of the merged plugins: the "To Patch" pill in the header,
+    // shown when that plugin has a patch version
+    juce::Rectangle<int> convertPillArea() const;
+    bool showsConvertPill() const;
+
+    // false while collapsed, or when the knob is hidden by a visibleWhen rule.
+    // The canvas asks before drawing (or hit-testing) a param cable.
+    bool isKnobVisible (const juce::String& paramId) const;
+
+    void paint (juce::Graphics& g) override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp (const juce::MouseEvent& e) override;
+
+    static constexpr int defaultModuleWidth = 250;
+
+    // 250 for almost everything; a module can ask for a wider card (the
+    // Piano Roll, whose grid lives inside it and can be resized)
+    int moduleWidth() const;
+    int maxRowUnits() const;
+
+private:
+    struct ControlEntry
+    {
+        const aquanode::ParamSpec* spec { nullptr };
+        std::unique_ptr<juce::Component> component;
+        juce::Rectangle<int> labelArea;
+        bool visible { true };
+    };
+
+    bool isParamVisible (const aquanode::ParamSpec& spec) const;
+    int layoutEverything (bool apply);   // returns total height
+
+    // the little collapse tab drawn above the title. The drawn rectangle is
+    // deliberately smaller than the area this returns: the hit target has to
+    // stay thumb-sized on a phone without a chunky bar spoiling the header.
+    juce::Rectangle<int> collapseHitArea() const;
+    juce::Rectangle<int> collapseTabArea() const;
+    void buildControls();
+
+    AquanodeModularAudioProcessor& processor;
+    PatchCanvas& canvas;
+    const int instanceId;
+
+    std::vector<ControlEntry> controls;
+    std::vector<SocketRef> sockets;
+    std::unique_ptr<juce::Component> extraContent;
+    int headerHeight { 0 };
+
+    juce::ComponentDragger dragger;
+    bool draggingCable { false };
+    bool draggingBody { false };
+
+    // triple-click self-cable delete: three rapid clicks anywhere inside the
+    // module (without the mouse wandering) remove every cable the module has
+    // routed back into itself. Self-modulation cables start and end on the
+    // same rectangle, which makes them impossible to select on the canvas -
+    // this gesture is their delete path. Regular cables are untouched.
+    bool handleRapidClick (const juce::MouseEvent& e);   // true = self cables were deleted
+    juce::int64 lastClickTimeMs { 0 };
+    juce::Point<int> lastClickScreenPos;
+    int rapidClickCount { 0 };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ModuleComponent)
+};
+
+//==============================================================================
+// The patch map: gray background with a "+" grid, holds the module
+// rectangles, draws all cables, handles cable dragging and selection.
+class PatchCanvas : public juce::Component
+{
+public:
+    explicit PatchCanvas (AquanodeModularAudioProcessor& proc);
+
+    void rebuild();                // sync child components with the processor model
+    void refreshAllModuleValues(); // pull every module's knob values from the DSP
+
+    int getSelectedModuleId() const { return selectedModuleId; }
+    void selectModule (int instanceId);
+
+    // cable dragging (driven by ModuleComponent mouse events)
+    void beginCableDrag (int moduleId, const juce::String& socketId, bool isInput,
+                         aquanode::SocketKind kind, juce::Point<int> canvasPos);
+    void updateCableDrag (juce::Point<int> canvasPos);
+    void endCableDrag (juce::Point<int> canvasPos);
+    bool isDraggingCable() const { return dragActive; }
+
+    void moduleMoved();            // repaint cables while a module is dragged
+
+    juce::Point<int> getPanOffset() const { return panOffset; }
+    void resetView();              // recentre the patch (pan back to origin, zoom to 100%)
+    void fitToContent();           // zoom and pan so every module is visible (after a generated patch)
+
+    //=== view zoom ============================================================
+    // Zoom is a pure VIEW transform, never a re-layout: module bounds stay in
+    // world coordinates and every module carries the same AffineTransform.
+    // JUCE inverts that transform for hit-testing and for the coordinates in
+    // every MouseEvent, so knobs, cable drags and ComponentDragger all keep
+    // working at any zoom with no scaling maths of their own - a 10 px finger
+    // move at 50 % becomes a 20 unit world move, and the module still tracks
+    // the finger exactly. Nothing is re-measured, so no layout can break.
+    static constexpr float minZoom = 0.3f;
+    static constexpr float maxZoom = 2.0f;
+
+    float getZoom() const { return zoom; }
+
+    // keeps the world point currently under focusScreenPos pinned there
+    void setZoom (float newZoom, juce::Point<float> focusScreenPos);
+    void zoomBy (float factor);    // about the centre of the visible canvas
+
+    juce::AffineTransform worldToScreen() const
+    {
+        return juce::AffineTransform::scale (zoom)
+                   .translated ((float) panOffset.x, (float) panOffset.y);
+    }
+
+    juce::Point<float> screenToWorld (juce::Point<float> p) const
+    {
+        return { (p.x - (float) panOffset.x) / zoom,
+                 (p.y - (float) panOffset.y) / zoom };
+    }
+
+    // called by the editor when a module is collapsed/expanded
+    void moduleCollapsedChanged() { repaint(); }
+
+    // replaces a plugin's GUI card by its patch version (async: the card that
+    // asked is deleted by the rebuild)
+    void convertPluginCard (int instanceId);
+
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override;
+    void mouseMagnify (const juce::MouseEvent& e, float scaleFactor) override;
+
+    void paint (juce::Graphics& g) override;
+    void paintOverChildren (juce::Graphics& g) override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp (const juce::MouseEvent& e) override;
+    void mouseDoubleClick (const juce::MouseEvent& e) override;
+    bool keyPressed (const juce::KeyPress& key) override;
+    void resized() override;
+
+private:
+    ModuleComponent* findModuleComponent (int instanceId) const;
+    juce::Path cablePath (juce::Point<float> from, juce::Point<float> to) const;
+    bool getCableEndpoints (const CableInfo& c, juce::Point<float>& from, juce::Point<float>& to) const;
+    int cableIndexNear (juce::Point<float> pos, float maxDistance = 9.0f) const;
+    int paramCableIndexNear (juce::Point<float> pos, float maxDistance = 6.0f) const;
+    void applyViewToChildren();    // push world position + view transform onto every module
+    void rebuildGrid();
+    float gridScreenSpacing() const;
+
+    AquanodeModularAudioProcessor& processor;
+    std::vector<std::unique_ptr<ModuleComponent>> moduleComponents;
+
+    int selectedModuleId { -1 };
+    int selectedCableIndex { -1 };
+    int selectedParamCableIndex { -1 };   // knob-modulation cable under the mouse
+
+    // live cable drag state
+    bool dragActive { false };
+    int dragModuleId { -1 };
+    juce::String dragSocketId;
+    bool dragFromInput { false };
+    aquanode::SocketKind dragKind { aquanode::SocketKind::Audio };
+    juce::Point<int> dragCurrentPos;
+
+    juce::Path gridPath;
+
+    // view panning (drag on empty canvas) + zoom
+    float zoom { 1.0f };
+    juce::Point<int> panOffset;
+    bool panning { false };
+    juce::Point<int> panStartOffset;
+    juce::Point<int> panMouseStart;
+
+    // two-finger pinch (touch screens): true when the event was part of it
+    bool pinchTouch (const juce::MouseEvent& e, bool down, bool up);
+    struct Touch { int index; juce::Point<float> pos; };
+    std::vector<Touch> touches;
+    bool pinching { false };
+    float pinchStartZoom { 1.0f }, pinchStartDist { 1.0f };
+    juce::Point<float> pinchStartMid;
+    juce::Point<int> pinchStartPan;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PatchCanvas)
+};
+
+//==============================================================================
+// The sidebar's hover tooltip: a floating panel of wrapped text. Lives on the
+// top-level component rather than inside the sidebar, so it can extend past
+// the sidebar's Viewport instead of being clipped by it.
+class SidebarTooltip : public juce::Component
+{
+public:
+    SidebarTooltip() { setInterceptsMouseClicks (false, false); }
+
+    static constexpr int padding = 10;
+
+    // sizes itself to the text; maxWidth caps how wide it grows before wrapping
+    void setText (const juce::String& title, const juce::String& body, int maxWidth);
+
+    void paint (juce::Graphics& g) override;
+
+private:
+    juce::TextLayout layout;
+};
+
+//==============================================================================
+// Left sidebar: black, section titles + module names from the factory.
+class SidebarComponent : public juce::Component,
+                         private juce::Timer
+{
+public:
+    // typeId is a module type, or a patch generator's id (Preset Generation
+    // rows); openMenu is true when a generator row's arrow was tapped (rows
+    // with a menu only)
+    explicit SidebarComponent (std::function<void (const juce::String& typeId, bool openMenu)> onModuleClicked);
+    ~SidebarComponent() override;
+
+    void paint (juce::Graphics& g) override;
+    void mouseUp (const juce::MouseEvent& e) override;
+    void mouseMove (const juce::MouseEvent& e) override;
+    void mouseExit (const juce::MouseEvent& e) override;
+
+    // the "With Mutation" toggle beside the Preset Generation title
+    void setWithMutation (bool on)   { withMutation = on; repaint(); }
+    bool getWithMutation() const     { return withMutation; }
+    std::function<void (bool)> onWithMutationChanged;
+
+    // the Auto-Connect switch at the top
+    void setAutoConnect (bool on)    { autoConnect = on; repaint(); }
+    bool getAutoConnect() const      { return autoConnect; }
+    std::function<void (bool)> onAutoConnectChanged;
+
+    // which category headers are open (all folded by default)
+    void setExpandedHeaders (const juce::StringArray& open) { expandedHeaders = open; buildRows(); repaint(); }
+    std::function<void (const juce::StringArray&)> onExpandedChanged;
+
+    static constexpr int sidebarWidth = 220;
+    static constexpr int scrollBarWidth = 12;   // reserved so the Viewport's scrollbar never covers text
+
+private:
+    struct Row
+    {
+        juce::Rectangle<int> area;
+        juce::String text;
+        juce::String typeId;       // empty for section titles
+        juce::Colour colour;
+        bool isGenerator { false };
+        bool hasMenu { false };    // generator rows: an arrow opens a menu
+        bool centreFullWidth { false };   // the Random row: name centred on the whole row
+        bool isToggle { false };          // the With Mutation toggle
+        bool isPlugin { false };          // a Plugins row: name = GUI version, pill = patch version
+        bool pluginHasPatch { false };
+        juce::String headerKey;           // a category header that folds its list
+    };
+
+    // the two pills at the right end of a Plugins row
+    static juce::Rectangle<int> pluginGuiPillArea (const Row& row)
+    {
+        return row.area.withLeft (row.area.getRight() - 84).withWidth (34).reduced (0, 2);
+    }
+    static juce::Rectangle<int> pluginPatchPillArea (const Row& row)
+    {
+        return row.area.withLeft (row.area.getRight() - 46).reduced (0, 2);
+    }
+
+    // the arrow at the right end of a generator row, which opens its menu
+    static juce::Rectangle<int> generatorMenuArea (const Row& row)
+    {
+        return row.area.withLeft (row.area.getRight() - 30);
+    }
+
+    void buildRows();
+
+    //=== hover tooltip ======================================================
+    static constexpr int hoverDelayMs = 1500;   // a deliberate rest, not a twitch
+    static constexpr int hoverSlackPx = 3;      // hand tremor must not restart the wait
+
+    void timerCallback() override;
+    void showTooltipFor (const Row& row);
+    void hideTooltip();
+    const Row* rowAt (juce::Point<int> pos) const;
+
+    std::vector<Row> rows;
+    std::function<void (const juce::String&, bool)> moduleClicked;
+    bool withMutation { false };
+    bool autoConnect { false };
+    juce::StringArray expandedHeaders;
+
+    // touch: the first tap ("typeId|part") and when it came
+    static constexpr int doubleTapMs = 450;
+    juce::String pendingTapKey;
+    juce::uint32 pendingTapMs { 0 };
+
+    std::unique_ptr<SidebarTooltip> tooltip;
+    juce::String hoveredTypeId;
+    juce::Point<int> hoverPos;
+    juce::uint32 hoverStartMs { 0 };
+};
+
+//==============================================================================
+// Patch Mutator - G2-style interactive evolution over the patch's knob
+// values. Topology never changes; Input/Output modules are excluded so a
+// mutation can never blast the master level.
+class MutatorPanel : public juce::Component
+{
+public:
+    MutatorPanel (AquanodeModularAudioProcessor&, PatchCanvas&);
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+    // Mutates the whole patch `times` times in a row at `amount` (0..1) as ONE
+    // step: Undo brings back the patch as it was before. Used by Preset
+    // Generation's "With Mutation".
+    void mutateSeveral (float amount, int times);
+
+private:
+    // instanceId -> (paramId -> value): a "genome" of the current patch
+    using Snapshot = std::map<int, std::map<juce::String, float>>;
+
+    Snapshot capture() const;
+    void apply (const Snapshot&);
+    void pushHistory();
+    void doMutate();
+    void mutateOnce (float amount);
+    void doBreed();
+    void doRecall (const Snapshot&, bool exists);
+    float mutateValue (const aquanode::ParamSpec&, float current, float amount);
+
+    AquanodeModularAudioProcessor& processor;
+    PatchCanvas& canvas;
+
+    juce::Slider amountSlider;
+    juce::TextButton mutateButton  { "Mutate" };
+    juce::TextButton undoButton    { "Undo" };
+    juce::TextButton storeAButton  { "Store A" };
+    juce::TextButton storeBButton  { "Store B" };
+    juce::TextButton recallAButton { "Recall A" };
+    juce::TextButton recallBButton { "Recall B" };
+    juce::TextButton breedButton   { "Breed AxB" };
+
+    Snapshot slotA, slotB;
+    bool hasA { false }, hasB { false };
+    std::vector<Snapshot> history;
+    juce::Random rng;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MutatorPanel)
+};
+
+//==============================================================================
+// The grip on top of the on-screen keyboard: drag it up or down to make the
+// keyboard taller or shorter, double-click / double-tap for the default.
+class KeyboardHeightHandle : public juce::Component
+{
+public:
+    std::function<int()> getHeightNow;            // the keyboard's height when the drag starts
+    std::function<void (int)> onHeightChanged;    // new height (0 = default)
+
+    void paint (juce::Graphics& g) override
+    {
+        const auto pill = getLocalBounds().toFloat().withSizeKeepingCentre (56.0f, 8.0f);
+        g.setColour (juce::Colour (0xff4fc3f7).withAlpha (isMouseOverOrDragging() ? 1.0f : 0.85f));
+        g.fillRoundedRectangle (pill, 4.0f);
+    }
+    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+    void mouseExit (const juce::MouseEvent&) override  { repaint(); }
+    void mouseDown (const juce::MouseEvent&) override
+    {
+        startH = getHeightNow != nullptr ? getHeightNow() : 0;
+    }
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (onHeightChanged != nullptr)
+            onHeightChanged (juce::jmax (1, startH - e.getDistanceFromDragStartY()));
+    }
+    void mouseDoubleClick (const juce::MouseEvent&) override
+    {
+        if (onHeightChanged != nullptr)
+            onHeightChanged (0);
+    }
+
+private:
+    int startH { 0 };
+};
+
+//==============================================================================
+class AquanodeModularAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                            private juce::ChangeListener
+{
+public:
+    explicit AquanodeModularAudioProcessorEditor (AquanodeModularAudioProcessor&);
+    ~AquanodeModularAudioProcessorEditor() override;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+    PatchCanvas& getCanvas() { return canvas; }
+
+    // Auto-Connect: wires up the modules added since `before`
+    enum class AutoRole { FromSection, Source, Effect };
+    void autoConnectAdded (const std::vector<int>& before, AutoRole role);
+    void addPluginGui (const juce::String& pluginId);
+    void buildPluginPatch (const juce::String& pluginId, const juce::File& presetFile, bool replace);
+
+private:
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+
+    AquanodeModularAudioProcessor& processor;
+
+    SidebarComponent sidebar;
+    KeyboardHeightHandle keyboardHandle;
+    juce::Viewport sidebarViewport;   // makes the sidebar scrollable when its content exceeds the visible height
+    PatchCanvas canvas;
+
+    // Dark bar across the top of the patch area, mirroring the mutator strip at
+    // the bottom. Purely the background: the buttons stay editor children so
+    // their existing wiring is untouched, and they are added after this so they
+    // sit in front of it.
+    struct ToolbarStrip : public juce::Component
+    {
+        void paint (juce::Graphics& g) override { g.fillAll (juce::Colour (0xdd141210)); }
+    };
+    ToolbarStrip toolbarStrip;
+
+    juce::TextButton initButton    { "Initialize Patch" };
+    juce::TextButton cloneButton   { "Clone Selected" };
+    juce::TextButton deleteButton  { "Delete Selected" };
+    juce::TextButton exportButton  { "Export Patch" };
+    juce::TextButton importButton  { "Import Patch" };
+    juce::TextButton mutatorButton { "Mutator" };
+
+    // Panel toggles. Hiding the sidebar and the keyboard gives the patch area
+    // the whole screen, which is the difference between usable and unusable on
+    // a phone. Both are pure layout changes - resized() re-runs and the canvas
+    // simply gets more room.
+    juce::TextButton sidebarButton { "Sidebar" };
+    juce::TextButton keysButton    { "Keys" };
+    bool sidebarVisible { true };
+    bool keyboardVisible { true };
+
+    // Zoom controls. The [-][+] buttons live in the top toolbar, right next
+    // to Mutator, narrower than the other toolbar buttons since they only
+    // ever hold a single glyph. The percentage itself is not a button at
+    // all any more - a small text readout in the bottom-right of the
+    // patch area, out of the way of the mutator strip. Tapping it resets
+    // the view to 100 % at the origin.
+    juce::TextButton zoomOutButton { "-" };
+    juce::TextButton zoomInButton  { "+" };
+
+    struct ZoomReadout : public juce::Component
+    {
+        std::function<void()> onClick;
+        juce::String text { "100%" };
+
+        void paint (juce::Graphics& g) override
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.5f));
+            g.setFont (juce::Font (juce::FontOptions (9.5f)));
+            g.drawText (text, getLocalBounds(), juce::Justification::centredRight);
+        }
+
+        void mouseUp (const juce::MouseEvent&) override { if (onClick) onClick(); }
+    };
+    ZoomReadout zoomReadout;
+    void updateZoomReadout();
+
+    MutatorPanel mutatorPanel;
+
+    // the name of what is loaded ("Init", "DnB Bass 07"), bottom left of
+    // the patch area; follows the processor by itself
+    struct PatchNameLabel : public juce::Component, private juce::Timer
+    {
+        explicit PatchNameLabel (AquanodeModularAudioProcessor& p) : proc (p)
+        {
+            setInterceptsMouseClicks (false, false);
+            startTimerHz (4);
+        }
+
+        void paint (juce::Graphics& g) override
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.5f));
+            g.setFont (juce::Font (juce::FontOptions (11.0f)));
+            g.drawText (shown, getLocalBounds(), juce::Justification::centredLeft, true);
+        }
+
+        void timerCallback() override
+        {
+            if (proc.patchName != shown)
+            {
+                shown = proc.patchName;
+                repaint();
+            }
+        }
+
+        AquanodeModularAudioProcessor& proc;
+        juce::String shown;
+    };
+    PatchNameLabel patchNameLabel { processor };
+
+    // Plugins rows: the GUI card, or the patch version's menu
+
+    void showPluginPatchMenu (const juce::String& pluginId);
+    void pickPluginPreset (const juce::String& pluginId, bool replace);
+
+    // generator rows: a fresh random patch, or the generator's menu
+    void runGenerator (const juce::String& generatorId, bool openMenu);
+    void applyGenerated (std::function<juce::String (AquanodeModularAudioProcessor&)> build);
+
+    // Bottom on-screen keyboard, on every build: the Keys button shows and
+    // hides it (hidden, the patch area gets its height back). Host and
+    // hardware MIDI keep working either way and light up its keys.
+    std::unique_ptr<juce::MidiKeyboardComponent> midiKeyboard;
+
+    std::unique_ptr<juce::FileChooser> fileChooser;
+    int placementCounter { 0 };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AquanodeModularAudioProcessorEditor)
+};

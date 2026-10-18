@@ -14,6 +14,8 @@ This is the **Android port** of the **Aquanode Modular Synthesizer**. It uses th
 - Built-in **on-screen MIDI keyboard** located at the bottom of the display.
 - Supports **external MIDI keyboards**, provided your Android device and MIDI controller are compatible.
 - **Preset import and export** is compatible with the VST3 version (tested with several small presets).
+- **All the Aquanode plugins** in the sidebar's Plugins section, in their GUI and patch versions (see the synth's README).
+- **Touch:** pinch on empty canvas to zoom, tap a sidebar row twice to add a module.
 
 ## Documentation
 
